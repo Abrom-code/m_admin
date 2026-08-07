@@ -28,44 +28,75 @@ class TestEditorScreen extends StatelessWidget {
     );
 
     return AdminScaffold(
-      title: testId == null ? 'New test' : 'Edit test',
-      subtitle: subjectName,
-      actions: [
-        Obx(
-          () => FilledButton.icon(
-            onPressed: controller.isSaving.value ? null : controller.saveTest,
-            icon: controller.isSaving.value
-                ? const SizedBox(
-                    height: 14,
-                    width: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.save_rounded, size: AppSizes.iconSm),
-            label: const Text('Save'),
-          ),
-        ),
-      ],
       body: Obx(() {
         if (controller.isLoading.value) {
           return const Center(child: CircularProgressIndicator());
         }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              flex: 4,
-              child: _TestForm(controller: controller),
-            ),
-            if (testId != null) ...[
-              const SizedBox(width: AppSizes.spaceBtwItems),
-              Expanded(
-                flex: 5,
-                child: _QuestionList(controller: controller),
+            // Page header: title + save button
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSizes.spaceBtwItems),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          testId == null ? 'New test' : 'Edit test',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        if (subjectName.isNotEmpty)
+                          Text(
+                            subjectName,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Obx(
+                    () => FilledButton.icon(
+                      onPressed:
+                          controller.isSaving.value ? null : controller.saveTest,
+                      icon: controller.isSaving.value
+                          ? const SizedBox(
+                              height: 14,
+                              width: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.save_rounded, size: AppSizes.iconSm),
+                      label: const Text('Save'),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: _TestForm(controller: controller),
+                  ),
+                  if (testId != null) ...[
+                    const SizedBox(width: AppSizes.spaceBtwItems),
+                    Expanded(
+                      flex: 5,
+                      child: _QuestionList(controller: controller),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ],
         );
       }),
