@@ -9,6 +9,7 @@ import 'package:m_admin/routes/routes.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:m_admin/utils/helpers/helper_functions.dart';
 
 // ── Models ───────────────────────────────────────────────────────────
 
@@ -39,13 +40,13 @@ class SubjectRow {
   }
 
   factory SubjectRow.fromJson(Map<String, dynamic> j) => SubjectRow(
-    id: (j['id'] as num?)?.toInt() ?? 0,
+    id: AppHelperFunctions.toInt(j['id']) ?? 0,
     name: j['name']?.toString() ?? '',
     isNatural: j['is_natural'] == true,
     isCommon: j['is_common'] == true,
-    chapterCount: (j['chapter_count'] as num?)?.toInt() ?? 0,
-    testCount: (j['test_count'] as num?)?.toInt() ?? 0,
-    questionCount: (j['question_count'] as num?)?.toInt() ?? 0,
+    chapterCount: AppHelperFunctions.toInt(j['chapter_count']) ?? 0,
+    testCount: AppHelperFunctions.toInt(j['test_count']) ?? 0,
+    questionCount: AppHelperFunctions.toInt(j['question_count']) ?? 0,
     updatedAt: j['updated_at'] == null
         ? null
         : DateTime.tryParse(j['updated_at'].toString()),
@@ -91,13 +92,13 @@ class TestRow {
   }
 
   factory TestRow.fromJson(Map<String, dynamic> j) => TestRow(
-    id: (j['id'] as num?)?.toInt() ?? 0,
+    id: AppHelperFunctions.toInt(j['id']) ?? 0,
     title: j['title']?.toString() ?? '',
     type: j['type']?.toString() ?? '',
-    grade: (j['grade'] as num?)?.toInt(),
-    chapterId: (j['chapter_id'] as num?)?.toInt(),
-    time: (j['time'] as num?)?.toInt() ?? -1,
-    questionCount: (j['question_count'] as num?)?.toInt() ?? 0,
+    grade: AppHelperFunctions.toInt(j['grade']),
+    chapterId: AppHelperFunctions.toInt(j['chapter_id']),
+    time: AppHelperFunctions.toInt(j['time']) ?? -1,
+    questionCount: AppHelperFunctions.toInt(j['question_count']) ?? 0,
     updatedAt: j['updated_at'] == null
         ? null
         : DateTime.tryParse(j['updated_at'].toString()),
@@ -139,7 +140,7 @@ class ContentController extends GetxController {
 
       final List<SubjectRow> result = [];
       for (final s in subRows) {
-        final sid = (s['id'] as num).toInt();
+        final sid = AppHelperFunctions.toInt(s['id']) ?? 0;
         final counts = await Future.wait([
           _sb.from('chapters').select('id').eq('subject_id', sid).count(CountOption.exact),
           _sb.from('tests').select('id').eq('subject_id', sid).count(CountOption.exact),

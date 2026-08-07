@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:m_admin/utils/helpers/helper_functions.dart';
 
 class ContentRepository {
   final _sb = Supabase.instance.client;
@@ -69,7 +70,7 @@ class ContentRepository {
 
       // Recompute question_count after every mutation.
       if (data['id'] != null) {
-        await recountTestQuestions(data['id'] as int);
+        await recountTestQuestions(AppHelperFunctions.toInt(data['id']) ?? 0);
       }
     } catch (e) {
       throw AppExceptionHandler.handle(e);
@@ -145,7 +146,7 @@ class ContentRepository {
 
       // Recompute test question_count.
       if (data['test_id'] != null) {
-        await recountTestQuestions(data['test_id'] as int);
+        await recountTestQuestions(AppHelperFunctions.toInt(data['test_id']) ?? 0);
       }
     } catch (e) {
       throw AppExceptionHandler.handle(e);

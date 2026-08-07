@@ -5,6 +5,7 @@ import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/data/repositories/content_repository.dart';
 import 'package:m_admin/features/content/controllers/test_editor_controller.dart';
 import 'package:m_admin/utils/constants/colors.dart';
+import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 
 class TestEditorScreen extends StatelessWidget {
@@ -133,7 +134,7 @@ class _TestForm extends StatelessWidget {
                   ),
                   ...controller.chapters.map(
                     (c) => DropdownMenuItem<int?>(
-                      value: (c['id'] as num).toInt(),
+                      value: AppHelperFunctions.toInt(c['id']) ?? 0,
                       child: Text(
                         'Gr${c['grade']} Ch${c['chapter_number']}: '
                         '${c['title'] ?? ''}',
@@ -232,14 +233,13 @@ class _QuestionList extends StatelessWidget {
                   const Divider(height: 1),
               itemBuilder: (context, i) {
                 final q = controller.questions[i];
-                final qId = (q['id'] as num?)?.toInt();
-                final order = (q['question_order'] as num?)?.toInt() ?? i + 1;
+                final qId = AppHelperFunctions.toInt(q['id']);
+                final order = AppHelperFunctions.toInt(q['question_order']) ?? i + 1;
                 final text = q['question_text']?.toString() ?? '';
                 final opts = q['options'];
                 final optCount =
                     opts is List ? opts.length : 0;
-                final correct =
-                    (q['correct_option_index'] as num?)?.toInt();
+                final correct = AppHelperFunctions.toInt(q['correct_option_index']);
 
                 return ListTile(
                   dense: true,
@@ -412,8 +412,7 @@ class _QuestionEditorViewState extends State<_QuestionEditorView> {
         }
       }
 
-      _correctIndex =
-          (data['correct_option_index'] as num?)?.toInt() ?? 0;
+      _correctIndex = AppHelperFunctions.toInt(data['correct_option_index']) ?? 0;
     } catch (e) {
       // ignore load errors — blank form is still usable
     } finally {

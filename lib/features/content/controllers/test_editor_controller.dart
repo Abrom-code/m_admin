@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/content_repository.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 class TestEditorController extends GetxController {
@@ -62,8 +63,8 @@ class TestEditorController extends GetxController {
       titleCtrl.text = data['title']?.toString() ?? '';
       typeValue.value = data['type']?.toString() ?? 'chapter';
       gradeCtrl.text = data['grade']?.toString() ?? '';
-      selectedChapterId.value = (data['chapter_id'] as num?)?.toInt();
-      final time = (data['time'] as num?)?.toInt() ?? -1;
+      selectedChapterId.value = AppHelperFunctions.toInt(data['chapter_id']);
+      final time = AppHelperFunctions.toInt(data['time']) ?? -1;
       isUntimed.value = time == -1;
       timeCtrl.text = time == -1 ? '' : time.toString();
       questions.value = await _repo.fetchQuestionsForTest(testId!);
@@ -110,7 +111,7 @@ class TestEditorController extends GetxController {
     if (testId == null) return;
     try {
       await _repo.deleteQuestion(questionId, testId!);
-      questions.removeWhere((q) => (q['id'] as num?)?.toInt() == questionId);
+      questions.removeWhere((q) => AppHelperFunctions.toInt(q['id']) == questionId);
       SnackbarHelper.success('Deleted', 'Question removed.');
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
