@@ -1,0 +1,18 @@
+# Analyzer configuration for the MatricMate admin app.
+#
+# Unlike the parent matricmate app, this includes the flutter_lints ruleset —
+# the parent defines only a handful of bare `linter.rules` and never includes
+# the recommended set.
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    avoid_print: true
+    prefer_const_constructors: true
+    prefer_single_quotes: true
+    prefer_final_locals: true
+    unnecessary_null_checks: true
+
+analyzer:
+  errors:
+    todo: ignore

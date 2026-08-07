@@ -1,0 +1,50 @@
+name: m_admin
+description: "MatricMate Admin — internal operations console. Not for student distribution."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Versions mirror the parent matricmate app exactly, so there is one
+  # dependency story across the two codebases.
+  get: ^4.7.3
+  supabase_flutter: ^2.12.2
+  flutter_dotenv: ^5.1.2
+  google_fonts: ^6.2.1
+  iconsax_flutter: ^1.0.1
+  intl: ^0.20.2
+  connectivity_plus: ^7.1.0
+  fluttertoast: ^9.0.0
+  image_picker: ^1.2.1
+  get_storage: ^2.1.1
+  http: ^1.6.0
+
+  # Pinned, unlike the parent's `url_launcher: any`.
+  url_launcher: ^6.3.1
+
+  # Deliberately ABSENT — see ADMIN_APP_PROMPT.md Phase 3:
+  #   sqflite            no offline cache; an admin tool must never show stale money
+  #   firebase_messaging the admin app receives no push
+  #   any chart package  charts are hand-rolled CustomPainters (Phase 0.5)
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  # `.env` is listed as an asset so flutter_dotenv can load it from the bundle.
+  # It is gitignored — CI/production builds inject it at build time.
+  # Do NOT ship this file in a public student build.
+  assets:
+    - .env
