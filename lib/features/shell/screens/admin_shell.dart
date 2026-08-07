@@ -37,8 +37,26 @@ class AdminShell extends StatelessWidget {
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= kSidebarBreakpoint;
 
+        final appBar = AppBar(
+          title: Obx(
+            () => Text(AdminNavController.items[nav.selectedIndex.value].label),
+          ),
+          actions: [
+            Obx(() {
+              if (!nav.currentPageHasRefresh) return const SizedBox.shrink();
+              return IconButton(
+                tooltip: 'Refresh',
+                onPressed: nav.invokeCurrentRefresh,
+                icon: const Icon(Icons.refresh_rounded),
+              );
+            }),
+            const SizedBox(width: 4),
+          ],
+        );
+
         if (isWide) {
           return Scaffold(
+            appBar: appBar,
             body: Row(
               children: [
                 SizedBox(
@@ -52,11 +70,7 @@ class AdminShell extends StatelessWidget {
         }
 
         return Scaffold(
-          appBar: AppBar(
-            title: Obx(
-              () => Text(AdminNavController.items[nav.selectedIndex.value].label),
-            ),
-          ),
+          appBar: appBar,
           drawer: Drawer(
             width: kSidebarWidth,
             child: AdminSidebar(

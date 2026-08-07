@@ -285,7 +285,7 @@ class _DetailPane extends StatelessWidget {
               ),
               if (method != null) ...[
                 _KeyValue(
-                  label: 'Should have been paid to',
+                  label: 'Paid to',
                   value: '${method.account}  (${method.holder})',
                   copyable: true,
                 ),
@@ -294,9 +294,7 @@ class _DetailPane extends StatelessWidget {
                 label: 'Submitted',
                 value: review.createdAt == null
                     ? '—'
-                    : DateFormat(
-                        'd MMM yyyy, HH:mm',
-                      ).format(review.createdAt!),
+                    : DateFormat('d MMM yyyy, HH:mm').format(review.createdAt!),
               ),
               const SizedBox(height: AppSizes.sm),
 
@@ -354,10 +352,7 @@ class _DetailPane extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _KeyValue(
-                  label: 'Outcome',
-                  value: review.status,
-                ),
+                _KeyValue(label: 'Outcome', value: review.status),
                 _KeyValue(
                   label: 'Reviewed at',
                   value: review.reviewedAt == null
@@ -371,10 +366,7 @@ class _DetailPane extends StatelessWidget {
                   value: review.reviewedBy ?? '—',
                 ),
                 if ((review.rejectionReason ?? '').isNotEmpty)
-                  _KeyValue(
-                    label: 'Reason',
-                    value: review.rejectionReason!,
-                  ),
+                  _KeyValue(label: 'Reason', value: review.rejectionReason!),
               ],
             ),
           ),
@@ -413,10 +405,7 @@ class _KeyValue extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: SelectableText(
-              value,
-              style: const TextStyle(fontSize: 12),
-            ),
+            child: SelectableText(value, style: const TextStyle(fontSize: 12)),
           ),
           if (copyable)
             IconButton(
@@ -540,10 +529,7 @@ class _ActionBar extends StatelessWidget {
             const Expanded(
               child: Text(
                 'A approve   ·   R reject   ·   J / K next / previous',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
             ),
             OutlinedButton.icon(

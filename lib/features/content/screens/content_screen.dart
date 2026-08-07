@@ -221,19 +221,9 @@ class ContentScreen extends StatelessWidget {
     final controller = Get.put(ContentController());
 
     return AdminScaffold(
-      title: 'Content',
-      subtitle: 'Subjects, chapters, tests and questions',
+      pageIndex: 4,
+      onRefresh: controller.loadSubjects,
       scrollable: false,
-      actions: [
-        Obx(
-          () => IconButton(
-            tooltip: 'Refresh',
-            onPressed:
-                controller.isLoading.value ? null : controller.loadSubjects,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ),
-      ],
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

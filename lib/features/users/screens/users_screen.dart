@@ -18,18 +18,9 @@ class UsersScreen extends StatelessWidget {
     final controller = Get.put(UsersController());
 
     return AdminScaffold(
-      title: 'Users',
-      subtitle: 'Student accounts and subscription management',
+      pageIndex: 3,
+      onRefresh: controller.loadAll,
       scrollable: false,
-      actions: [
-        Obx(
-          () => IconButton(
-            tooltip: 'Refresh',
-            onPressed: controller.isLoading.value ? null : controller.loadAll,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ),
-      ],
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

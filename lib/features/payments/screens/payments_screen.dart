@@ -23,20 +23,9 @@ class PaymentsScreen extends StatelessWidget {
     final controller = Get.put(PaymentsController(), permanent: true);
 
     return AdminScaffold(
-      title: 'Payments',
-      subtitle: 'Review receipts and grant or withhold premium access',
+      pageIndex: 1,
+      onRefresh: controller.refreshAll,
       scrollable: false,
-      actions: [
-        Obx(
-          () => IconButton(
-            tooltip: 'Refresh',
-            onPressed: controller.isLoading.value
-                ? null
-                : controller.refreshAll,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ),
-      ],
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

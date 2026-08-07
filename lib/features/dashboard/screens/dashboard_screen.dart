@@ -21,17 +21,8 @@ class DashboardScreen extends StatelessWidget {
     final controller = Get.put(DashboardController());
 
     return AdminScaffold(
-      title: 'Dashboard',
-      subtitle: 'MatricMate operations overview',
-      actions: [
-        Obx(
-          () => IconButton(
-            tooltip: 'Refresh',
-            onPressed: controller.isLoading.value ? null : controller.load,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ),
-      ],
+      pageIndex: 0,
+      onRefresh: controller.load,
       body: Obx(() {
         if (controller.isLoading.value && controller.stats.value == null) {
           return const Padding(

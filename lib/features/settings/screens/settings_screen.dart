@@ -150,8 +150,6 @@ class SettingsScreen extends StatelessWidget {
     final controller = Get.put(SettingsController());
 
     return AdminScaffold(
-      title: 'Settings',
-      subtitle: 'App configuration and payment methods',
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

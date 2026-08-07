@@ -113,18 +113,9 @@ class AuditLogScreen extends StatelessWidget {
     final controller = Get.put(AuditLogController());
 
     return AdminScaffold(
-      title: 'Audit Log',
-      subtitle: 'Admin actions trail',
+      pageIndex: 6,
+      onRefresh: controller.load,
       scrollable: false,
-      actions: [
-        Obx(
-          () => IconButton(
-            tooltip: 'Refresh',
-            onPressed: controller.isLoading.value ? null : controller.load,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ),
-      ],
       body: Obx(
         () => AdminDataTable<AuditEntry>(
           rows: controller.entries.toList(),

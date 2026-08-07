@@ -17,26 +17,21 @@ class NotificationsScreen extends StatelessWidget {
     final controller = Get.put(NotificationsController());
 
     return AdminScaffold(
-      title: 'Notifications',
-      subtitle: 'Broadcast messages to students',
+      pageIndex: 2,
+      onRefresh: controller.load,
       scrollable: false,
-      actions: [
-        Obx(
-          () => IconButton(
-            tooltip: 'Refresh',
-            onPressed: controller.isLoading.value ? null : controller.load,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ),
-        ElevatedButton.icon(
-          onPressed: () => _openCompose(context, controller),
-          icon: const Icon(Icons.send_rounded, size: AppSizes.iconSm),
-          label: const Text('Send notification'),
-        ),
-      ],
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: () => _openCompose(context, controller),
+              icon: const Icon(Icons.send_rounded, size: AppSizes.iconSm),
+              label: const Text('Send notification'),
+            ),
+          ),
+          const SizedBox(height: AppSizes.spaceBtwItems),
           _TypeFilter(controller: controller),
           const SizedBox(height: AppSizes.spaceBtwItems),
           Expanded(child: _Table(controller: controller)),

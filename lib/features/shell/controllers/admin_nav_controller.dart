@@ -71,4 +71,20 @@ class AdminNavController extends GetxController {
         return 0;
     }
   }
+
+  // ── Per-page refresh registry ────────────────────────────────────────
+
+  final _refreshFns = <int, VoidCallback>{};
+
+  /// Called by [AdminScaffold] during build to register the screen's refresh.
+  void setPageRefresh(int pageIndex, VoidCallback fn) {
+    _refreshFns[pageIndex] = fn;
+  }
+
+  /// Triggers the active page's refresh, if one is registered.
+  void invokeCurrentRefresh() => _refreshFns[selectedIndex.value]?.call();
+
+  /// True when the active page has a registered refresh callback.
+  bool get currentPageHasRefresh =>
+      _refreshFns.containsKey(selectedIndex.value);
 }

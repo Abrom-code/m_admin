@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
@@ -9,21 +10,27 @@ import 'package:m_admin/utils/helpers/helper_functions.dart';
 /// place, so eight feature screens cannot drift apart. Note this is NOT a
 /// [Scaffold] — the shell owns the single Scaffold, and feature screens are
 /// bodies inside its `IndexedStack`.
+///
+/// Pass [pageIndex] and [onRefresh] to register a refresh callback that the
+/// shell's AppBar refresh button will invoke for this page.
 class AdminScaffold extends StatelessWidget {
   const AdminScaffold({
     super.key,
-    required this.title,
     required this.body,
-    this.subtitle,
-    this.actions,
+    this.pageIndex,
+    this.onRefresh,
     this.maxContentWidth = 1200,
     this.scrollable = true,
     this.banner,
   });
 
-  final String title;
-  final String? subtitle;
-  final List<Widget>? actions;
+  /// Index in [AdminNavController.items] / the shell's IndexedStack order.
+  /// Required together with [onRefresh] to wire up the AppBar refresh button.
+  final int? pageIndex;
+
+  /// Called when the AppBar refresh button is tapped for this page.
+  final VoidCallback? onRefresh;
+
   final Widget body;
   final double maxContentWidth;
 
@@ -32,45 +39,17 @@ class AdminScaffold extends StatelessWidget {
   /// viewport.
   final bool scrollable;
 
-  /// Rendered above the title. Used for standing caveats, such as the
+  /// Rendered above the body. Used for standing caveats, such as the
   /// dashboard's sync-coverage warning.
   final Widget? banner;
 
   @override
   Widget build(BuildContext context) {
-    final header = Padding(
-      padding: const EdgeInsets.only(bottom: AppSizes.spaceBtwItems),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: Theme.of(context).textTheme.headlineSmall),
-                if (subtitle != null) ...[
-                  const SizedBox(height: AppSizes.xs),
-                  Text(
-                    subtitle!,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (actions != null && actions!.isNotEmpty)
-            Wrap(
-              spacing: AppSizes.sm,
-              runSpacing: AppSizes.sm,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: actions!,
-            ),
-        ],
-      ),
-    );
+    // Register this page's refresh with the nav controller so the AppBar
+    // button can call it regardless of which page is currently visible.
+    if (pageIndex != null && onRefresh != null) {
+      AdminNavController.instance.setPageRefresh(pageIndex!, onRefresh!);
+    }
 
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -79,7 +58,6 @@ class AdminScaffold extends StatelessWidget {
           banner!,
           const SizedBox(height: AppSizes.spaceBtwItems),
         ],
-        header,
         if (scrollable) body else Expanded(child: body),
       ],
     );

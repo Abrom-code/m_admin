@@ -140,18 +140,9 @@ class SessionsScreen extends StatelessWidget {
     final controller = Get.put(SessionsController());
 
     return AdminScaffold(
-      title: 'Sessions',
-      subtitle: 'Active device sessions and trial counts',
+      pageIndex: 5,
+      onRefresh: controller.load,
       scrollable: false,
-      actions: [
-        Obx(
-          () => IconButton(
-            tooltip: 'Refresh',
-            onPressed: controller.isLoading.value ? null : controller.load,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ),
-      ],
       body: Obx(
         () => AdminDataTable<SessionRow>(
           rows: controller.rows.toList(),
