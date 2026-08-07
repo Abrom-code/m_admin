@@ -61,12 +61,12 @@ class RecentReceiptRow {
     final lastName = u['last_name']?.toString() ?? '';
     final fullName = '$firstName $lastName'.trim();
     return RecentReceiptRow(
-      id: (json['id'] as num?)?.toInt() ?? 0,
+      id: _toInt(json['id']) ?? 0,
       displayName: fullName.isEmpty ? (u['email']?.toString() ?? '—') : fullName,
       userEmail: u['email']?.toString() ?? '',
       status: json['status']?.toString() ?? 'pending',
       paymentMethod: json['payment_method']?.toString() ?? '',
-      amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      amount: _toDouble(json['amount']),
       createdAt: json['created_at'] == null
           ? null
           : DateTime.tryParse(json['created_at'].toString()),
@@ -105,6 +105,23 @@ class StreamPoint {
   const StreamPoint({required this.stream, required this.count});
   final String stream;
   final int count;
+}
+
+// ── Numeric helpers ──────────────────────────────────────────────────────────
+// Supabase returns numeric/decimal columns as String in some query shapes
+// (e.g. when included alongside a .count()). These helpers accept both.
+
+double _toDouble(dynamic v) {
+  if (v == null) return 0;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString()) ?? 0;
+}
+
+int? _toInt(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  return int.tryParse(v.toString());
 }
 
 // ── Repository ──────────────────────────────────────────────────────────
@@ -150,7 +167,7 @@ class DashboardRepository {
       final revenueRows = results[4] as List<dynamic>;
       final totalRevenue = revenueRows.fold<double>(
         0,
-        (sum, r) => sum + ((r['amount'] as num?)?.toDouble() ?? 0),
+        (sum, r) => sum + _toDouble(r['amount']),
       );
 
       final recent = await _sb
@@ -217,7 +234,7 @@ class DashboardRepository {
         final ts = r['reviewed_at']?.toString();
         if (ts == null) continue;
         final day = ts.substring(0, 10);
-        final amt = (r['amount'] as num?)?.toDouble() ?? 0;
+        final amt = _toDouble(r['amount']);
         totals[day] = (totals[day] ?? 0) + amt;
       }
 
@@ -241,12 +258,12 @@ class DashboardRepository {
       final Map<int, String> names = {
         for (final s in subjectRows)
           if (s['id'] != null)
-            (s['id'] as num).toInt(): s['name']?.toString() ?? '',
+            _toInt(s['id']) ?? 0: s['name']?.toString() ?? '',
       };
 
       final Map<int, int> counts = {};
       for (final r in testRows) {
-        final sid = (r['subject_id'] as num?)?.toInt();
+        final sid = _toInt(r['subject_id']);
         if (sid == null) continue;
         counts[sid] = (counts[sid] ?? 0) + 1;
       }
