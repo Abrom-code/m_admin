@@ -8,7 +8,7 @@ import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 
-class TestEditorScreen extends StatelessWidget {
+class TestEditorScreen extends StatefulWidget {
   const TestEditorScreen({
     super.key,
     required this.subjectId,
@@ -21,11 +21,32 @@ class TestEditorScreen extends StatelessWidget {
   final String subjectName;
 
   @override
-  Widget build(BuildContext context) {
-    final controller = Get.put(
-      TestEditorController(testId: testId, subjectId: subjectId),
-      tag: 'test_editor_${testId ?? 'new'}',
+  State<TestEditorScreen> createState() => _TestEditorScreenState();
+}
+
+class _TestEditorScreenState extends State<TestEditorScreen> {
+  late final TestEditorController _editorCtrl;
+  final _scrollCtrl = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _editorCtrl = Get.put(
+      TestEditorController(
+          testId: widget.testId, subjectId: widget.subjectId),
+      tag: 'test_editor_${widget.testId ?? 'new'}',
     );
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _editorCtrl;
 
     return Scaffold(
       appBar: AppBar(
@@ -33,10 +54,10 @@ class TestEditorScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(testId == null ? 'New test' : 'Edit test'),
-            if (subjectName.isNotEmpty)
+            Text(widget.testId == null ? 'New test' : 'Edit test'),
+            if (widget.subjectName.isNotEmpty)
               Text(
-                subjectName,
+                widget.subjectName,
                 style: TextStyle(
                   fontSize: 11,
                   color: Theme.of(context)
@@ -75,29 +96,23 @@ class TestEditorScreen extends StatelessWidget {
         if (controller.isLoading.value) {
           return const Center(child: CircularProgressIndicator());
         }
-        return Padding(
-          padding: const EdgeInsets.all(AppSizes.md),
-          child: Row(
-            // stretch so both Expanded children are height-bounded and
-            // their SingleChildScrollViews can scroll independently.
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                flex: 4,
-                child: SingleChildScrollView(
-                  child: _TestForm(controller: controller),
-                ),
-              ),
-              if (testId != null) ...[
-                const SizedBox(width: AppSizes.spaceBtwItems),
-                Expanded(
-                  flex: 5,
-                  child: SingleChildScrollView(
-                    child: _QuestionList(controller: controller),
-                  ),
-                ),
+        return Scrollbar(
+          controller: _scrollCtrl,
+          thumbVisibility: true,
+          interactive: true,
+          child: SingleChildScrollView(
+            controller: _scrollCtrl,
+            padding: const EdgeInsets.all(AppSizes.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _TestForm(controller: controller),
+                if (widget.testId != null) ...[
+                  const SizedBox(height: AppSizes.spaceBtwItems),
+                  _QuestionList(controller: controller),
+                ],
               ],
-            ],
+            ),
           ),
         );
       }),
@@ -127,13 +142,14 @@ class _TestForm extends StatelessWidget {
             const SizedBox(height: AppSizes.spaceBtwInputFields),
             Obx(
               () => DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: controller.typeValue.value,
                 decoration: const InputDecoration(labelText: 'Type'),
                 items: TestEditorController.validTypes
                     .map(
                       (t) => DropdownMenuItem(
                         value: t,
-                        child: Text(t),
+                        child: Text(t, overflow: TextOverflow.ellipsis),
                       ),
                     )
                     .toList(),
@@ -157,6 +173,7 @@ class _TestForm extends StatelessWidget {
                 return const SizedBox.shrink();
               }
               return DropdownButtonFormField<int?>(
+                isExpanded: true,
                 initialValue: controller.selectedChapterId.value,
                 decoration: const InputDecoration(labelText: 'Chapter'),
                 items: [
@@ -170,6 +187,7 @@ class _TestForm extends StatelessWidget {
                       child: Text(
                         'Gr${c['grade']} Ch${c['chapter_number']}: '
                         '${c['title'] ?? ''}',
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
@@ -246,86 +264,136 @@ class _QuestionList extends StatelessWidget {
           );
         }
 
-        return Column(
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: OutlinedButton.icon(
-                onPressed: () => _openQuestionEditor(context, null),
-                icon: const Icon(Icons.add_rounded, size: AppSizes.iconSm),
-                label: const Text('Add question'),
-              ),
-            ),
-            const SizedBox(height: AppSizes.sm),
-            ListView.separated(
-              shrinkWrap: true,
-              primary: false,
-              itemCount: controller.questions.length,
-              separatorBuilder: (_, index) =>
-                  const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final q = controller.questions[i];
-                final qId = AppHelperFunctions.toInt(q['id']);
-                final order = AppHelperFunctions.toInt(q['question_order']) ?? i + 1;
-                final text = q['question_text']?.toString() ?? '';
-                final opts = q['options'];
-                final optCount =
-                    opts is List ? opts.length : 0;
-                final correct = AppHelperFunctions.toInt(q['correct_option_index']);
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            // Fit as many ~240px cards per row as the available width allows.
+            final crossCount =
+                (constraints.maxWidth / 240).floor().clamp(1, 6);
+            final cardWidth =
+                (constraints.maxWidth - (crossCount - 1) * AppSizes.sm) /
+                    crossCount;
 
-                return ListTile(
-                  dense: true,
-                  leading: CircleAvatar(
-                    radius: 14,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                    child: Text(
-                      '$order',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
-                      ),
-                    ),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openQuestionEditor(context, null),
+                    icon: const Icon(Icons.add_rounded, size: AppSizes.iconSm),
+                    label: const Text('Add question'),
                   ),
-                  title: Text(
-                    text.length > 80 ? '${text.substring(0, 80)}…' : text,
-                    style: const TextStyle(fontSize: 12),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    '$optCount options · answer: ${correct != null ? String.fromCharCode(65 + correct) : "?"}',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: 'Edit',
-                        iconSize: AppSizes.iconSm,
-                        onPressed: () => _openQuestionEditor(context, qId),
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'Delete',
-                        iconSize: AppSizes.iconSm,
-                        onPressed: qId == null
-                            ? null
-                            : () => _confirmDelete(context, qId),
-                        icon: const Icon(
-                          Icons.delete_outline_rounded,
-                          color: AppColors.error,
+                ),
+                const SizedBox(height: AppSizes.sm),
+                Wrap(
+                  spacing: AppSizes.sm,
+                  runSpacing: AppSizes.sm,
+                  children: List.generate(controller.questions.length, (i) {
+                    final q = controller.questions[i];
+                    final qId = AppHelperFunctions.toInt(q['id']);
+                    final order =
+                        AppHelperFunctions.toInt(q['question_order']) ?? i + 1;
+                    final text = q['question_text']?.toString() ?? '';
+                    final opts = q['options'];
+                    final optCount = opts is List ? opts.length : 0;
+                    final correct =
+                        AppHelperFunctions.toInt(q['correct_option_index']);
+
+                    return SizedBox(
+                      width: cardWidth,
+                      child: Card(
+                        margin: EdgeInsets.zero,
+                        child: InkWell(
+                          onTap: () => _openQuestionEditor(context, qId),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(AppSizes.sm),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // ── Top row: number · correct badge · delete ──
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 12,
+                                      backgroundColor: AppColors.primary
+                                          .withValues(alpha: 0.12),
+                                      child: Text(
+                                        '$order',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    if (correct != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.success
+                                              .withValues(alpha: 0.12),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          '✓ ${String.fromCharCode(65 + correct)}',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.success,
+                                          ),
+                                        ),
+                                      ),
+                                    SizedBox(
+                                      width: 28,
+                                      height: 28,
+                                      child: IconButton(
+                                        tooltip: 'Delete',
+                                        padding: EdgeInsets.zero,
+                                        iconSize: 16,
+                                        onPressed: qId == null
+                                            ? null
+                                            : () =>
+                                                _confirmDelete(context, qId),
+                                        icon: const Icon(
+                                          Icons.delete_outline_rounded,
+                                          color: AppColors.error,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: AppSizes.xs),
+                                // ── Question text ─────────────────────────
+                                Text(
+                                  text,
+                                  style: const TextStyle(fontSize: 12),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: AppSizes.xs),
+                                // ── Option count ──────────────────────────
+                                Text(
+                                  '$optCount options',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ],
+                    );
+                  }),
+                ),
+              ],
+            );
+          },
         );
       }),
     );
