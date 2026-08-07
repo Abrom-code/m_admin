@@ -1,3 +1,5 @@
+import 'package:m_admin/utils/helpers/helper_functions.dart';
+
 /// A row from `public.notifications`, matching the schema verified by the
 /// Supabase access catalogue:
 ///   id bigint PK
@@ -44,7 +46,7 @@ class AdminNotificationModel {
 
   factory AdminNotificationModel.fromJson(Map<String, dynamic> json) {
     return AdminNotificationModel(
-      id: (json['id'] as num?)?.toInt() ?? 0,
+      id: AppHelperFunctions.toInt(json['id']) ?? 0,
       userId: json['user_id']?.toString(),
       title: json['title']?.toString() ?? '',
       body: json['body']?.toString() ?? '',

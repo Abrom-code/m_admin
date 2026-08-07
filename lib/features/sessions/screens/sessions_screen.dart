@@ -8,6 +8,7 @@ import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 // ── Model ────────────────────────────────────────────────────────────
@@ -26,7 +27,7 @@ class SessionRow {
   factory SessionRow.fromJson(Map<String, dynamic> j) => SessionRow(
     firebaseUid: j['firebase_uid']?.toString() ?? '',
     deviceId: j['device_id']?.toString() ?? '',
-    trial: (j['trial'] as num?)?.toInt() ?? 0,
+    trial: AppHelperFunctions.toInt(j['trial']) ?? 0,
   );
 }
 

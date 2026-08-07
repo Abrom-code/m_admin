@@ -8,6 +8,7 @@ import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:m_admin/utils/helpers/helper_functions.dart';
 
 // ── Model ────────────────────────────────────────────────────────────
 
@@ -31,7 +32,7 @@ class AuditEntry {
   final DateTime createdAt;
 
   factory AuditEntry.fromJson(Map<String, dynamic> j) => AuditEntry(
-    id: (j['id'] as num?)?.toInt() ?? 0,
+    id: AppHelperFunctions.toInt(j['id']) ?? 0,
     adminUid: j['admin_uid']?.toString() ?? '',
     action: j['action']?.toString() ?? '',
     entityType: j['entity_type']?.toString(),
