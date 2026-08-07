@@ -27,77 +27,78 @@ class TestEditorScreen extends StatelessWidget {
       tag: 'test_editor_${testId ?? 'new'}',
     );
 
-    return AdminScaffold(
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(testId == null ? 'New test' : 'Edit test'),
+            if (subjectName.isNotEmpty)
+              Text(
+                subjectName,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.6),
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: AppSizes.md),
+            child: Obx(
+              () => FilledButton.icon(
+                onPressed: controller.isSaving.value
+                    ? null
+                    : controller.saveTest,
+                icon: controller.isSaving.value
+                    ? const SizedBox(
+                        height: 14,
+                        width: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.save_rounded, size: AppSizes.iconSm),
+                label: const Text('Save'),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: Obx(() {
         if (controller.isLoading.value) {
           return const Center(child: CircularProgressIndicator());
         }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Page header: title + save button
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSizes.spaceBtwItems),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          testId == null ? 'New test' : 'Edit test',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                        if (subjectName.isNotEmpty)
-                          Text(
-                            subjectName,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Obx(
-                    () => FilledButton.icon(
-                      onPressed:
-                          controller.isSaving.value ? null : controller.saveTest,
-                      icon: controller.isSaving.value
-                          ? const SizedBox(
-                              height: 14,
-                              width: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.save_rounded, size: AppSizes.iconSm),
-                      label: const Text('Save'),
-                    ),
-                  ),
-                ],
+        return Padding(
+          padding: const EdgeInsets.all(AppSizes.md),
+          child: Row(
+            // stretch so both Expanded children are height-bounded and
+            // their SingleChildScrollViews can scroll independently.
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 4,
+                child: SingleChildScrollView(
+                  child: _TestForm(controller: controller),
+                ),
               ),
-            ),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 4,
-                    child: _TestForm(controller: controller),
+              if (testId != null) ...[
+                const SizedBox(width: AppSizes.spaceBtwItems),
+                Expanded(
+                  flex: 5,
+                  child: SingleChildScrollView(
+                    child: _QuestionList(controller: controller),
                   ),
-                  if (testId != null) ...[
-                    const SizedBox(width: AppSizes.spaceBtwItems),
-                    Expanded(
-                      flex: 5,
-                      child: _QuestionList(controller: controller),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
+                ),
+              ],
+            ],
+          ),
         );
       }),
     );

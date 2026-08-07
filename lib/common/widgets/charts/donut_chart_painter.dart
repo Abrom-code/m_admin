@@ -76,63 +76,71 @@ class AdminDonutChart extends StatelessWidget {
     final total = segments.fold<double>(0, (s, e) => s + e.value);
     final hasData = total > 0;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    final chart = SizedBox(
+      width: size,
+      height: size,
+      child: hasData
+          ? CustomPaint(painter: DonutChartPainter(segments: segments))
+          : const Center(
+              child: Text(
+                'No data',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
+            ),
+    );
+
+    final legend = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: size,
-          height: size,
-          child: hasData
-              ? CustomPaint(
-                  painter: DonutChartPainter(segments: segments),
-                )
-              : const Center(
-                  child: Text(
-                    'No data',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                    ),
+        for (final seg in segments)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: seg.color,
+                    shape: BoxShape.circle,
                   ),
                 ),
-        ),
-        const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final seg in segments)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: seg.color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      hasData
-                          ? '${seg.label} '
-                                '${(seg.value / total * 100).toStringAsFixed(0)}%'
-                          : seg.label,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 6),
+                Text(
+                  hasData
+                      ? '${seg.label} '
+                            '${(seg.value / total * 100).toStringAsFixed(0)}%'
+                      : seg.label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
-              ),
-          ],
-        ),
+              ],
+            ),
+          ),
       ],
+    );
+
+    // Minimum width to fit circle + 16 gap + ~120 px legend side-by-side.
+    // Below that threshold the legend drops below the circle.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < size + 16 + 120) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [chart, const SizedBox(height: 12), legend],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [chart, const SizedBox(width: 16), legend],
+        );
+      },
     );
   }
 }

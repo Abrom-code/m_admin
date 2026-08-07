@@ -85,13 +85,18 @@ class _StatGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final crossCount = constraints.maxWidth >= 700 ? 3 : 2;
-        return GridView.count(
-          crossAxisCount: crossCount,
+        // Fixed mainAxisExtent prevents overflow when card width is small on
+        // narrow screens; childAspectRatio would produce cards shorter than
+        // the 44px icon + 32px padding minimum.
+        return GridView(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossCount,
+            crossAxisSpacing: AppSizes.spaceBtwItems,
+            mainAxisSpacing: AppSizes.spaceBtwItems,
+            mainAxisExtent: 90,
+          ),
           shrinkWrap: true,
           primary: false,
-          crossAxisSpacing: AppSizes.spaceBtwItems,
-          mainAxisSpacing: AppSizes.spaceBtwItems,
-          childAspectRatio: constraints.maxWidth >= 700 ? 2.4 : 1.8,
           children: [
             _StatCard(
               icon: Iconsax.people_copy,
@@ -201,6 +206,8 @@ class _StatCard extends StatelessWidget {
                 ),
                 Text(
                   label,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                   style: const TextStyle(
                     fontSize: 11,
                     color: AppColors.textSecondary,

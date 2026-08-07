@@ -70,11 +70,22 @@ class AdminScaffold extends StatelessWidget {
       ),
     );
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSizes.defaultSpace),
-      child: scrollable
-          ? SingleChildScrollView(child: constrained)
-          : constrained,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Reduce horizontal padding on narrow screens to reclaim space for content.
+        final hPad = constraints.maxWidth < 600
+            ? AppSizes.md
+            : AppSizes.defaultSpace;
+        return Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: hPad,
+            vertical: AppSizes.defaultSpace,
+          ),
+          child: scrollable
+              ? SingleChildScrollView(child: constrained)
+              : constrained,
+        );
+      },
     );
   }
 }

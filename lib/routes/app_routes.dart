@@ -5,6 +5,7 @@ import 'package:m_admin/features/audit_log/screens/audit_log_screen.dart';
 import 'package:m_admin/features/auth/screens/admin_loading_screen.dart';
 import 'package:m_admin/features/auth/screens/admin_login_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
+import 'package:m_admin/features/content/screens/subject_tests_screen.dart';
 import 'package:m_admin/features/content/screens/test_editor_screen.dart';
 import 'package:m_admin/features/dashboard/screens/dashboard_screen.dart';
 import 'package:m_admin/features/notifications/screens/notification_compose_screen.dart';
@@ -117,8 +118,17 @@ class AdminAppRoutes {
     ),
     GetPage(
       name: AdminRoutes.contentSubject,
-      page: () =>
-          const PlaceholderScreen(title: 'Subject', phase: 'Phase 10'),
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>? ?? {};
+        final subject = args['subject'] as SubjectRow?;
+        if (subject == null) {
+          return const PlaceholderScreen(
+            title: 'Subject tests',
+            phase: 'Missing subject argument',
+          );
+        }
+        return SubjectTestsScreen(subject: subject);
+      },
       middlewares: [AdminAuthMiddleware()],
     ),
     GetPage(

@@ -63,12 +63,16 @@ class _NotificationComposeScreenState
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(AppSizes.md),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      child: SingleChildScrollView(
+        // Ensures the form scrolls when the keyboard appears in both
+        // dialog and bottom-sheet presentations.
+        physics: const ClampingScrollPhysics(),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             Row(
               children: [
                 const Expanded(
@@ -179,6 +183,7 @@ class _NotificationComposeScreenState
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

@@ -529,6 +529,8 @@ class _ActionBar extends StatelessWidget {
             const Expanded(
               child: Text(
                 'A approve   ·   R reject   ·   J / K next / previous',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
                 style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
             ),
