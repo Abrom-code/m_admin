@@ -1,51 +1,67 @@
 import 'package:get/get.dart';
-import 'package:get_storage/get_storage.dart';
 import 'package:m_admin/data/repositories/admin_auth_repository.dart';
 import 'package:m_admin/features/auth/models/admin_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Holds the signed-in admin for the current session.
 ///
-/// Persistence is a simple boolean flag in GetStorage. No JWTs, no
-/// secure-storage, no Firebase — this is a mock-auth session only.
+/// Session state is derived from the active Supabase Auth session, so the
+/// admin UID is always a real UUID that satisfies the `reviewed_by` FK on
+/// `payment_receipts`.
 class AdminSessionService extends GetxService {
   static AdminSessionService get instance => Get.find();
 
-  static const _loggedInKey = 'admin_logged_in';
-
-  final _storage = GetStorage();
   final _auth = Get.find<AdminAuthRepository>();
 
   final Rx<AdminModel> admin = AdminModel.empty().obs;
-
-  static const _mockAdmin = AdminModel(
-    firebaseUid: 'mock-admin-uid',
-    email: 'howdes404@gmail.com',
-    displayName: 'Admin',
-    role: 'superadmin',
-    isActive: true,
-  );
 
   /// True when an admin profile is loaded.
   bool get isAuthenticated => !admin.value.isEmpty;
 
   bool get isSuperAdmin => admin.value.isSuperAdmin;
 
-  String get adminUid => admin.value.firebaseUid;
+  /// The real Supabase Auth UUID — valid for FK references in the database.
+  String get adminUid =>
+      Supabase.instance.client.auth.currentUser?.id ?? admin.value.firebaseUid;
 
-  /// Sets the mock admin profile and persists the login flag.
+  /// Called right after a successful login to populate the in-memory profile.
   Future<AdminModel> establish() async {
-    admin.value = _mockAdmin;
-    _storage.write(_loggedInKey, true);
-    return _mockAdmin;
+    final user = Supabase.instance.client.auth.currentUser;
+    final model = AdminModel(
+      firebaseUid: user?.id ?? '',
+      email: user?.email ?? '',
+      displayName:
+          (user?.userMetadata?['display_name'] as String?)?.trim().isNotEmpty ==
+                  true
+              ? user!.userMetadata!['display_name'] as String
+              : 'Admin',
+      role: 'superadmin',
+      isActive: true,
+    );
+    admin.value = model;
+    return model;
   }
 
   /// Restores a previous session on cold start without requiring a re-login.
+  ///
+  /// Supabase persists the JWT automatically; if `currentUser` is non-null the
+  /// token is still valid and we just rebuild the in-memory profile.
   Future<bool> restore() async {
-    final persisted = _storage.read<bool>(_loggedInKey) ?? false;
-    if (persisted) {
-      admin.value = _mockAdmin;
-    }
-    return persisted;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return false;
+
+    admin.value = AdminModel(
+      firebaseUid: user.id,
+      email: user.email ?? '',
+      displayName:
+          (user.userMetadata?['display_name'] as String?)?.trim().isNotEmpty ==
+                  true
+              ? user.userMetadata!['display_name'] as String
+              : 'Admin',
+      role: 'superadmin',
+      isActive: true,
+    );
+    return true;
   }
 
   Future<void> logout() async {
@@ -55,6 +71,5 @@ class AdminSessionService extends GetxService {
 
   Future<void> clear() async {
     admin.value = AdminModel.empty();
-    _storage.remove(_loggedInKey);
   }
 }

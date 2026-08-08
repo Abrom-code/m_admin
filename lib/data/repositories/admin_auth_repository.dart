@@ -1,29 +1,35 @@
 import 'package:get/get.dart';
-import 'package:m_admin/utils/constants/app_env.dart';
 import 'package:m_admin/utils/exceptions/app_failure_model.dart';
+import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Mock authentication for the admin console.
+/// Authentication for the admin console via Supabase Auth.
 ///
-/// Credentials are validated locally against the values in .env
-/// (MOCK_ADMIN_EMAIL / MOCK_ADMIN_PASSWORD). Falls back to the hardcoded
-/// defaults in AppEnv if the keys are absent or blank.
+/// The admin must have a real account in Supabase Auth (auth.users). Signing
+/// in through Supabase gives the session a valid UUID that satisfies the
+/// `reviewed_by` FK on `payment_receipts`.
 class AdminAuthRepository extends GetxController {
   static AdminAuthRepository get instance => Get.find();
+
+  final _supabase = Supabase.instance.client;
 
   Future<void> loginWithEmailAndPassword(
     String email,
     String password,
   ) async {
-    if (email.trim() != AppEnv.mockAdminEmail ||
-        password != AppEnv.mockAdminPassword) {
-      throw const AppFailure(
-        title: 'Sign-in Failed',
-        message: 'Invalid email or password.',
+    try {
+      await _supabase.auth.signInWithPassword(
+        email: email.trim(),
+        password: password,
       );
+    } on AuthException catch (e) {
+      throw AppFailure(title: 'Sign-in Failed', message: e.message);
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
     }
   }
 
   Future<void> logout() async {
-    // No external auth session to tear down in mock mode.
+    await _supabase.auth.signOut();
   }
 }

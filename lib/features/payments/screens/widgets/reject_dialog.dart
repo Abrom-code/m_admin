@@ -96,10 +96,11 @@ class _RejectDialogState extends State<_RejectDialog> {
       ),
       content: SizedBox(
         width: 440,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             const Text(
               'This reason is shown to the student in their notification. '
               'Be specific so they know exactly what to fix and resubmit.',
@@ -148,6 +149,7 @@ class _RejectDialogState extends State<_RejectDialog> {
             ),
           ],
         ),
+      ),
       ),
       actions: [
         TextButton(

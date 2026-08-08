@@ -17,24 +17,43 @@ class SignupChartCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = DashboardController.instance;
 
-    return AdminSection(
-      title: 'Signups over time',
-      trailing: Obx(
-        () => SegmentedButton<int>(
-          segments: const [
-            ButtonSegment(value: 7, label: Text('7d')),
-            ButtonSegment(value: 30, label: Text('30d')),
-            ButtonSegment(value: 90, label: Text('90d')),
-          ],
-          selected: {controller.rangeDays.value},
-          onSelectionChanged: (s) => controller.rangeDays.value = s.first,
-          style: const ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    return AdminCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Header: title shrinks before the filter does ─────────
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  'Signups over time',
+                  style: Theme.of(context).textTheme.titleMedium,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+              const SizedBox(width: AppSizes.sm),
+              Obx(
+                () => SegmentedButton<int>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: 7, label: Text('7d')),
+                    ButtonSegment(value: 30, label: Text('30d')),
+                    ButtonSegment(value: 90, label: Text('90d')),
+                  ],
+                  selected: {controller.rangeDays.value},
+                  onSelectionChanged: (s) =>
+                      controller.rangeDays.value = s.first,
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
-      ),
-      child: Obx(() {
+          const SizedBox(height: AppSizes.spaceBtwItems),
+          Obx(() {
         final series = controller.signupSeries;
         final days = controller.rangeDays.value;
 
@@ -99,6 +118,8 @@ class SignupChartCard extends StatelessWidget {
           ],
         );
       }),
+        ],
+      ),
     );
   }
 }

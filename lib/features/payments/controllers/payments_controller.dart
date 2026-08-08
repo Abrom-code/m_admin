@@ -261,9 +261,9 @@ class PaymentsController extends GetxController {
         status: status,
         reason: reason,
       );
-    } catch (e) {
-      // Surfaced, not swallowed — but never treated as a failed approval.
-      AppExceptionHandler.handleResponse(e);
+    } catch (_) {
+      // Push is best-effort. The payment is already committed, so a failed
+      // notification must not surface an error to the admin.
     }
   }
 

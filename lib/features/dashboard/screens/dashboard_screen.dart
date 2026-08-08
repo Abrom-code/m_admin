@@ -7,6 +7,7 @@ import 'package:m_admin/data/repositories/dashboard_repository.dart';
 import 'package:m_admin/features/dashboard/controllers/dashboard_controller.dart';
 import 'package:m_admin/features/dashboard/screens/widgets/dashboard_chart_cards.dart';
 import 'package:m_admin/features/dashboard/screens/widgets/signup_chart_card.dart';
+import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/utils/constants/colors.dart';
@@ -316,7 +317,22 @@ class _ReceiptRow extends StatelessWidget {
                 ),
               ),
             ),
-          PaymentMethodChip(method: row.paymentMethod),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PaymentMethodChip(method: row.paymentMethod),
+              if (PaymentMethodInfo.of(row.paymentMethod) case final info?)
+                Text(
+                  '${info.account} · ${info.holder}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(width: AppSizes.sm),
           PaymentStatusPill(status: row.status),
           const SizedBox(width: AppSizes.sm),

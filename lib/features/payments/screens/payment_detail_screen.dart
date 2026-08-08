@@ -38,15 +38,11 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
   final _focusNode = FocusNode();
 
   late PaymentReview _review;
-  late final TextEditingController _amountController;
 
   @override
   void initState() {
     super.initState();
     _review = widget.review;
-    _amountController = TextEditingController(
-      text: (_review.amount ?? 250).toStringAsFixed(0),
-    );
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _focusNode.requestFocus(),
     );
@@ -54,7 +50,6 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
 
   @override
   void dispose() {
-    _amountController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -79,10 +74,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
 
           final right = SingleChildScrollView(
             padding: const EdgeInsets.all(AppSizes.md),
-            child: _DetailPane(
-              review: _review,
-              amountController: _amountController,
-            ),
+            child: _DetailPane(review: _review),
           );
 
           if (!twoPane) {
@@ -155,10 +147,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
   void _goToNeighbour(int offset) {
     final next = _controller.neighbourOf(_review, offset);
     if (next == null) return;
-    setState(() {
-      _review = next;
-      _amountController.text = (next.amount ?? 250).toStringAsFixed(0);
-    });
+    setState(() => _review = next);
   }
 
   // ── Actions ───────────────────────────────────────────────────────
@@ -166,7 +155,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
   Future<void> _approve() async {
     if (_controller.isActing(_review.id)) return;
 
-    final amount = num.tryParse(_amountController.text.trim());
+    final amount = _review.amount ?? 250;
 
     final confirmed = await AppDialogBoxes.confirm(
       title: 'Approve payment',
@@ -176,7 +165,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
       confirmLabel: 'Approve',
       detail: _ConfirmDetail(
         rows: {
-          'Amount': '${amount ?? 250} ${_review.currency}',
+          'Amount': '$amount ${_review.currency}',
           'Method': PaymentMethodInfo.labelOf(_review.paymentMethod),
           'Current status': _review.subscriptionStatus,
         },
@@ -213,20 +202,16 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
       return;
     }
 
-    setState(() {
-      _review = next;
-      _amountController.text = (next.amount ?? 250).toStringAsFixed(0);
-    });
+    setState(() => _review = next);
   }
 }
 
 // ── Right pane ────────────────────────────────────────────────────────
 
 class _DetailPane extends StatelessWidget {
-  const _DetailPane({required this.review, required this.amountController});
+  const _DetailPane({required this.review});
 
   final PaymentReview review;
-  final TextEditingController amountController;
 
   @override
   Widget build(BuildContext context) {
@@ -298,48 +283,13 @@ class _DetailPane extends StatelessWidget {
               ),
               const SizedBox(height: AppSizes.sm),
 
-              if (review.verificationUrl.isNotEmpty) ...[
-                const Text(
-                  'Transaction link',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                InkWell(
+              if (review.verificationUrl.isNotEmpty)
+                _KeyValue(
+                  label: 'Transaction',
+                  value: review.verificationUrl,
                   onTap: () =>
                       AppHelperFunctions.openUrl(review.verificationUrl),
-                  child: Text(
-                    review.verificationUrl,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.info,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
                 ),
-                const SizedBox(height: AppSizes.sm),
-              ],
-
-              // Editable amount, defaulting to the 250 ETB the client shows.
-              // The price was never transmitted or validated by the student
-              // app, so this is the reviewer's judgement, not a measurement.
-              TextField(
-                controller: amountController,
-                enabled: review.isPending,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  isDense: true,
-                  labelText: 'Amount received',
-                  suffixText: review.currency,
-                  helperText: review.isPending
-                      ? 'The app never sends the amount — confirm it '
-                            'against the receipt.'
-                      : null,
-                  helperMaxLines: 2,
-                ),
-              ),
             ],
           ),
         ),
@@ -381,11 +331,13 @@ class _KeyValue extends StatelessWidget {
     required this.label,
     required this.value,
     this.copyable = false,
+    this.onTap,
   });
 
   final String label;
   final String value;
   final bool copyable;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -405,7 +357,20 @@ class _KeyValue extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: SelectableText(value, style: const TextStyle(fontSize: 12)),
+            child: onTap != null
+                ? InkWell(
+                    onTap: onTap,
+                    child: Text(
+                      value,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.info,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  )
+                : SelectableText(value, style: const TextStyle(fontSize: 12)),
           ),
           if (copyable)
             IconButton(

@@ -269,7 +269,25 @@ class _Table extends StatelessWidget {
           AdminColumn(
             label: 'METHOD',
             flex: 2,
-            cell: (context, row) => PaymentMethodChip(method: row.paymentMethod),
+            cell: (context, row) {
+              final info = PaymentMethodInfo.of(row.paymentMethod);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  PaymentMethodChip(method: row.paymentMethod),
+                  if (info != null)
+                    Text(
+                      '${info.account} · ${info.holder}',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
           AdminColumn(
             label: 'AMOUNT',
