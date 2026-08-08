@@ -64,26 +64,41 @@ class NotificationsRepository {
     Map<String, dynamic> payload = const {},
   }) async {
     try {
-      final String? userId =
-          audience.startsWith('user:') ? audience.substring(5) : null;
-      final String? targetStream =
-          audience.startsWith('stream:') ? audience.substring(7) : null;
+      // Parse audience string into the object format the edge function expects
+      final Map<String, dynamic> audienceObj;
+      if (audience == 'all') {
+        audienceObj = {'type': 'all'};
+      } else if (audience.startsWith('stream:')) {
+        audienceObj = {
+          'type': 'stream',
+          'value': audience.substring(7),
+        };
+      } else if (audience.startsWith('user:')) {
+        audienceObj = {
+          'type': 'user',
+          'value': audience.substring(5),
+        };
+      } else {
+        audienceObj = {'type': 'all'};
+      }
+
+      // Get current admin UID from Supabase session
+      final adminUid = _sb.auth.currentUser?.id ?? 'unknown';
 
       final response = await http
           .post(
             Uri.parse('${AppEnv.adminFunctionsBaseUrl}/send-push'),
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': 'Bearer ${AppEnv.supabaseApiKey}',
               'x-webhook-secret': AppEnv.pushWebhookSecret,
             },
             body: jsonEncode({
-              'event': 'broadcast',
+              'event': 'announcement',
               'title': title,
-              'body': body,
-              'type': type,
-              'user_id': ?userId,
-              'target_stream': ?targetStream,
-              if (payload.isNotEmpty) 'payload': payload,
+              'message': body,
+              'audience': audienceObj,
+              'admin_uid': adminUid,
             }),
           )
           .timeout(const Duration(seconds: 30));

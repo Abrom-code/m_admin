@@ -244,7 +244,7 @@ class _PendingBanner extends StatelessWidget {
   }
 }
 
-// ── Recent receipts table ──────────────────────────────────────────────
+// ── Recent receipts horizontal scroll ─────────────────────────────────
 
 class _RecentTable extends StatelessWidget {
   const _RecentTable({required this.rows});
@@ -253,103 +253,155 @@ class _RecentTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AdminSection(
-      title: 'Recent receipts',
-      child: rows.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSizes.md),
-              child: Text(
-                'No receipts yet.',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Text(
+            'Recent receipts',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        const SizedBox(height: AppSizes.spaceBtwItems),
+        rows.isEmpty
+            ? AdminCard(
+                child: const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSizes.md),
+                    child: Text(
+                      'No receipts yet.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : SizedBox(
+                height: 140,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: rows.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(width: AppSizes.sm),
+                  itemBuilder: (context, i) => _ReceiptCard(row: rows[i]),
+                ),
               ),
-            )
-          : Column(
-              children: [for (final row in rows) _ReceiptRow(row: row)],
-            ),
+      ],
     );
   }
 }
 
-class _ReceiptRow extends StatelessWidget {
-  const _ReceiptRow({required this.row});
+class _ReceiptCard extends StatelessWidget {
+  const _ReceiptCard({required this.row});
 
   final RecentReceiptRow row;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSizes.sm),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  row.displayName,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  row.userEmail,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
+    final dark = AppHelperFunctions.isDark(context);
+
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(AppSizes.md),
+      decoration: BoxDecoration(
+        color: dark ? AppColors.darkCard : AppColors.white,
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
+        border: Border.all(
+          color: dark
+              ? AppColors.darkGrey.withValues(alpha: 0.3)
+              : AppColors.grey.withValues(alpha: 0.2),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            spreadRadius: -2,
+            offset: const Offset(0, 4),
           ),
-          if (row.amount > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: AppSizes.sm),
-              child: Text(
-                'ETB ${NumberFormat('#,##0').format(row.amount)}',
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      row.displayName,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: dark ? AppColors.white : AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSizes.xs),
+                  PaymentStatusPill(status: row.status),
+                ],
+              ),
+              const SizedBox(height: AppSizes.xs),
+              Text(
+                row.userEmail,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
                 style: const TextStyle(
                   fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.success,
+                  color: AppColors.textSecondary,
                 ),
               ),
-            ),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                PaymentMethodChip(method: row.paymentMethod),
-                if (PaymentMethodInfo.of(row.paymentMethod) case final info?)
-                  Text(
+            ],
+          ),
+          const SizedBox(height: AppSizes.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PaymentMethodChip(method: row.paymentMethod),
+              if (PaymentMethodInfo.of(row.paymentMethod) case final info?)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSizes.xs),
+                  child: Text(
                     '${info.account} · ${info.holder}',
                     overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                     style: const TextStyle(
                       fontSize: 10,
                       color: AppColors.textSecondary,
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
-          const SizedBox(width: AppSizes.sm),
-          PaymentStatusPill(status: row.status),
-          const SizedBox(width: AppSizes.sm),
-          Flexible(
-            child: Text(
-              row.createdAt == null
-                  ? '—'
-                  : DateFormat('d MMM, HH:mm').format(row.createdAt!),
-              textAlign: TextAlign.right,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 11,
+          const SizedBox(height: AppSizes.xs),
+          Row(
+            children: [
+              Icon(
+                Iconsax.clock_copy,
+                size: 12,
                 color: AppColors.textSecondary,
               ),
-            ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  row.createdAt == null
+                      ? '—'
+                      : DateFormat('d MMM, HH:mm').format(row.createdAt!),
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
