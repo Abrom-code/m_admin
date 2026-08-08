@@ -317,32 +317,34 @@ class _ReceiptRow extends StatelessWidget {
                 ),
               ),
             ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              PaymentMethodChip(method: row.paymentMethod),
-              if (PaymentMethodInfo.of(row.paymentMethod) case final info?)
-                Text(
-                  '${info.account} · ${info.holder}',
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textSecondary,
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                PaymentMethodChip(method: row.paymentMethod),
+                if (PaymentMethodInfo.of(row.paymentMethod) case final info?)
+                  Text(
+                    '${info.account} · ${info.holder}',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(width: AppSizes.sm),
           PaymentStatusPill(status: row.status),
           const SizedBox(width: AppSizes.sm),
-          SizedBox(
-            width: 100,
+          Flexible(
             child: Text(
               row.createdAt == null
                   ? '—'
                   : DateFormat('d MMM, HH:mm').format(row.createdAt!),
               textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 11,
                 color: AppColors.textSecondary,
