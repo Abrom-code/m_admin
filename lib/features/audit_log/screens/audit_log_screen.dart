@@ -236,7 +236,7 @@ class AuditLogScreen extends StatelessWidget {
                   );
                 }
                 return Tooltip(
-                  message: row.note!,
+                  message: row.note,
                   child: Text(
                     row.note!,
                     overflow: TextOverflow.ellipsis,

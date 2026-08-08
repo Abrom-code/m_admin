@@ -25,7 +25,7 @@ class PaymentReview {
     this.rejectionReason,
   });
 
-  final int id;
+  final String id;
   final String userId;
 
   final String userName;
@@ -81,7 +81,7 @@ class PaymentReview {
     final lastName = user['last_name']?.toString() ?? '';
 
     return PaymentReview(
-      id: _parseInt(json['id']) ?? 0,
+      id: json['id']?.toString() ?? '',
       userId: json['user_id']?.toString() ?? '',
       userName: '$firstName $lastName'.trim(),
       userEmail: user['email']?.toString() ?? '',
@@ -129,12 +129,6 @@ class PaymentReview {
       reviewedAt: reviewedAt ?? this.reviewedAt,
       rejectionReason: rejectionReason ?? this.rejectionReason,
     );
-  }
-
-  static int? _parseInt(dynamic v) {
-    if (v == null) return null;
-    if (v is int) return v;
-    return int.tryParse(v.toString());
   }
 
   static num? _parseNum(dynamic v) {

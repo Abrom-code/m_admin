@@ -23,16 +23,18 @@ class NotificationsScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              onPressed: () => _openCompose(context, controller),
-              icon: const Icon(Icons.send_rounded, size: AppSizes.iconSm),
-              label: const Text('Send notification'),
-            ),
+          // ── Header: type chips + Send button in one row ──────────
+          Row(
+            children: [
+              Expanded(child: _TypeFilter(controller: controller)),
+              const SizedBox(width: AppSizes.sm),
+              FilledButton.icon(
+                onPressed: () => _openCompose(context, controller),
+                icon: const Icon(Icons.send_rounded, size: AppSizes.iconSm),
+                label: const Text('Send'),
+              ),
+            ],
           ),
-          const SizedBox(height: AppSizes.spaceBtwItems),
-          _TypeFilter(controller: controller),
           const SizedBox(height: AppSizes.spaceBtwItems),
           Expanded(child: _Table(controller: controller)),
         ],
@@ -80,26 +82,31 @@ class _TypeFilter extends StatelessWidget {
 
   final NotificationsController controller;
 
-  static const _types = {
-    '': 'All types',
-    'announcement': 'Announcement',
-    'new_content': 'New content',
-    'payment': 'Payment',
-  };
+  static const _types = [
+    ('', 'All'),
+    ('announcement', 'Announcement'),
+    ('new_content', 'Content'),
+    ('payment', 'Payment'),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Obx(
       () => Wrap(
-        spacing: AppSizes.sm,
+        spacing: AppSizes.xs,
+        runSpacing: AppSizes.xs,
         children: [
-          for (final entry in _types.entries)
+          for (final (key, label) in _types)
             ChoiceChip(
-              selected: (controller.typeFilter.value ?? '') == entry.key,
+              showCheckmark: false,
+              selected: (controller.typeFilter.value ?? '') == key,
               onSelected: (_) => controller.setTypeFilter(
-                entry.key.isEmpty ? null : entry.key,
+                key.isEmpty ? null : key,
               ),
-              label: Text(entry.value),
+              label: Text(label, style: const TextStyle(fontSize: 11)),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              visualDensity: VisualDensity.compact,
             ),
         ],
       ),

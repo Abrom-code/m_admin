@@ -40,31 +40,36 @@ class _StatusTabs extends StatelessWidget {
 
   final UsersController controller;
 
-  static const _tabs = {
-    '': 'All',
-    'active': 'Active',
-    'pending': 'Pending',
-    'inactive': 'Inactive',
-  };
+  static const _tabs = [
+    ('', 'All'),
+    ('active', 'Active'),
+    ('pending', 'Pending'),
+    ('inactive', 'Inactive'),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Obx(
       () => Wrap(
-        spacing: AppSizes.sm,
+        spacing: AppSizes.xs,
+        runSpacing: AppSizes.xs,
         children: [
-          for (final entry in _tabs.entries)
+          for (final (key, label) in _tabs)
             ChoiceChip(
-              selected:
-                  (controller.statusFilter.value ?? '') == entry.key,
+              showCheckmark: false,
+              selected: (controller.statusFilter.value ?? '') == key,
               onSelected: (_) => controller.setStatusFilter(
-                entry.key.isEmpty ? null : entry.key,
+                key.isEmpty ? null : key,
               ),
               label: Text(
-                controller.counts[entry.key] == null
-                    ? entry.value
-                    : '${entry.value} (${controller.counts[entry.key]})',
+                controller.counts[key] == null
+                    ? label
+                    : '$label (${controller.counts[key]})',
+                style: const TextStyle(fontSize: 11),
               ),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              visualDensity: VisualDensity.compact,
             ),
         ],
       ),
@@ -72,56 +77,114 @@ class _StatusTabs extends StatelessWidget {
   }
 }
 
-class _FilterBar extends StatelessWidget {
+class _FilterBar extends StatefulWidget {
   const _FilterBar({required this.controller});
-
   final UsersController controller;
 
   @override
+  State<_FilterBar> createState() => _FilterBarState();
+}
+
+class _FilterBarState extends State<_FilterBar> {
+  bool _searchOpen = false;
+  final _focus = FocusNode();
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() => _searchOpen = !_searchOpen);
+    if (_searchOpen) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _focus.requestFocus());
+    } else {
+      _focus.unfocus();
+      widget.controller.searchController.clear();
+      widget.controller.onSearchChanged('');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final borderColor =
+        Theme.of(context).colorScheme.outline.withValues(alpha: 0.35);
+
     return AdminCard(
-      padding: const EdgeInsets.all(AppSizes.sm),
-      child: Wrap(
-        spacing: AppSizes.sm,
-        runSpacing: AppSizes.sm,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSizes.sm,
+        vertical: 6,
+      ),
+      child: Row(
         children: [
-          SizedBox(
-            width: 260,
-            child: TextField(
-              controller: controller.searchController,
-              onChanged: controller.onSearchChanged,
-              decoration: const InputDecoration(
-                isDense: true,
-                hintText: 'Search name or email',
-                prefixIcon: Icon(Icons.search_rounded, size: AppSizes.iconSm),
-              ),
+          if (_searchOpen) ...[
+            // ── Search mode: close + full-width field ───────────────
+            IconButton(
+              tooltip: 'Close',
+              visualDensity: VisualDensity.compact,
+              onPressed: _toggleSearch,
+              icon: const Icon(Icons.close_rounded, size: AppSizes.iconSm),
             ),
-          ),
-          Obx(
-            () => SizedBox(
-              width: 170,
-              child: DropdownButtonFormField<String?>(
-                initialValue: controller.streamFilter.value,
-                isDense: true,
+            Expanded(
+              child: TextField(
+                controller: widget.controller.searchController,
+                focusNode: _focus,
+                onChanged: widget.controller.onSearchChanged,
+                style: const TextStyle(fontSize: 13),
                 decoration: const InputDecoration(
                   isDense: true,
-                  labelText: 'Stream',
+                  hintText: 'Name or email…',
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(vertical: 4),
                 ),
+              ),
+            ),
+          ] else ...[
+            // ── Default mode: search icon + pills ───────────────────
+            IconButton(
+              tooltip: 'Search',
+              visualDensity: VisualDensity.compact,
+              onPressed: _toggleSearch,
+              icon: const Icon(Icons.search_rounded, size: AppSizes.iconSm),
+            ),
+            const Spacer(),
+            // Stream dropdown pill
+            Obx(
+              () => _FilterDropdown<String?>(
+                borderColor: borderColor,
+                icon: Icons.tune_rounded,
+                hint: 'Stream',
+                value: widget.controller.streamFilter.value,
                 items: [
-                  const DropdownMenuItem(value: null, child: Text('All streams')),
-                  ...controller.availableStreams.map(
+                  const DropdownMenuItem(
+                      value: null, child: Text('All streams')),
+                  ...widget.controller.availableStreams.map(
                     (s) => DropdownMenuItem(value: s, child: Text(s)),
                   ),
                 ],
-                onChanged: controller.setStreamFilter,
+                onChanged: widget.controller.setStreamFilter,
               ),
             ),
-          ),
-          TextButton(
-            onPressed: controller.clearFilters,
-            child: const Text('Clear'),
-          ),
+            const SizedBox(width: AppSizes.sm),
+            // Clear (only when a filter is active)
+            Obx(() {
+              final active =
+                  widget.controller.streamFilter.value != null ||
+                      widget.controller.searchController.text.isNotEmpty;
+              if (!active) return const SizedBox.shrink();
+              return IconButton(
+                tooltip: 'Clear filters',
+                visualDensity: VisualDensity.compact,
+                onPressed: widget.controller.clearFilters,
+                icon: const Icon(
+                  Icons.filter_alt_off_rounded,
+                  size: AppSizes.iconSm,
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );
@@ -246,6 +309,57 @@ class _Table extends StatelessWidget {
     }
   }
 }
+
+// ── Shared filter dropdown pill ────────────────────────────────────────
+
+class _FilterDropdown<T> extends StatelessWidget {
+  const _FilterDropdown({
+    required this.borderColor,
+    required this.icon,
+    required this.hint,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final Color borderColor;
+  final IconData icon;
+  final String hint;
+  final T? value;
+  final List<DropdownMenuItem<T?>> items;
+  final ValueChanged<T?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(color: borderColor),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T?>(
+          value: value,
+          isDense: true,
+          hint: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13),
+              const SizedBox(width: 5),
+              Text(hint, style: const TextStyle(fontSize: 12)),
+            ],
+          ),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 14),
+          items: items,
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Status pill ────────────────────────────────────────────────────────
 
 class _StatusPill extends StatelessWidget {
   const _StatusPill({required this.status});

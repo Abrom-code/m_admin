@@ -52,9 +52,9 @@ class DashboardScreen extends StatelessWidget {
               const SizedBox(height: AppSizes.spaceBtwItems),
             const SignupChartCard(),
             const SizedBox(height: AppSizes.spaceBtwItems),
-            Row(
+            const Row(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Expanded(child: PaidUnpaidDonutCard()),
                 SizedBox(width: AppSizes.spaceBtwItems),
                 Expanded(child: StreamSplitCard()),

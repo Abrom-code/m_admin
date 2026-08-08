@@ -87,7 +87,7 @@ class AdminPaymentRepository {
     }
   }
 
-  Future<PaymentReview> fetchDetail(int id) async {
+  Future<PaymentReview> fetchDetail(String id) async {
     try {
       final row = await _supabase
           .from('payment_receipts')
@@ -120,7 +120,7 @@ class AdminPaymentRepository {
   /// The push is sent by the caller AFTER this returns so a failed FCM call
   /// never rolls back the database change.
   Future<void> approve({
-    required int receiptId,
+    required String receiptId,
     required String userId,
     required String adminUid,
     num? amount,
@@ -133,7 +133,7 @@ class AdminPaymentRepository {
         'status': 'approved',
         'reviewed_by': adminUid,
         'reviewed_at': now,
-        if (amount != null) 'amount': amount,
+        'amount': ?amount,
       }).eq('id', receiptId);
 
       await _supabase
@@ -151,7 +151,7 @@ class AdminPaymentRepository {
   /// because UserModel in the student app has no rejected state — the student
   /// would end up stranded. The rejection reason is recorded on the receipt.
   Future<void> reject({
-    required int receiptId,
+    required String receiptId,
     required String userId,
     required String adminUid,
     required String reason,

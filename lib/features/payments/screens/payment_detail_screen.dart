@@ -525,33 +525,27 @@ class _ActionBar extends StatelessWidget {
           ),
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            const Expanded(
-              child: Text(
-                'A approve   ·   R reject   ·   J / K next / previous',
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-              ),
-            ),
-            OutlinedButton.icon(
+            OutlinedButton(
               onPressed: busy ? null : onReject,
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.error,
                 side: const BorderSide(color: AppColors.error),
-                minimumSize: const Size(120, 44),
+                minimumSize: const Size(44, 44),
+                padding: EdgeInsets.zero,
               ),
-              icon: const Icon(Icons.close_rounded, size: AppSizes.iconSm),
-              label: const Text('Reject'),
+              child: const Icon(Icons.close_rounded, size: AppSizes.iconSm),
             ),
             const SizedBox(width: AppSizes.sm),
-            ElevatedButton.icon(
+            ElevatedButton(
               onPressed: busy ? null : onApprove,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.success,
-                minimumSize: const Size(140, 44),
+                minimumSize: const Size(44, 44),
+                padding: EdgeInsets.zero,
               ),
-              icon: busy
+              child: busy
                   ? const SizedBox(
                       height: 14,
                       width: 14,
@@ -561,7 +555,6 @@ class _ActionBar extends StatelessWidget {
                       ),
                     )
                   : const Icon(Icons.check_rounded, size: AppSizes.iconSm),
-              label: const Text('Approve'),
             ),
           ],
         ),

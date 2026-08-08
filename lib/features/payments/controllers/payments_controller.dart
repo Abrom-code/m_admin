@@ -34,14 +34,14 @@ class PaymentsController extends GetxController {
   final counts = <String, int>{}.obs;
 
   /// Keyed by receipt id so one row's spinner never freezes the whole table.
-  final actingIds = <int>{}.obs;
+  final actingIds = <String>{}.obs;
 
   final searchController = TextEditingController();
 
   Timer? _debounce;
   RealtimeChannel? _channel;
 
-  bool isActing(int id) => actingIds.contains(id);
+  bool isActing(String id) => actingIds.contains(id);
 
   @override
   void onInit() {

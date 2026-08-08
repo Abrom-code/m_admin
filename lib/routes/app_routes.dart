@@ -8,7 +8,6 @@ import 'package:m_admin/features/content/screens/content_screen.dart';
 import 'package:m_admin/features/content/screens/subject_tests_screen.dart';
 import 'package:m_admin/features/content/screens/test_editor_screen.dart';
 import 'package:m_admin/features/dashboard/screens/dashboard_screen.dart';
-import 'package:m_admin/features/notifications/screens/notification_compose_screen.dart';
 import 'package:m_admin/features/notifications/screens/notifications_screen.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/payments/screens/payment_detail_screen.dart';

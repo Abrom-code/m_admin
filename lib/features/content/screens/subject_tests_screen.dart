@@ -130,7 +130,7 @@ class SubjectTestsScreen extends StatelessWidget {
         arguments: {
           'subject_id': subject.id,
           'subject_name': subject.name,
-          if (testId != null) 'test_id': testId,
+          'test_id': ?testId,
         },
       )?.then((_) => controller.loadTests());
     }
