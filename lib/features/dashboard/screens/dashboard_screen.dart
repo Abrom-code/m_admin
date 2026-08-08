@@ -265,8 +265,8 @@ class _RecentTable extends StatelessWidget {
         ),
         const SizedBox(height: AppSizes.spaceBtwItems),
         rows.isEmpty
-            ? AdminCard(
-                child: const Center(
+            ? const AdminCard(
+                child: Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: AppSizes.md),
                     child: Text(
@@ -284,7 +284,7 @@ class _RecentTable extends StatelessWidget {
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: rows.length,
-                  separatorBuilder: (_, __) =>
+                  separatorBuilder: (context, index) =>
                       const SizedBox(width: AppSizes.sm),
                   itemBuilder: (context, i) => _ReceiptCard(row: rows[i]),
                 ),
@@ -383,7 +383,7 @@ class _ReceiptCard extends StatelessWidget {
           const SizedBox(height: AppSizes.xs),
           Row(
             children: [
-              Icon(
+              const Icon(
                 Iconsax.clock_copy,
                 size: 12,
                 color: AppColors.textSecondary,

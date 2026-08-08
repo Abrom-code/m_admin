@@ -208,14 +208,15 @@ class AdminPaymentRepository {
             Uri.parse('${AppEnv.adminFunctionsBaseUrl}/send-push'),
             headers: {
               'Content-Type': 'application/json',
-              // Phase 2a gate. Without this the function returns 401.
+              'Authorization': 'Bearer ${AppEnv.supabaseApiKey}',
               'x-webhook-secret': AppEnv.pushWebhookSecret,
             },
             body: jsonEncode({
               'event': 'payment_status',
               'user_id': userId,
               'status': status,
-              if (reason != null && reason.isNotEmpty) 'reason': reason,
+              if (reason != null && reason.isNotEmpty)
+                'rejection_reason': reason,
             }),
           )
           .timeout(const Duration(seconds: 20));

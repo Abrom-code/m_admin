@@ -163,10 +163,13 @@ async function handlePaymentStatus(
     .single();
   if (!user?.fcm_token) return;
 
-  if (status === "approved") {
+  if (status === "approved" || status === "active") {
     await sendFcmToToken(
       user.fcm_token,
-      { title: "Payment Approved", body: "You now have full access." },
+      {
+        title: "Payment Approved ✓",
+        body: "Your payment has been approved! Please refresh the app to access premium features."
+      },
       { type: "payment_status", status: "approved" },
     );
   } else if (status === "rejected") {
@@ -174,7 +177,7 @@ async function handlePaymentStatus(
       user.fcm_token,
       {
         title: "Payment Not Approved",
-        body: rejection_reason || "Please contact support.",
+        body: rejection_reason || "Your payment was not approved. Please contact support for more details.",
       },
       { type: "payment_status", status: "rejected" },
     );
