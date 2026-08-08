@@ -16,12 +16,14 @@ class NotificationsController extends GetxController {
   final errorMessage = RxnString();
   final typeFilter = RxnString();
   final page = 0.obs;
+  final stats = Rxn<Map<String, int>>();
   static const pageSize = 30;
 
   @override
   void onInit() {
     super.onInit();
     load();
+    loadStats();
   }
 
   Future<void> load() async {
@@ -33,13 +35,19 @@ class NotificationsController extends GetxController {
         pageSize: pageSize,
         typeFilter: typeFilter.value,
       );
-      print('🔔 Fetched ${fetched.length} notifications, filter: ${typeFilter.value}');
       rows.value = fetched;
     } catch (e) {
-      print('❌ Error loading notifications: $e');
       errorMessage.value = AppExceptionHandler.handle(e).message;
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> loadStats() async {
+    try {
+      stats.value = await _repo.getStats();
+    } catch (_) {
+      // Stats are non-critical — silently ignore failures
     }
   }
 
@@ -70,12 +78,26 @@ class NotificationsController extends GetxController {
       );
       SnackbarHelper.success('Sent', 'Notification delivered.');
       await load(); // refresh the list so the new row appears
+      await loadStats(); // refresh stats
       return true;
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
       return false;
     } finally {
       isSending.value = false;
+    }
+  }
+
+  Future<bool> delete(int id) async {
+    try {
+      await _repo.delete(id);
+      rows.removeWhere((n) => n.id == id);
+      await loadStats(); // refresh stats after delete
+      SnackbarHelper.success('Deleted', 'Notification removed.');
+      return true;
+    } catch (e) {
+      AppExceptionHandler.handleResponse(e);
+      return false;
     }
   }
 }

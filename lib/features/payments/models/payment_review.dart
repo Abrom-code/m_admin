@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// A payment receipt joined to the student who submitted it.
 ///
 /// Parsed defensively throughout (`json['x']?.toString() ?? ''`) in the same
@@ -143,12 +145,12 @@ class PaymentReview {
   }
 }
 
-/// Display metadata for the four payment methods the student app offers.
+/// Display metadata for a payment method.
 ///
-/// Account numbers are duplicated from the student app's `payment_enum.dart`
-/// so a reviewer can check the receipt against the account it should have been
-/// paid into. They are hardcoded there and would need an app release to
-/// change — see the Phase 11 settings screen.
+/// Built-in methods (telebirr, cbe, abyssinia, mpesa) are seeded from
+/// hardcoded defaults and overridden at runtime by [loadFromConfig] once
+/// the admin app fetches values from `app_config`.  Extra methods added
+/// from the Settings screen are appended to [byKey] the same way.
 class PaymentMethodInfo {
   const PaymentMethodInfo({
     required this.label,
@@ -160,30 +162,99 @@ class PaymentMethodInfo {
   final String account;
   final String holder;
 
-  static const _holder = 'Beshasha Desmon';
+  // ── Defaults (used before app_config is loaded or as fallback) ──────
+  static const _defaultHolder = 'Beshasha Desmon';
 
-  static const Map<String, PaymentMethodInfo> byKey = {
+  static const Map<String, PaymentMethodInfo> _defaults = {
     'telebirr': PaymentMethodInfo(
       label: 'Telebirr',
       account: '0983878287',
-      holder: _holder,
+      holder: _defaultHolder,
     ),
     'cbe': PaymentMethodInfo(
       label: 'CBE',
       account: '1000786878626',
-      holder: _holder,
+      holder: _defaultHolder,
     ),
     'abyssinia': PaymentMethodInfo(
       label: 'Abyssinia',
       account: '187978686',
-      holder: _holder,
+      holder: _defaultHolder,
     ),
     'mpesa': PaymentMethodInfo(
       label: 'M-PESA',
       account: '0783738782',
-      holder: _holder,
+      holder: _defaultHolder,
     ),
   };
+
+  /// Live map — starts as the defaults, overwritten by [loadFromConfig].
+  static Map<String, PaymentMethodInfo> byKey =
+      Map<String, PaymentMethodInfo>.from(_defaults);
+
+  /// Called once after `app_config` rows are fetched (e.g. from
+  /// SettingsController or a dedicated config service).  Pass the full
+  /// key→value map from the table.
+  ///
+  /// Keys expected:
+  ///   payment_telebirr, payment_telebirr_holder
+  ///   payment_cbe_birr, payment_cbe_birr_holder
+  ///   payment_abyssinia, payment_abyssinia_holder
+  ///   payment_mpesa, payment_mpesa_holder
+  ///   payment_extra_accounts  (JSON array)
+  static void loadFromConfig(Map<String, String> cfg) {
+    // Helper: override a built-in entry when the config provides a value.
+    PaymentMethodInfo merge(
+      String key,
+      String label,
+      String accountKey,
+      String holderKey,
+    ) {
+      final base = _defaults[key]!;
+      final account = cfg[accountKey]?.trim();
+      final holder = cfg[holderKey]?.trim();
+      return PaymentMethodInfo(
+        label: label,
+        account: account != null && account.isNotEmpty ? account : base.account,
+        holder: holder != null && holder.isNotEmpty ? holder : base.holder,
+      );
+    }
+
+    final updated = <String, PaymentMethodInfo>{
+      'telebirr': merge('telebirr', 'Telebirr',
+          'payment_telebirr', 'payment_telebirr_holder'),
+      'cbe': merge('cbe', 'CBE',
+          'payment_cbe_birr', 'payment_cbe_birr_holder'),
+      'abyssinia': merge('abyssinia', 'Abyssinia',
+          'payment_abyssinia', 'payment_abyssinia_holder'),
+      'mpesa': merge('mpesa', 'M-PESA',
+          'payment_mpesa', 'payment_mpesa_holder'),
+    };
+
+    // Append extra accounts from JSON array stored in app_config.
+    final extraRaw = cfg['payment_extra_accounts'] ?? '';
+    if (extraRaw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(extraRaw);
+        final list = decoded is List ? decoded : <dynamic>[];
+        for (final item in list) {
+          if (item is Map<String, dynamic>) {
+            final k = item['key']?.toString() ?? '';
+            if (k.isEmpty) continue;
+            updated[k] = PaymentMethodInfo(
+              label: item['label']?.toString() ?? k,
+              account: item['account']?.toString() ?? '',
+              holder: item['holder']?.toString() ?? '',
+            );
+          }
+        }
+      } catch (_) {
+        // Malformed JSON — skip extra accounts silently.
+      }
+    }
+
+    byKey = updated;
+  }
 
   static PaymentMethodInfo? of(String key) => byKey[key.toLowerCase()];
 

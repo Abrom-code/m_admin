@@ -87,9 +87,31 @@ class _FilterBar extends StatefulWidget {
 
 class _FilterBarState extends State<_FilterBar> {
   final _focus = FocusNode();
+  bool _searchExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_onFocusChange);
+    if (widget.controller.searchController.text.isNotEmpty) {
+      _searchExpanded = true;
+    }
+  }
+
+  void _onFocusChange() {
+    if (!_focus.hasFocus && widget.controller.searchController.text.isEmpty) {
+      setState(() => _searchExpanded = false);
+    }
+  }
+
+  void _expand() {
+    setState(() => _searchExpanded = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
+  }
 
   @override
   void dispose() {
+    _focus.removeListener(_onFocusChange);
     _focus.dispose();
     super.dispose();
   }
@@ -99,64 +121,69 @@ class _FilterBarState extends State<_FilterBar> {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final borderColor =
         Theme.of(context).colorScheme.outline.withValues(alpha: 0.35);
+    final bgColor = dark
+        ? AppColors.darkGrey.withValues(alpha: 0.3)
+        : AppColors.grey.withValues(alpha: 0.1);
 
     return AdminCard(
       padding: const EdgeInsets.all(AppSizes.sm),
       child: Row(
         children: [
-          // ── Search field ────────────────────────────────────────────
-          Expanded(
-            flex: 2,
-            child: Container(
-              height: 38,
+          // ── Search field (collapsed = icon only, expanded = full field) ──
+          GestureDetector(
+            onTap: _searchExpanded ? null : _expand,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOut,
+              width: _searchExpanded ? 220 : 34,
+              height: 34,
+              clipBehavior: Clip.hardEdge,
               decoration: BoxDecoration(
-                color: dark
-                    ? AppColors.darkGrey.withValues(alpha: 0.3)
-                    : AppColors.grey.withValues(alpha: 0.1),
+                color: _searchExpanded ? bgColor : Colors.transparent,
                 borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-                border: Border.all(
-                  color: borderColor,
-                  width: 1,
-                ),
               ),
-              child: TextField(
-                controller: widget.controller.searchController,
-                focusNode: _focus,
-                onChanged: widget.controller.onSearchChanged,
-                style: const TextStyle(fontSize: 13),
-                decoration: InputDecoration(
-                  isDense: true,
-                  hintText: 'Search by name or email...',
-                  hintStyle: TextStyle(
-                    color: AppColors.textSecondary.withValues(alpha: 0.6),
-                    fontSize: 13,
-                  ),
-                  prefixIcon: const Icon(
-                    Icons.search_rounded,
-                    size: 18,
-                    color: AppColors.textSecondary,
-                  ),
-                  suffixIcon: Obx(() {
-                    if (widget.controller.searchController.text.isEmpty) {
-                      return const SizedBox.shrink();
-                    }
-                    return IconButton(
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        size: 16,
-                        color: AppColors.textSecondary,
-                      ),
-                      onPressed: () {
-                        widget.controller.searchController.clear();
-                        widget.controller.onSearchChanged('');
+              child: AbsorbPointer(
+                absorbing: !_searchExpanded,
+                child: TextField(
+                  controller: widget.controller.searchController,
+                  focusNode: _focus,
+                  onChanged: widget.controller.onSearchChanged,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: 'Search by name or email...',
+                    hintStyle: TextStyle(
+                      color: AppColors.textSecondary.withValues(alpha: 0.6),
+                      fontSize: 13,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      size: 18,
+                      color: AppColors.textSecondary,
+                    ),
+                    suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: widget.controller.searchController,
+                      builder: (_, value, _) {
+                        if (value.text.isEmpty) return const SizedBox.shrink();
+                        return IconButton(
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 16,
+                            color: AppColors.textSecondary,
+                          ),
+                          onPressed: () {
+                            widget.controller.searchController.clear();
+                            widget.controller.onSearchChanged('');
+                          },
+                          visualDensity: VisualDensity.compact,
+                        );
                       },
-                      visualDensity: VisualDensity.compact,
-                    );
-                  }),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                   ),
                 ),
               ),

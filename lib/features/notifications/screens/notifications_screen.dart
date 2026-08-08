@@ -24,6 +24,8 @@ class NotificationsScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          _StatsRow(controller: controller),
+          const SizedBox(height: AppSizes.spaceBtwItems),
           Row(
             children: [
               Expanded(child: _TypeFilter(controller: controller)),
@@ -48,6 +50,103 @@ class NotificationsScreen extends StatelessWidget {
           ),
           const SizedBox(height: AppSizes.spaceBtwItems),
           Expanded(child: _NotificationsList(controller: controller)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatsRow extends StatelessWidget {
+  const _StatsRow({required this.controller});
+
+  final NotificationsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final s = controller.stats.value;
+      if (s == null) return const SizedBox.shrink();
+
+      return Wrap(
+        spacing: AppSizes.sm,
+        runSpacing: AppSizes.sm,
+        children: [
+          _StatChip(
+            label: 'Total sent',
+            value: s['total']?.toString() ?? '0',
+            icon: Iconsax.notification_bing_copy,
+            color: AppColors.info,
+          ),
+          _StatChip(
+            label: 'Announcements',
+            value: s['announcement']?.toString() ?? '0',
+            icon: Iconsax.message_copy,
+            color: AppColors.primary,
+          ),
+          _StatChip(
+            label: 'Content',
+            value: s['new_content']?.toString() ?? '0',
+            icon: Iconsax.document_text_copy,
+            color: AppColors.success,
+          ),
+          _StatChip(
+            label: 'Payment',
+            value: s['payment']?.toString() ?? '0',
+            icon: Iconsax.wallet_copy,
+            color: AppColors.warning,
+          ),
+        ],
+      );
+    });
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSizes.md,
+        vertical: AppSizes.sm,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: AppSizes.xs),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: AppSizes.xs),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -170,6 +269,7 @@ class _NotificationsList extends StatelessWidget {
           return _NotificationCard(
             notification: notification,
             onTap: () => _showNotificationDetail(context, notification),
+            onDelete: () => _confirmDelete(context, notification),
           );
         },
       );
@@ -186,13 +286,51 @@ class _NotificationsList extends StatelessWidget {
           _NotificationDetailDialog(notification: notification),
     );
   }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    AdminNotificationModel notification,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete notification?'),
+        content: const Text(
+          'This will permanently remove this notification from the admin panel. '
+          'Users who already received it will still see it on their devices.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await controller.delete(notification.id);
+    }
+  }
 }
 
 class _NotificationCard extends StatelessWidget {
-  const _NotificationCard({required this.notification, required this.onTap});
+  const _NotificationCard({
+    required this.notification,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   final AdminNotificationModel notification;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -300,14 +438,33 @@ class _NotificationCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
-            Text(
-              notification.body,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Text(
+                    notification.body,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: AppSizes.sm),
+                IconButton(
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  iconSize: 18,
+                  visualDensity: VisualDensity.compact,
+                  style: IconButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    backgroundColor: AppColors.error.withValues(alpha: 0.08),
+                  ),
+                  tooltip: 'Delete',
+                ),
+              ],
             ),
           ],
         ),

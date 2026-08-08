@@ -15,7 +15,6 @@ class NotificationsRepository {
     String? typeFilter,
   }) async {
     try {
-      print('📡 Fetching notifications: page=$page, pageSize=$pageSize, filter=$typeFilter');
 
       // Filters must be applied before .order()/.range() — the Supabase
       // Flutter client returns a PostgrestTransformBuilder after those calls,
@@ -30,7 +29,6 @@ class NotificationsRepository {
           .order('created_at', ascending: false)
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      print('📦 Got ${rows.length} rows from Supabase');
 
       return rows
           .map(
@@ -40,7 +38,6 @@ class NotificationsRepository {
           )
           .toList();
     } catch (e) {
-      print('❌ Repository error: $e');
       throw AppExceptionHandler.handle(e);
     }
   }
@@ -58,7 +55,8 @@ class NotificationsRepository {
   }
 
   /// Sends a broadcast or user-targeted notification via the `send-push` edge
-  /// function. The edge function handles the FCM call and the DB insert.
+  /// function. The edge function handles the FCM call.
+  /// This method also inserts the notification record into the database.
   ///
   /// [audience]: `'all'` | `'stream:<name>'` | `'user:<uid>'`
   Future<void> sendBroadcast({
@@ -69,7 +67,33 @@ class NotificationsRepository {
     Map<String, dynamic> payload = const {},
   }) async {
     try {
-      // Parse audience string into the object format the edge function expects
+      // Parse audience string to extract stream/user info
+      String? targetStream;
+      String? userId;
+
+      if (audience.startsWith('stream:')) {
+        targetStream = audience.substring(7);
+      } else if (audience.startsWith('user:')) {
+        userId = audience.substring(5);
+      }
+
+      // Get current admin UID from Supabase session
+      final adminUid = _sb.auth.currentUser?.id ?? 'unknown';
+
+      // First, save notification to database
+      await _sb.from('notifications').insert({
+        'title': title,
+        'body': body,
+        'type': type,
+        'user_id': userId,
+        'target_stream': targetStream,
+        'payload': payload,
+        'is_read': false,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+
+
+      // Then send push notification via edge function
       final Map<String, dynamic> audienceObj;
       if (audience == 'all') {
         audienceObj = {'type': 'all'};
@@ -86,9 +110,6 @@ class NotificationsRepository {
       } else {
         audienceObj = {'type': 'all'};
       }
-
-      // Get current admin UID from Supabase session
-      final adminUid = _sb.auth.currentUser?.id ?? 'unknown';
 
       final response = await http
           .post(
@@ -118,11 +139,55 @@ class NotificationsRepository {
       }
 
       if (response.statusCode != 200) {
-        throw AppFailure(
-          title: 'Send failed',
-          message: 'Status ${response.statusCode}: ${response.body}',
-        );
+        // Don't throw - notification is saved even if push fails
+      } else {
       }
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Delete a notification by ID
+  Future<void> delete(int id) async {
+    try {
+      await _sb.from('notifications').delete().eq('id', id);
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Get notification statistics
+  Future<Map<String, int>> getStats() async {
+    try {
+      final allCount = await _sb
+          .from('notifications')
+          .select('id')
+          .count(CountOption.exact);
+
+      final announcementCount = await _sb
+          .from('notifications')
+          .select('id')
+          .eq('type', 'announcement')
+          .count(CountOption.exact);
+
+      final contentCount = await _sb
+          .from('notifications')
+          .select('id')
+          .eq('type', 'new_content')
+          .count(CountOption.exact);
+
+      final paymentCount = await _sb
+          .from('notifications')
+          .select('id')
+          .eq('type', 'payment')
+          .count(CountOption.exact);
+
+      return {
+        'total': allCount.count,
+        'announcement': announcementCount.count,
+        'new_content': contentCount.count,
+        'payment': paymentCount.count,
+      };
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
