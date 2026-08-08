@@ -104,12 +104,14 @@ class _StatGrid extends StatelessWidget {
               label: 'Total students',
               value: _fmtInt(stats.totalUsers),
               color: AppColors.primary,
+              onTap: () => AdminNavController.instance.changePage(3),
             ),
             _StatCard(
               icon: Iconsax.crown_copy,
               label: 'Paid (active)',
               value: _fmtInt(stats.paidUsers),
               color: AppColors.success,
+              onTap: () => AdminNavController.instance.changePage(3),
             ),
             _StatCard(
               icon: Iconsax.profile_delete_copy,
@@ -118,6 +120,9 @@ class _StatGrid extends StatelessWidget {
               color: stats.unpaidUsers > 0
                   ? AppColors.textSecondary
                   : AppColors.darkGrey,
+              onTap: stats.unpaidUsers > 0
+                  ? () => AdminNavController.instance.changePage(3)
+                  : null,
             ),
             _StatCard(
               icon: Iconsax.receipt_copy,
@@ -135,12 +140,14 @@ class _StatGrid extends StatelessWidget {
               label: 'New this week',
               value: _fmtInt(stats.newUsersThisWeek),
               color: AppColors.info,
+              onTap: () => AdminNavController.instance.changePage(3),
             ),
             _StatCard(
               icon: Iconsax.money_recive_copy,
               label: 'Total revenue',
               value: _fmtRevenue(stats.totalRevenue),
               color: AppColors.success,
+              onTap: () => _showRevenueDialog(Get.context!),
             ),
           ],
         );
@@ -155,6 +162,13 @@ class _StatGrid extends StatelessWidget {
       return 'ETB ${NumberFormat.compact().format(amount)}';
     }
     return 'ETB ${NumberFormat('#,##0').format(amount)}';
+  }
+
+  void _showRevenueDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const _RevenueDetailDialog(),
+    );
   }
 }
 
@@ -445,6 +459,249 @@ class _ErrorView extends StatelessWidget {
               onPressed: onRetry,
               icon: const Icon(Icons.refresh_rounded, size: AppSizes.iconSm),
               label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Revenue detail dialog ──────────────────────────────────────────────
+
+class _RevenueDetailDialog extends StatefulWidget {
+  const _RevenueDetailDialog();
+
+  @override
+  State<_RevenueDetailDialog> createState() => _RevenueDetailDialogState();
+}
+
+class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
+  DateTimeRange? _selectedRange;
+  bool _isLoading = false;
+  double? _rangeRevenue;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    // Default to last 30 days
+    _selectedRange = DateTimeRange(
+      start: DateTime.now().subtract(const Duration(days: 30)),
+      end: DateTime.now(),
+    );
+    _loadRevenue();
+  }
+
+  Future<void> _loadRevenue() async {
+    if (_selectedRange == null) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final repo = DashboardRepository();
+      final days = _selectedRange!.end.difference(_selectedRange!.start).inDays;
+      final revenueData = await repo.fetchRevenueDaily(days);
+      final total = revenueData.fold<double>(0, (sum, point) => sum + point.value);
+
+      setState(() {
+        _rangeRevenue = total;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load revenue';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _pickDateRange() async {
+    final dark = AppHelperFunctions.isDark(context);
+
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDateRange: _selectedRange,
+      saveText: 'Apply',
+      builder: (context, child) {
+        final base = dark ? ThemeData.dark() : ThemeData.light();
+        return Theme(
+          data: base.copyWith(
+            colorScheme: dark
+                ? ColorScheme.dark(
+                    primary: AppColors.primary,
+                    onPrimary: Colors.white,
+                    surface: AppColors.darkCard,
+                    onSurface: AppColors.white,
+                    secondaryContainer: AppColors.primary.withValues(alpha: 0.2),
+                    onSecondaryContainer: AppColors.primary,
+                  )
+                : ColorScheme.light(
+                    primary: AppColors.primary,
+                    onPrimary: Colors.white,
+                    surface: Colors.white,
+                    onSurface: Colors.black87,
+                    secondaryContainer: AppColors.primary.withValues(alpha: 0.12),
+                    onSecondaryContainer: AppColors.primary,
+                  ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (range != null) {
+      setState(() => _selectedRange = range);
+      _loadRevenue();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final controller = Get.find<DashboardController>();
+
+    return Dialog(
+      backgroundColor: dark ? AppColors.darkCard : AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
+      ),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 500),
+        padding: const EdgeInsets.all(AppSizes.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Iconsax.money_recive_copy,
+                  color: AppColors.success,
+                  size: AppSizes.iconMd,
+                ),
+                const SizedBox(width: AppSizes.sm),
+                Expanded(
+                  child: Text(
+                    'Revenue Details',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                  iconSize: AppSizes.iconMd,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSizes.spaceBtwItems),
+            AdminCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Total Revenue (All Time)',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSizes.xs),
+                  Obx(() {
+                    final total = controller.stats.value?.totalRevenue ?? 0;
+                    return Text(
+                      'ETB ${NumberFormat('#,##0.00').format(total)}',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.success,
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSizes.spaceBtwItems),
+            const Text(
+              'Revenue by Date Range',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppSizes.sm),
+            OutlinedButton.icon(
+              onPressed: _pickDateRange,
+              icon: const Icon(Iconsax.calendar_copy, size: AppSizes.iconSm),
+              label: Text(
+                _selectedRange == null
+                    ? 'Select date range'
+                    : '${DateFormat('MMM d, y').format(_selectedRange!.start)} - ${DateFormat('MMM d, y').format(_selectedRange!.end)}',
+              ),
+              style: OutlinedButton.styleFrom(
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.all(AppSizes.md),
+              ),
+            ),
+            const SizedBox(height: AppSizes.sm),
+            AdminCard(
+              child: _isLoading
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(AppSizes.md),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : _errorMessage != null
+                      ? Padding(
+                          padding: const EdgeInsets.all(AppSizes.md),
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(
+                              color: AppColors.error,
+                              fontSize: 13,
+                            ),
+                          ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Revenue in Selected Range',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: AppSizes.xs),
+                            Text(
+                              'ETB ${NumberFormat('#,##0.00').format(_rangeRevenue ?? 0)}',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: dark ? AppColors.white : AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+            ),
+            const SizedBox(height: AppSizes.spaceBtwItems),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                AdminNavController.instance.changePage(1); // Go to payments
+              },
+              child: const Text('View Payments'),
             ),
           ],
         ),

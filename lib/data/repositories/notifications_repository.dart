@@ -15,6 +15,8 @@ class NotificationsRepository {
     String? typeFilter,
   }) async {
     try {
+      print('📡 Fetching notifications: page=$page, pageSize=$pageSize, filter=$typeFilter');
+
       // Filters must be applied before .order()/.range() — the Supabase
       // Flutter client returns a PostgrestTransformBuilder after those calls,
       // which no longer exposes .eq().
@@ -28,6 +30,8 @@ class NotificationsRepository {
           .order('created_at', ascending: false)
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
+      print('📦 Got ${rows.length} rows from Supabase');
+
       return rows
           .map(
             (r) => AdminNotificationModel.fromJson(
@@ -36,6 +40,7 @@ class NotificationsRepository {
           )
           .toList();
     } catch (e) {
+      print('❌ Repository error: $e');
       throw AppExceptionHandler.handle(e);
     }
   }

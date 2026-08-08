@@ -136,25 +136,40 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: AppSizes.spaceBtwItems),
-                  Wrap(
-                    spacing: AppSizes.sm,
+                  Row(
                     children: [
                       if (!_user.isActive)
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.success,
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSizes.md,
+                                vertical: AppSizes.sm,
+                              ),
+                            ),
+                            onPressed: () => _setStatus('active'),
+                            icon: const Icon(Icons.check_circle_outline, size: 18),
+                            label: const Text('Grant premium'),
                           ),
-                          onPressed: () => _setStatus('active'),
-                          child: const Text('Grant premium'),
                         ),
+                      if (!_user.isActive && !_user.isInactive)
+                        const SizedBox(width: AppSizes.sm),
                       if (!_user.isInactive)
-                        OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.error,
-                            side: const BorderSide(color: AppColors.error),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.error,
+                              side: const BorderSide(color: AppColors.error),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSizes.md,
+                                vertical: AppSizes.sm,
+                              ),
+                            ),
+                            onPressed: () => _setStatus('inactive'),
+                            icon: const Icon(Icons.block, size: 18),
+                            label: const Text('Revoke premium'),
                           ),
-                          onPressed: () => _setStatus('inactive'),
-                          child: const Text('Revoke premium'),
                         ),
                     ],
                   ),

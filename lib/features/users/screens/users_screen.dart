@@ -86,7 +86,6 @@ class _FilterBar extends StatefulWidget {
 }
 
 class _FilterBarState extends State<_FilterBar> {
-  bool _searchOpen = false;
   final _focus = FocusNode();
 
   @override
@@ -95,96 +94,109 @@ class _FilterBarState extends State<_FilterBar> {
     super.dispose();
   }
 
-  void _toggleSearch() {
-    setState(() => _searchOpen = !_searchOpen);
-    if (_searchOpen) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _focus.requestFocus());
-    } else {
-      _focus.unfocus();
-      widget.controller.searchController.clear();
-      widget.controller.onSearchChanged('');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final borderColor =
         Theme.of(context).colorScheme.outline.withValues(alpha: 0.35);
 
     return AdminCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSizes.sm,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.all(AppSizes.sm),
       child: Row(
         children: [
-          if (_searchOpen) ...[
-            // ── Search mode: close + full-width field ───────────────
-            IconButton(
-              tooltip: 'Close',
-              visualDensity: VisualDensity.compact,
-              onPressed: _toggleSearch,
-              icon: const Icon(Icons.close_rounded, size: AppSizes.iconSm),
-            ),
-            Expanded(
+          // ── Search field ────────────────────────────────────────────
+          Expanded(
+            flex: 2,
+            child: Container(
+              height: 38,
+              decoration: BoxDecoration(
+                color: dark
+                    ? AppColors.darkGrey.withValues(alpha: 0.3)
+                    : AppColors.grey.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                border: Border.all(
+                  color: borderColor,
+                  width: 1,
+                ),
+              ),
               child: TextField(
                 controller: widget.controller.searchController,
                 focusNode: _focus,
                 onChanged: widget.controller.onSearchChanged,
                 style: const TextStyle(fontSize: 13),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
-                  hintText: 'Name or email…',
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 4),
-                ),
-              ),
-            ),
-          ] else ...[
-            // ── Default mode: search icon + pills ───────────────────
-            IconButton(
-              tooltip: 'Search',
-              visualDensity: VisualDensity.compact,
-              onPressed: _toggleSearch,
-              icon: const Icon(Icons.search_rounded, size: AppSizes.iconSm),
-            ),
-            const Spacer(),
-            // Stream dropdown pill
-            Obx(
-              () => _FilterDropdown<String?>(
-                borderColor: borderColor,
-                icon: Icons.tune_rounded,
-                hint: 'Stream',
-                value: widget.controller.streamFilter.value,
-                items: [
-                  const DropdownMenuItem(
-                      value: null, child: Text('All streams')),
-                  ...widget.controller.availableStreams.map(
-                    (s) => DropdownMenuItem(value: s, child: Text(s)),
+                  hintText: 'Search by name or email...',
+                  hintStyle: TextStyle(
+                    color: AppColors.textSecondary.withValues(alpha: 0.6),
+                    fontSize: 13,
                   ),
-                ],
-                onChanged: widget.controller.setStreamFilter,
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
+                  suffixIcon: Obx(() {
+                    if (widget.controller.searchController.text.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return IconButton(
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: AppColors.textSecondary,
+                      ),
+                      onPressed: () {
+                        widget.controller.searchController.clear();
+                        widget.controller.onSearchChanged('');
+                      },
+                      visualDensity: VisualDensity.compact,
+                    );
+                  }),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: AppSizes.sm),
-            // Clear (only when a filter is active)
-            Obx(() {
-              final active =
-                  widget.controller.streamFilter.value != null ||
-                      widget.controller.searchController.text.isNotEmpty;
-              if (!active) return const SizedBox.shrink();
-              return IconButton(
-                tooltip: 'Clear filters',
-                visualDensity: VisualDensity.compact,
-                onPressed: widget.controller.clearFilters,
-                icon: const Icon(
-                  Icons.filter_alt_off_rounded,
-                  size: AppSizes.iconSm,
+          ),
+          const SizedBox(width: AppSizes.sm),
+          // ── Filter pills ────────────────────────────────────────────
+          // Stream dropdown pill
+          Obx(
+            () => _FilterDropdown<String?>(
+              borderColor: borderColor,
+              icon: Icons.tune_rounded,
+              hint: 'Stream',
+              value: widget.controller.streamFilter.value,
+              items: [
+                const DropdownMenuItem(
+                    value: null, child: Text('All streams')),
+                ...widget.controller.availableStreams.map(
+                  (s) => DropdownMenuItem(value: s, child: Text(s)),
                 ),
-              );
-            }),
-          ],
+              ],
+              onChanged: widget.controller.setStreamFilter,
+            ),
+          ),
+          const SizedBox(width: AppSizes.sm),
+          // Clear (only when a filter is active)
+          Obx(() {
+            final active = widget.controller.streamFilter.value != null ||
+                widget.controller.searchController.text.isNotEmpty;
+            if (!active) return const SizedBox.shrink();
+            return IconButton(
+              tooltip: 'Clear filters',
+              visualDensity: VisualDensity.compact,
+              onPressed: widget.controller.clearFilters,
+              icon: const Icon(
+                Icons.filter_alt_off_rounded,
+                size: AppSizes.iconSm,
+              ),
+            );
+          }),
         ],
       ),
     );

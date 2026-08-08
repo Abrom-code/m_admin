@@ -28,12 +28,15 @@ class NotificationsController extends GetxController {
     try {
       isLoading.value = true;
       errorMessage.value = null;
-      rows.value = await _repo.fetchRecent(
+      final fetched = await _repo.fetchRecent(
         page: page.value,
         pageSize: pageSize,
         typeFilter: typeFilter.value,
       );
+      print('🔔 Fetched ${fetched.length} notifications, filter: ${typeFilter.value}');
+      rows.value = fetched;
     } catch (e) {
+      print('❌ Error loading notifications: $e');
       errorMessage.value = AppExceptionHandler.handle(e).message;
     } finally {
       isLoading.value = false;
