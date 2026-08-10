@@ -138,7 +138,7 @@ class _RejectDialogState extends State<_RejectDialog> {
             // ── Free-text field ─────────────────────────────────────
             TextField(
               controller: _controller,
-              autofocus: true,
+              autofocus: false,
               maxLines: 4,
               minLines: 2,
               textCapitalization: TextCapitalization.sentences,
