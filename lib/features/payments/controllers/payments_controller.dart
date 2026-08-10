@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/admin_payment_repository.dart';
+import 'package:m_admin/data/services/admin_notification_service.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
 import 'package:m_admin/features/dashboard/controllers/dashboard_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
@@ -369,17 +370,27 @@ class PaymentsController extends GetxController {
     }
   }
 
-  /// Shows an in-app alert when a new payment receipt is inserted.
+  /// Shows a local OS notification and an in-app snackbar when a new payment
+  /// receipt is inserted.
   ///
-  /// Extracts a best-effort payment method label from the Realtime payload so
-  /// the admin can glance at the toast without opening the queue.
+  /// The OS notification appears even when the admin is outside the app or the
+  /// screen is off. The snackbar is a secondary in-app nudge.
   void _notifyNewPayment(Map<String, dynamic> record) {
     final method = record['payment_method']?.toString() ?? '';
+
+    // OS-level heads-up banner via flutter_local_notifications.
+    if (Get.isRegistered<AdminNotificationService>()) {
+      AdminNotificationService.instance.newPendingPayment(
+        paymentMethod: method,
+      );
+    }
+
+    // In-app snackbar as a secondary nudge while the app is in the foreground.
     final methodLabel = method.isEmpty
         ? 'New payment'
         : '${method[0].toUpperCase()}${method.substring(1)} payment';
     SnackbarHelper.info(
-      'New payment received',
+      'New payment pending',
       '$methodLabel is waiting for review.',
     );
   }

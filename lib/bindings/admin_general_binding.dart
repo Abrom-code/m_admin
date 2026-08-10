@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/admin_auth_repository.dart';
+import 'package:m_admin/data/services/admin_notification_service.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
 import 'package:m_admin/features/auth/controllers/admin_login_controller.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
@@ -17,6 +18,10 @@ class AdminGeneralBinding extends Bindings {
   @override
   void dependencies() {
     Get.put(NetworkManager(), permanent: true);
+
+    // Local OS notifications — registered early so any controller that starts
+    // a Realtime subscription can call it immediately.
+    Get.put(AdminNotificationService(), permanent: true);
 
     // Order matters: AdminSessionService resolves AdminAuthRepository in its
     // field initialiser, and AdminLoginController resolves both.

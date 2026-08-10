@@ -31,9 +31,13 @@ dependencies:
   # Pinned, unlike the parent's `url_launcher: any`.
   url_launcher: ^6.3.1
 
+  # Local OS notifications for the admin device.
+  # Used to alert the admin when a new pending payment arrives via Realtime.
+  flutter_local_notifications: ^18.0.1
+
   # Deliberately ABSENT — see ADMIN_APP_PROMPT.md Phase 3:
   #   sqflite            no offline cache; an admin tool must never show stale money
-  #   firebase_messaging the admin app receives no push
+  #   firebase_messaging the admin app receives no push (uses local notifications instead)
   #   any chart package  charts are hand-rolled CustomPainters (Phase 0.5)
 
 dev_dependencies:
