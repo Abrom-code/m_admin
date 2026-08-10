@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/dashboard_repository.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 
 class DashboardController extends GetxController {
@@ -48,6 +49,13 @@ class DashboardController extends GetxController {
       subjectTestCounts.value = results[3] as List<SubjectTestCount>;
       subscriptionFunnel.value = results[4] as List<FunnelPoint>;
       streamSplit.value = results[5] as List<StreamPoint>;
+
+      // Keep the sidebar badge consistent with the KPI stat so they always
+      // show the same number regardless of which refreshed last.
+      final pending = stats.value?.pendingPayments ?? 0;
+      if (Get.isRegistered<AdminNavController>()) {
+        AdminNavController.instance.pendingPaymentCount.value = pending;
+      }
     } catch (e) {
       errorMessage.value = AppExceptionHandler.handle(e).message;
     } finally {

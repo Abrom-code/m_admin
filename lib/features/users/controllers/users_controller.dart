@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/users_repository.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
+import 'package:m_admin/features/dashboard/controllers/dashboard_controller.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UsersController extends GetxController {
   static UsersController get instance => Get.find();
@@ -29,6 +31,7 @@ class UsersController extends GetxController {
   final searchController = TextEditingController();
 
   Timer? _debounce;
+  RealtimeChannel? _channel;
 
   bool isActing(String id) => actingIds.contains(id);
 
@@ -36,12 +39,16 @@ class UsersController extends GetxController {
   void onInit() {
     super.onInit();
     loadAll();
+    _subscribeRealtime();
   }
 
   @override
   void onClose() {
     _debounce?.cancel();
     searchController.dispose();
+    if (_channel != null) {
+      Supabase.instance.client.removeChannel(_channel!);
+    }
     super.onClose();
   }
 
@@ -133,22 +140,66 @@ class UsersController extends GetxController {
         _session.adminUid,
       );
 
-      final idx = rows.indexWhere((r) => r.id == user.id);
-      if (idx != -1) {
-        rows[idx] = user.copyWith(subscriptionStatus: status);
-        rows.refresh();
-      }
+      // Update the in-memory row so the list reflects the change immediately.
+      applyLocalStatusUpdate(user.id, status);
 
       SnackbarHelper.success(
         'Updated',
         '${user.displayName} is now $status.',
       );
       await refreshCounts();
+
+      // Refresh dashboard stats (subscription funnel, active users).
+      if (Get.isRegistered<DashboardController>()) {
+        DashboardController.instance.load();
+      }
+
+      // Send push notification (best-effort — must not fail the action).
+      await _repo.sendSubscriptionPush(userId: user.id, status: status);
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
     } finally {
       actingIds.remove(user.id);
       actingIds.refresh();
+    }
+  }
+
+  /// Updates a user's subscription status in the in-memory list without a
+  /// network round-trip. Called by [PaymentsController] after approve/reject
+  /// so the Users screen stays in sync without a full reload.
+  void applyLocalStatusUpdate(String userId, String status) {
+    final idx = rows.indexWhere((r) => r.id == userId);
+    if (idx == -1) return;
+    rows[idx] = rows[idx].copyWith(subscriptionStatus: status);
+    rows.refresh();
+  }
+
+  // ── Realtime ─────────────────────────────────────────────────────
+
+  /// Listen for UPDATE events on `users` so subscription_status changes made
+  /// by payments (or another admin session) propagate to this screen without
+  /// a manual refresh.
+  void _subscribeRealtime() {
+    try {
+      _channel = Supabase.instance.client
+          .channel('admin_users_status')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'users',
+            callback: (payload) {
+              final newRow = payload.newRecord;
+              final userId = newRow['id']?.toString();
+              final newStatus = newRow['subscription_status']?.toString();
+              if (userId == null || newStatus == null) return;
+              applyLocalStatusUpdate(userId, newStatus);
+              // Also keep counts accurate.
+              refreshCounts();
+            },
+          )
+          .subscribe();
+    } catch (_) {
+      // Realtime is an enhancement — a failure here must not break the screen.
     }
   }
 }

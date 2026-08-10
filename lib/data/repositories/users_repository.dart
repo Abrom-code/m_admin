@@ -1,5 +1,10 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
+import 'package:m_admin/utils/constants/app_env.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 
 class UsersRepository {
@@ -27,7 +32,7 @@ class UsersRepository {
       }
 
       if (search != null && search.trim().isNotEmpty) {
-        final safe = search.trim().replaceAll("'", "''");
+        final safe = _escapeFilterValue(search.trim());
         q = q.or(
           'first_name.ilike.%$safe%,'
           'last_name.ilike.%$safe%,'
@@ -64,7 +69,7 @@ class UsersRepository {
   }
 
   /// Manual subscription override — used when a payment was confirmed outside
-  /// the app (e.g. cash, or a corrected bank error).
+  /// the app (e.g. cash, or a corrected bank error) or when premium is revoked.
   Future<void> setSubscriptionStatus(
     String userId,
     String status,
@@ -77,6 +82,46 @@ class UsersRepository {
           .eq('id', userId);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Sends a push notification for a manual subscription change (grant or revoke).
+  ///
+  /// Best-effort: failures are logged but must not surface to the admin,
+  /// because the database write already committed.
+  Future<void> sendSubscriptionPush({
+    required String userId,
+    required String status,
+    String? reason,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${AppEnv.adminFunctionsBaseUrl}/send-push'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ${AppEnv.supabaseApiKey}',
+              'x-webhook-secret': AppEnv.pushWebhookSecret,
+            },
+            body: jsonEncode({
+              'event': 'payment_status',
+              'user_id': userId,
+              'status': status,
+              if (reason != null && reason.isNotEmpty)
+                'rejection_reason': reason,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode != 200) {
+        // Non-fatal — just log in debug.
+        debugPrint(
+          '[UsersRepository] Push notification failed '
+          '(${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      debugPrint('[UsersRepository] Push notification error: $e');
     }
   }
 
@@ -119,5 +164,17 @@ class UsersRepository {
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
+  }
+
+  /// Escapes PostgREST `or()` metacharacters — same logic as
+  /// [AdminPaymentRepository._escapeFilterValue].
+  static String _escapeFilterValue(String value) {
+    return value
+        .replaceAll(r'\', r'\\')
+        .replaceAll(',', r'\,')
+        .replaceAll('(', r'\(')
+        .replaceAll(')', r'\)')
+        .replaceAll('"', r'\"')
+        .replaceAll('*', r'\*');
   }
 }

@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/admin_payment_repository.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
+import 'package:m_admin/features/dashboard/controllers/dashboard_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
+import 'package:m_admin/features/users/controllers/users_controller.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -184,6 +186,9 @@ class PaymentsController extends GetxController {
         ),
       );
 
+      // Keep the Users screen in sync without requiring a full reload.
+      _syncUsersController(review.userId, 'active');
+
       SnackbarHelper.success(
         'Payment approved',
         '${review.displayName} now has premium access.',
@@ -191,6 +196,7 @@ class PaymentsController extends GetxController {
 
       await _notify(review.userId, 'active');
       await refreshCounts();
+      _refreshDashboard();
       return true;
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
@@ -233,6 +239,9 @@ class PaymentsController extends GetxController {
         ),
       );
 
+      // Keep the Users screen in sync without requiring a full reload.
+      _syncUsersController(review.userId, 'inactive');
+
       SnackbarHelper.success(
         'Payment rejected',
         '${review.displayName} has been notified.',
@@ -243,6 +252,7 @@ class PaymentsController extends GetxController {
       // because UserModel cannot represent 'rejected'.
       await _notify(review.userId, 'rejected', reason: trimmed);
       await refreshCounts();
+      _refreshDashboard();
       return true;
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
@@ -267,6 +277,22 @@ class PaymentsController extends GetxController {
     }
   }
 
+  /// Propagates a subscription status change to [UsersController] if it is
+  /// alive, so the Users screen stays consistent without a full reload.
+  void _syncUsersController(String userId, String status) {
+    if (Get.isRegistered<UsersController>()) {
+      UsersController.instance.applyLocalStatusUpdate(userId, status);
+    }
+  }
+
+  /// Triggers a silent dashboard reload so subscription funnel and revenue
+  /// stats reflect the just-approved/rejected payment.
+  void _refreshDashboard() {
+    if (Get.isRegistered<DashboardController>()) {
+      DashboardController.instance.load();
+    }
+  }
+
   /// Replaces a row in place, or drops it when it no longer matches the tab.
   void _applyLocal(PaymentReview updated) {
     final index = rows.indexWhere((r) => r.id == updated.id);
@@ -277,6 +303,16 @@ class PaymentsController extends GetxController {
     } else {
       rows[index] = updated;
     }
+
+    // If the same user has other rows visible (multiple submissions), patch
+    // their subscriptionStatus so the displayed badge stays accurate without
+    // a full reload.
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].userId == updated.userId && rows[i].id != updated.id) {
+        rows[i] = rows[i].copyWith(subscriptionStatus: updated.subscriptionStatus);
+      }
+    }
+
     rows.refresh();
   }
 
@@ -322,6 +358,8 @@ class PaymentsController extends GetxController {
               if (activeTab.value == 'pending' || activeTab.value == 'all') {
                 if (page.value == 0) loadQueue();
               }
+              // Notify the admin that a new payment has been submitted.
+              _notifyNewPayment(payload.newRecord);
             },
           )
           .subscribe();
@@ -329,5 +367,20 @@ class PaymentsController extends GetxController {
       // Realtime is an enhancement. Without it the queue still works via
       // manual refresh, so a subscription failure must not break the screen.
     }
+  }
+
+  /// Shows an in-app alert when a new payment receipt is inserted.
+  ///
+  /// Extracts a best-effort payment method label from the Realtime payload so
+  /// the admin can glance at the toast without opening the queue.
+  void _notifyNewPayment(Map<String, dynamic> record) {
+    final method = record['payment_method']?.toString() ?? '';
+    final methodLabel = method.isEmpty
+        ? 'New payment'
+        : '${method[0].toUpperCase()}${method.substring(1)} payment';
+    SnackbarHelper.info(
+      'New payment received',
+      '$methodLabel is waiting for review.',
+    );
   }
 }

@@ -54,9 +54,13 @@ class RecentReceiptRow {
   final DateTime? createdAt;
 
   factory RecentReceiptRow.fromJson(Map<String, dynamic> json) {
+    // users is a left join — it is null when the account was deleted.
     final rawUser = json['users'];
-    final Map<String, dynamic> u =
-        rawUser is Map<String, dynamic> ? rawUser : const {};
+    final Map<String, dynamic> u = rawUser is Map<String, dynamic>
+        ? rawUser
+        : (rawUser is List && rawUser.isNotEmpty && rawUser.first is Map)
+            ? Map<String, dynamic>.from(rawUser.first as Map)
+            : const {};
     final firstName = u['first_name']?.toString() ?? '';
     final lastName = u['last_name']?.toString() ?? '';
     final fullName = '$firstName $lastName'.trim();
@@ -170,6 +174,8 @@ class DashboardRepository {
         (sum, r) => sum + _toDouble(r['amount']),
       );
 
+      // Use a left join (no !inner) so receipts for deleted accounts still
+      // appear, and guard against a null users object in fromJson.
       final recent = await _sb
           .from('payment_receipts')
           .select(
