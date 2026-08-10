@@ -25,7 +25,7 @@ class NotificationsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _StatsRow(controller: controller),
-          Row(hg
+          Row(
             children: [
               Expanded(child: _TypeFilter(controller: controller)),
               const SizedBox(width: AppSizes.md),
@@ -176,11 +176,7 @@ class _TypeFilter extends StatelessWidget {
                 selected: (controller.typeFilter.value ?? '') == key,
                 onSelected: (_) =>
                     controller.setTypeFilter(key.isEmpty ? null : key),
-                avatar: Icon(
-                  icon,
-                  size: 16,
-                  color: AppColors.textSecondary,
-                ),
+                avatar: Icon(icon, size: 16, color: AppColors.textSecondary),
                 label: Text(label, style: const TextStyle(fontSize: 11)),
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSizes.xs,
@@ -309,9 +305,7 @@ class _NotificationsList extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.error,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             child: const Text('Delete'),
           ),
         ],
