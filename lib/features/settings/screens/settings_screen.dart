@@ -396,54 +396,56 @@ class _BuiltInMethodRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSizes.sm),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Method label
-          SizedBox(
-            width: 110,
-            child: Row(
-              children: [
-                Icon(icon, size: 16, color: AppColors.textSecondary),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+          // Row 1 – Method name
+          Row(
+            children: [
+              Icon(icon, size: 15, color: AppColors.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSizes.xs),
+          // Row 2 – Account number + Holder name
+          Row(
+            children: [
+              // Account number
+              Expanded(
+                child: TextFormField(
+                  controller: accountController,
+                  keyboardType: TextInputType.phone,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'Account number',
+                    hintText: accountHint,
+                    isDense: true,
+                    prefixIcon: const Icon(Iconsax.card_copy, size: 16),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSizes.sm),
-          // Account number
-          Expanded(
-            child: TextFormField(
-              controller: accountController,
-              keyboardType: TextInputType.phone,
-              style: const TextStyle(fontSize: 13),
-              decoration: InputDecoration(
-                labelText: 'Account number',
-                hintText: accountHint,
-                isDense: true,
-                prefixIcon: const Icon(Iconsax.card_copy, size: 16),
               ),
-            ),
-          ),
-          const SizedBox(width: AppSizes.sm),
-          // Holder name / title
-          Expanded(
-            child: TextFormField(
-              controller: holderController,
-              style: const TextStyle(fontSize: 13),
-              decoration: const InputDecoration(
-                labelText: 'Account holder name',
-                hintText: 'e.g. Abebe Kebede',
-                isDense: true,
-                prefixIcon: Icon(Iconsax.user_copy, size: 16),
+              const SizedBox(width: AppSizes.sm),
+              // Holder name
+              Expanded(
+                child: TextFormField(
+                  controller: holderController,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: 'Account holder',
+                    hintText: 'e.g. Abebe Kebede',
+                    isDense: true,
+                    prefixIcon: Icon(Iconsax.user_copy, size: 16),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),

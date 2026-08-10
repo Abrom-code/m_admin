@@ -26,8 +26,33 @@ const double kSidebarWidth = 260;
 /// The parent app uses a floating pill bottom nav for five phone tabs. An
 /// admin tool is a desk tool, so this is a persistent left sidebar on wide
 /// screens, falling back to a drawer under 900px.
-class AdminShell extends StatelessWidget {
+class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
+
+  @override
+  State<AdminShell> createState() => _AdminShellState();
+}
+
+class _AdminShellState extends State<AdminShell> {
+  /// Key used to open the [Scaffold] drawer programmatically from the swipe
+  /// gesture detector that lives inside the body.
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  /// Horizontal drag start position – used to decide swipe direction.
+  double _dragStartX = 0;
+
+  void _onHorizontalDragStart(DragStartDetails details) {
+    _dragStartX = details.globalPosition.dx;
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    final dx = (details.globalPosition.dx) - _dragStartX;
+    // Open the drawer only on a clear left-to-right swipe (> 30 px threshold)
+    // that starts near the left edge of the screen (first 60 px).
+    if (dx > 30 && _dragStartX < 60) {
+      _scaffoldKey.currentState?.openDrawer();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +80,7 @@ class AdminShell extends StatelessWidget {
         );
 
         if (isWide) {
+          // Wide layout: persistent sidebar – no drawer needed.
           return Scaffold(
             appBar: appBar,
             body: Row(
@@ -69,7 +95,9 @@ class AdminShell extends StatelessWidget {
           );
         }
 
+        // Narrow layout: drawer mode – swipe from the left edge to open.
         return Scaffold(
+          key: _scaffoldKey,
           appBar: appBar,
           drawer: Drawer(
             width: kSidebarWidth,
@@ -79,7 +107,12 @@ class AdminShell extends StatelessWidget {
               onNavigate: () => Navigator.of(context).maybePop(),
             ),
           ),
-          body: _Pages(nav: nav),
+          body: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragStart: _onHorizontalDragStart,
+            onHorizontalDragEnd: _onHorizontalDragEnd,
+            child: _Pages(nav: nav),
+          ),
         );
       },
     );
