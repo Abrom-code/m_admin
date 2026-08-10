@@ -34,6 +34,5 @@ class AdminRoutes {
   static const contentQuestion = '/content/question';
 
   static const sessions = '/sessions';
-  static const auditLog = '/audit-log';
   static const settings = '/settings';
 }

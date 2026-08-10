@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/common/widgets/layout/placeholder_screen.dart';
-import 'package:m_admin/features/audit_log/screens/audit_log_screen.dart';
 import 'package:m_admin/features/auth/screens/admin_loading_screen.dart';
 import 'package:m_admin/features/auth/screens/admin_login_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
@@ -165,11 +164,6 @@ class AdminAppRoutes {
     GetPage(
       name: AdminRoutes.sessions,
       page: () => const SessionsScreen(),
-      middlewares: [AdminAuthMiddleware()],
-    ),
-    GetPage(
-      name: AdminRoutes.auditLog,
-      page: () => const AuditLogScreen(),
       middlewares: [AdminAuthMiddleware()],
     ),
     GetPage(

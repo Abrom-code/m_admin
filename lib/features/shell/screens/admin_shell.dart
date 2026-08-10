@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
-import 'package:m_admin/features/audit_log/screens/audit_log_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
 import 'package:m_admin/features/dashboard/screens/dashboard_screen.dart';
 import 'package:m_admin/features/notifications/screens/notifications_screen.dart';
@@ -168,7 +167,6 @@ class _Pages extends StatelessWidget {
           const UsersScreen(),
           const ContentScreen(),
           const SessionsScreen(),
-          const AuditLogScreen(),
           const SettingsScreen(),
         ],
       ),

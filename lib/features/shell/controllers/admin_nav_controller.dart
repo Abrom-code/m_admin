@@ -52,7 +52,6 @@ class AdminNavController extends GetxController {
     AdminNavItem(label: 'Users', icon: Iconsax.people_copy),
     AdminNavItem(label: 'Content', icon: Iconsax.book_copy),
     AdminNavItem(label: 'Sessions', icon: Iconsax.mobile_copy),
-    AdminNavItem(label: 'Audit Log', icon: Iconsax.document_text_copy),
     AdminNavItem(label: 'Settings', icon: Iconsax.setting_2_copy),
   ];
 

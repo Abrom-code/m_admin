@@ -10,7 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// Startup sequence for the admin console.
 ///
 /// Firebase auth was removed (mock login only). Supabase is kept for data:
-/// payments, users, notifications, content, sessions, audit log, and settings
+/// payments, users, notifications, content, sessions, and settings
 /// all call Supabase.instance.client directly.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

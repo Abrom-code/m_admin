@@ -25,8 +25,7 @@ class NotificationsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _StatsRow(controller: controller),
-          const SizedBox(height: AppSizes.spaceBtwItems),
-          Row(
+          Row(hg
             children: [
               Expanded(child: _TypeFilter(controller: controller)),
               const SizedBox(width: AppSizes.md),
