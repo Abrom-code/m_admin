@@ -45,7 +45,7 @@ class _StatusTabs extends StatelessWidget {
 
   final PaymentsController controller;
 
-  static const _tabs = ['', 'pending', 'approved', 'rejected'];
+  static const _tabs = ['all', 'pending', 'approved', 'rejected'];
 
   @override
   Widget build(BuildContext context) {
