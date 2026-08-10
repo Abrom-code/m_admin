@@ -321,7 +321,7 @@ class _Table extends StatelessWidget {
           ),
           AdminColumn(
             label: 'JOINED',
-            flex: 1,
+            width: 90,
             cell: (_, user) => Text(
               user.createdAt == null
                   ? '—'

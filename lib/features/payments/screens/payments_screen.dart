@@ -315,7 +315,7 @@ class _Table extends StatelessWidget {
           ),
           AdminColumn(
             label: 'DATE',
-            flex: 2,
+            width: 110,
             cell: (context, row) => Text(
               row.createdAt == null
                   ? '—'
