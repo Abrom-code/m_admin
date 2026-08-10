@@ -279,7 +279,7 @@ class _Table extends StatelessWidget {
         columns: [
           AdminColumn(
             label: 'STUDENT',
-            flex: 3,
+            flex: 2,
             cell: (context, row) => Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -310,26 +310,8 @@ class _Table extends StatelessWidget {
           ),
           AdminColumn(
             label: 'METHOD',
-            flex: 2,
-            cell: (context, row) {
-              final info = PaymentMethodInfo.of(row.paymentMethod);
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  PaymentMethodChip(method: row.paymentMethod),
-                  if (info != null)
-                    Text(
-                      '${info.account} · ${info.holder}',
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                ],
-              );
-            },
+            flex: 1,
+            cell: (context, row) => PaymentMethodChip(method: row.paymentMethod),
           ),
           AdminColumn(
             label: 'DATE',
@@ -337,8 +319,8 @@ class _Table extends StatelessWidget {
             cell: (context, row) => Text(
               row.createdAt == null
                   ? '—'
-                  : DateFormat('d MMM yyyy, HH:mm').format(row.createdAt!),
-              style: const TextStyle(fontSize: 12),
+                  : DateFormat('d MMM yy, HH:mm').format(row.createdAt!),
+              style: const TextStyle(fontSize: 11),
             ),
           ),
         ],

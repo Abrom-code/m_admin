@@ -263,11 +263,11 @@ class _Table extends StatelessWidget {
         columns: [
           AdminColumn(
             label: 'NAME',
-            flex: 3,
+            flex: 2,
             cell: (_, user) => Row(
               children: [
                 CircleAvatar(
-                  radius: 14,
+                  radius: 13,
                   backgroundColor: AppColors.primary.withValues(alpha: 0.12),
                   child: Text(
                     user.initials,
@@ -316,17 +316,17 @@ class _Table extends StatelessWidget {
           ),
           AdminColumn(
             label: 'STATUS',
-            flex: 2,
+            flex: 1,
             cell: (_, user) => _StatusPill(status: user.subscriptionStatus),
           ),
           AdminColumn(
             label: 'JOINED',
-            flex: 2,
+            flex: 1,
             cell: (_, user) => Text(
               user.createdAt == null
                   ? '—'
-                  : DateFormat('d MMM yyyy').format(user.createdAt!),
-              style: const TextStyle(fontSize: 12),
+                  : DateFormat('d MMM yy').format(user.createdAt!),
+              style: const TextStyle(fontSize: 11),
             ),
           ),
         ],
