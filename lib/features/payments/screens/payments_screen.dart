@@ -278,16 +278,6 @@ class _Table extends StatelessWidget {
         onRowTap: (row) => _openDetail(context, row),
         columns: [
           AdminColumn(
-            label: 'DATE',
-            flex: 2,
-            cell: (context, row) => Text(
-              row.createdAt == null
-                  ? '—'
-                  : DateFormat('d MMM yyyy, HH:mm').format(row.createdAt!),
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
-          AdminColumn(
             label: 'STUDENT',
             flex: 3,
             cell: (context, row) => Column(
@@ -314,6 +304,11 @@ class _Table extends StatelessWidget {
             ),
           ),
           AdminColumn(
+            label: 'STATUS',
+            flex: 1,
+            cell: (context, row) => PaymentStatusPill(status: row.status),
+          ),
+          AdminColumn(
             label: 'METHOD',
             flex: 2,
             cell: (context, row) {
@@ -337,18 +332,14 @@ class _Table extends StatelessWidget {
             },
           ),
           AdminColumn(
-            label: 'AMOUNT',
-            flex: 1,
-            numeric: true,
+            label: 'DATE',
+            flex: 2,
             cell: (context, row) => Text(
-              row.amountLabel,
+              row.createdAt == null
+                  ? '—'
+                  : DateFormat('d MMM yyyy, HH:mm').format(row.createdAt!),
               style: const TextStyle(fontSize: 12),
             ),
-          ),
-          AdminColumn(
-            label: 'STATUS',
-            flex: 1,
-            cell: (context, row) => PaymentStatusPill(status: row.status),
           ),
         ],
         rowActions: (context, row) => Obx(() {
