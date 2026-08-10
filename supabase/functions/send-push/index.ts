@@ -161,25 +161,36 @@ async function handlePaymentStatus(
     .select("fcm_token")
     .eq("id", user_id)
     .single();
-  if (!user?.fcm_token) return;
 
-  if (status === "approved" || status === "active") {
+  const isApproved = status === "approved" || status === "active";
+  const isRejected = status === "rejected";
+
+  if (!isApproved && !isRejected) return;
+
+  const notifTitle = isApproved
+    ? "Payment Approved ✓"
+    : "Payment Not Approved";
+  const notifBody = isApproved
+    ? "Your payment has been approved! Please refresh the app to access premium features."
+    : (rejection_reason || "Your payment was not approved. Please contact support for more details.");
+
+  // Insert into notifications so the student's in-app feed shows the result.
+  await sb.from("notifications").insert({
+    title: notifTitle,
+    body: notifBody,
+    type: "payment",
+    user_id: user_id,
+    payload: { status: isApproved ? "approved" : "rejected" },
+    is_read: false,
+    created_at: new Date().toISOString(),
+  });
+
+  // Send FCM push to the student's device if they have a token.
+  if (user?.fcm_token) {
     await sendFcmToToken(
       user.fcm_token,
-      {
-        title: "Payment Approved ✓",
-        body: "Your payment has been approved! Please refresh the app to access premium features."
-      },
-      { type: "payment_status", status: "approved" },
-    );
-  } else if (status === "rejected") {
-    await sendFcmToToken(
-      user.fcm_token,
-      {
-        title: "Payment Not Approved",
-        body: rejection_reason || "Your payment was not approved. Please contact support for more details.",
-      },
-      { type: "payment_status", status: "rejected" },
+      { title: notifTitle, body: notifBody },
+      { type: "payment_status", status: isApproved ? "approved" : "rejected" },
     );
   }
 }
@@ -191,33 +202,20 @@ async function handleAnnouncement(
   const { title, message, audience, admin_uid } = body;
   // audience: { type: 'all' | 'stream' | 'user', value?: string }
 
-  // Insert notification row so it appears in the in-app feed
-  const { data: notif } = await sb
-    .from("notifications")
-    .insert({
-      type: "announcement",
-      payload: { title, body: message },
-      is_read: false,
-      created_by: admin_uid,
-    })
-    .select("id")
-    .single();
+  // NOTE: The Flutter admin app already inserted the notifications row before
+  // calling this function. Do NOT insert again here — that caused duplicates.
 
   const notification = { title, body: message };
-  const data = {
-    type: "announcement",
-    notification_id: notif ? String(notif.id) : "",
-  };
+  const data: Record<string, string> = { type: "announcement" };
 
   if (audience.type === "all") {
-    // Broadcast to all three streams
     await Promise.all([
       sendFcmToTopic("stream_natural", notification, data),
       sendFcmToTopic("stream_social", notification, data),
       sendFcmToTopic("stream_common", notification, data),
     ]);
   } else if (audience.type === "stream" && audience.value) {
-    await sendFcmToTopic(`stream_${audience.value}`, notification, data);
+    await sendFcmToTopic(`stream_${audience.value.toLowerCase()}`, notification, data);
   } else if (audience.type === "user" && audience.value) {
     const { data: user } = await sb
       .from("users")
