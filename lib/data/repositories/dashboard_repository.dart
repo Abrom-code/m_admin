@@ -140,6 +140,7 @@ class DashboardRepository {
           .toUtc()
           .toIso8601String();
 
+      // All 6 queries fire in parallel — including recent receipts.
       final results = await Future.wait<dynamic>([
         _sb.from('users').select('id').count(CountOption.exact),          // 0: total
         _sb
@@ -161,6 +162,14 @@ class DashboardRepository {
             .from('payment_receipts')
             .select('amount')
             .eq('status', 'approved'),                                     // 4: revenue rows
+        _sb
+            .from('payment_receipts')
+            .select(
+              'id, status, payment_method, amount, created_at, '
+              'users(first_name, last_name, email)',
+            )
+            .order('created_at', ascending: false)
+            .limit(6),                                                     // 5: recent
       ]);
 
       final total = (results[0] as dynamic).count as int;
@@ -174,16 +183,7 @@ class DashboardRepository {
         (sum, r) => sum + _toDouble(r['amount']),
       );
 
-      // Use a left join (no !inner) so receipts for deleted accounts still
-      // appear, and guard against a null users object in fromJson.
-      final recent = await _sb
-          .from('payment_receipts')
-          .select(
-            'id, status, payment_method, amount, created_at, '
-            'users(first_name, last_name, email)',
-          )
-          .order('created_at', ascending: false)
-          .limit(6);
+      final recentRows = results[5] as List<dynamic>;
 
       return DashboardStats(
         totalUsers: total,
@@ -191,7 +191,7 @@ class DashboardRepository {
         pendingPayments: pending,
         newUsersThisWeek: newThisWeek,
         totalRevenue: totalRevenue,
-        recentReceipts: recent
+        recentReceipts: recentRows
             .map((r) => RecentReceiptRow.fromJson(Map<String, dynamic>.from(r)))
             .toList(),
       );
@@ -251,43 +251,42 @@ class DashboardRepository {
   }
 
   /// Number of published tests per subject (content health, not attempt data).
+  ///
+  /// Uses server-side COUNT per subject so no test rows are transferred
+  /// over the wire — just the subject list and one count per subject.
   Future<List<SubjectTestCount>> fetchSubjectTestCounts() async {
     try {
-      final results = await Future.wait<dynamic>([
-        _sb.from('tests').select('subject_id').not('subject_id', 'is', null),
-        _sb.from('subjects').select('id, name'),
-      ]);
+      final subjectRows = await _sb
+          .from('subjects')
+          .select('id, name')
+          .order('name');
 
-      final testRows = results[0] as List<dynamic>;
-      final subjectRows = results[1] as List<dynamic>;
+      if (subjectRows.isEmpty) return [];
 
-      final Map<int, String> names = {
-        for (final s in subjectRows)
-          if (s['id'] != null)
-            _toInt(s['id']) ?? 0: s['name']?.toString() ?? '',
-      };
+      // Fire one COUNT query per subject in parallel.
+      final counts = await Future.wait(
+        subjectRows.map((s) async {
+          final sid = _toInt(s['id']) ?? 0;
+          final r = await _sb
+              .from('tests')
+              .select('id')
+              .eq('subject_id', sid)
+              .count(CountOption.exact);
+          return MapEntry(sid, r.count);
+        }),
+      );
 
-      final Map<int, int> counts = {};
-      for (final r in testRows) {
-        final sid = _toInt(r['subject_id']);
-        if (sid == null) continue;
-        counts[sid] = (counts[sid] ?? 0) + 1;
-      }
+      final countMap = Map<int, int>.fromEntries(counts);
 
-      // Include all known subjects, even those with zero tests.
-      final allIds = {...names.keys, ...counts.keys};
-      final result = allIds
-          .map(
-            (sid) => SubjectTestCount(
-              subjectId: sid,
-              subjectName: names[sid] ?? 'Unknown',
-              testCount: counts[sid] ?? 0,
-            ),
-          )
-          .toList();
-
-      result.sort((a, b) => b.testCount.compareTo(a.testCount));
-      return result;
+      return subjectRows.map((s) {
+        final sid = _toInt(s['id']) ?? 0;
+        return SubjectTestCount(
+          subjectId: sid,
+          subjectName: s['name']?.toString() ?? '',
+          testCount: countMap[sid] ?? 0,
+        );
+      }).toList()
+        ..sort((a, b) => b.testCount.compareTo(a.testCount));
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
@@ -297,59 +296,50 @@ class DashboardRepository {
   Future<List<FunnelPoint>> fetchSubscriptionFunnel() async {
     try {
       final results = await Future.wait<dynamic>([
-        _sb.from('users').select('id').count(CountOption.exact),
+        _sb.from('users').select('id').count(CountOption.exact),           // 0: total signups
         _sb
             .from('users')
             .select('id')
             .not('subscription_status', 'eq', 'inactive')
-            .count(CountOption.exact),
+            .count(CountOption.exact),                                      // 1: non-inactive
         _sb
             .from('payment_receipts')
             .select('id')
-            .count(CountOption.exact),
-        // Count distinct users who have at least one approved receipt,
-        // not total approved receipts — so one user approved twice counts once.
+            .count(CountOption.exact),                                      // 2: submitted
         _sb
-            .from('payment_receipts')
-            .select('user_id')
-            .eq('status', 'approved'),
+            .from('users')
+            .select('id')
+            .eq('subscription_status', 'active')
+            .count(CountOption.exact),                                      // 3: currently active
       ]);
 
       return [
-        FunnelPoint(label: 'Signups', count: (results[0] as dynamic).count as int),
-        FunnelPoint(label: 'Non-inactive', count: (results[1] as dynamic).count as int),
-        FunnelPoint(label: 'Submitted payment', count: (results[2] as dynamic).count as int),
-        // Distinct users with an approved receipt — one user approved twice = 1, not 2.
-        FunnelPoint(
-          label: 'Approved',
-          count: ((results[3] as List<dynamic>)
-              .map((r) => r['user_id']?.toString())
-              .whereType<String>()
-              .toSet()
-              .length),
-        ),
+        FunnelPoint(label: 'Signups',           count: (results[0] as dynamic).count as int),
+        FunnelPoint(label: 'Non-inactive',       count: (results[1] as dynamic).count as int),
+        FunnelPoint(label: 'Submitted payment',  count: (results[2] as dynamic).count as int),
+        FunnelPoint(label: 'Active',             count: (results[3] as dynamic).count as int),
       ];
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
   }
 
-  /// User count per stream.
+  /// User count per stream using server-side counts — no full table scan.
   Future<List<StreamPoint>> fetchStreamSplit() async {
     try {
-      final rows = await _sb
-          .from('users')
-          .select('stream')
-          .not('stream', 'is', null)
-          .not('stream', 'eq', '');
-
-      final Map<String, int> counts = {};
-      for (final r in rows) {
-        final s = r['stream']?.toString() ?? 'unknown';
-        counts[s] = (counts[s] ?? 0) + 1;
-      }
-
-      return counts.entries
+      final streams = ['natural', 'social', 'common'];
+      final counts = await Future.wait(
+        streams.map((s) async {
+          final r = await _sb
+              .from('users')
+              .select('id')
+              .eq('stream', s)
+              .count(CountOption.exact);
+          return MapEntry(s, r.count);
+        }),
+      );
+      return counts
+          .where((e) => e.value > 0)
           .map((e) => StreamPoint(stream: e.key, count: e.value))
           .toList();
     } catch (e) {
