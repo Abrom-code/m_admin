@@ -196,47 +196,57 @@ class _FilterBarState extends State<_FilterBar> {
             ),
           ),
           const SizedBox(width: AppSizes.sm),
-          // ── Filter pills ────────────────────────────────────────────
-          // Method dropdown pill
-          Obx(
-            () => _FilterDropdown<String?>(
-              borderColor: borderColor,
-              icon: Icons.credit_card_rounded,
-              hint: 'Method',
-              value: widget.controller.methodFilter.value,
-              items: [
-                const DropdownMenuItem(
-                    value: null, child: Text('All methods')),
-                ...PaymentMethodInfo.byKey.entries.map(
-                  (e) => DropdownMenuItem(
-                    value: e.key,
-                    child: Text(e.value.label),
+          // ── Filter pills — scrollable so they never overflow the row ────
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  // Method dropdown pill
+                  Obx(
+                    () => _FilterDropdown<String?>(
+                      borderColor: borderColor,
+                      icon: Icons.credit_card_rounded,
+                      hint: 'Method',
+                      value: widget.controller.methodFilter.value,
+                      items: [
+                        const DropdownMenuItem(
+                            value: null, child: Text('All methods')),
+                        ...PaymentMethodInfo.byKey.entries.map(
+                          (e) => DropdownMenuItem(
+                            value: e.key,
+                            child: Text(e.value.label),
+                          ),
+                        ),
+                      ],
+                      onChanged: widget.controller.setMethodFilter,
+                    ),
                   ),
-                ),
-              ],
-              onChanged: widget.controller.setMethodFilter,
+                  const SizedBox(width: AppSizes.sm),
+                  // Date range pill
+                  _DatePill(controller: widget.controller),
+                  const SizedBox(width: AppSizes.sm),
+                  // Clear (only when a filter is active)
+                  Obx(() {
+                    final active =
+                        widget.controller.methodFilter.value != null ||
+                            widget.controller.dateRange.value != null ||
+                            widget.controller.searchController.text.isNotEmpty;
+                    if (!active) return const SizedBox.shrink();
+                    return IconButton(
+                      tooltip: 'Clear filters',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: widget.controller.clearFilters,
+                      icon: const Icon(
+                        Icons.filter_alt_off_rounded,
+                        size: AppSizes.iconSm,
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: AppSizes.sm),
-          // Date range pill
-          _DatePill(controller: widget.controller),
-          const SizedBox(width: AppSizes.sm),
-          // Clear (only when a filter is active)
-          Obx(() {
-            final active = widget.controller.methodFilter.value != null ||
-                widget.controller.dateRange.value != null ||
-                widget.controller.searchController.text.isNotEmpty;
-            if (!active) return const SizedBox.shrink();
-            return IconButton(
-              tooltip: 'Clear filters',
-              visualDensity: VisualDensity.compact,
-              onPressed: widget.controller.clearFilters,
-              icon: const Icon(
-                Icons.filter_alt_off_rounded,
-                size: AppSizes.iconSm,
-              ),
-            );
-          }),
         ],
       ),
     );

@@ -190,40 +190,50 @@ class _FilterBarState extends State<_FilterBar> {
             ),
           ),
           const SizedBox(width: AppSizes.sm),
-          // ── Filter pills ────────────────────────────────────────────
-          // Stream dropdown pill
-          Obx(
-            () => _FilterDropdown<String?>(
-              borderColor: borderColor,
-              icon: Icons.tune_rounded,
-              hint: 'Stream',
-              value: widget.controller.streamFilter.value,
-              items: [
-                const DropdownMenuItem(
-                    value: null, child: Text('All streams')),
-                ...widget.controller.availableStreams.map(
-                  (s) => DropdownMenuItem(value: s, child: Text(s)),
-                ),
-              ],
-              onChanged: widget.controller.setStreamFilter,
+          // ── Filter pills — scrollable so they never overflow the row ────
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  // Stream dropdown pill
+                  Obx(
+                    () => _FilterDropdown<String?>(
+                      borderColor: borderColor,
+                      icon: Icons.tune_rounded,
+                      hint: 'Stream',
+                      value: widget.controller.streamFilter.value,
+                      items: [
+                        const DropdownMenuItem(
+                            value: null, child: Text('All streams')),
+                        ...widget.controller.availableStreams.map(
+                          (s) => DropdownMenuItem(value: s, child: Text(s)),
+                        ),
+                      ],
+                      onChanged: widget.controller.setStreamFilter,
+                    ),
+                  ),
+                  const SizedBox(width: AppSizes.sm),
+                  // Clear (only when a filter is active)
+                  Obx(() {
+                    final active =
+                        widget.controller.streamFilter.value != null ||
+                            widget.controller.searchController.text.isNotEmpty;
+                    if (!active) return const SizedBox.shrink();
+                    return IconButton(
+                      tooltip: 'Clear filters',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: widget.controller.clearFilters,
+                      icon: const Icon(
+                        Icons.filter_alt_off_rounded,
+                        size: AppSizes.iconSm,
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: AppSizes.sm),
-          // Clear (only when a filter is active)
-          Obx(() {
-            final active = widget.controller.streamFilter.value != null ||
-                widget.controller.searchController.text.isNotEmpty;
-            if (!active) return const SizedBox.shrink();
-            return IconButton(
-              tooltip: 'Clear filters',
-              visualDensity: VisualDensity.compact,
-              onPressed: widget.controller.clearFilters,
-              icon: const Icon(
-                Icons.filter_alt_off_rounded,
-                size: AppSizes.iconSm,
-              ),
-            );
-          }),
         ],
       ),
     );
