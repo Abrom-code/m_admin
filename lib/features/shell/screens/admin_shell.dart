@@ -69,11 +69,21 @@ class _AdminShellState extends State<AdminShell> {
           actions: [
             Obx(() {
               if (!nav.currentPageHasRefresh) return const SizedBox.shrink();
-              return IconButton(
-                tooltip: 'Refresh',
-                onPressed: nav.invokeCurrentRefresh,
-                icon: const Icon(Icons.refresh_rounded),
-              );
+              return Obx(() {
+                final spinning = nav.isRefreshing.value;
+                return AnimatedRotation(
+                  turns: spinning ? 1 : 0,
+                  duration: spinning
+                      ? const Duration(milliseconds: 700)
+                      : Duration.zero,
+                  child: IconButton(
+                    tooltip: 'Refresh',
+                    onPressed:
+                        spinning ? null : nav.invokeCurrentRefresh,
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                );
+              });
             }),
             const SizedBox(width: 4),
           ],

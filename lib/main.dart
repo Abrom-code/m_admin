@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:m_admin/app.dart';
+import 'package:m_admin/data/services/admin_notification_service.dart';
 import 'package:m_admin/utils/themes/theme_controller.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -28,6 +29,21 @@ Future<void> main() async {
   }
 
   Get.put(ThemeController(), permanent: true);
+
+  // ── Local notifications ───────────────────────────────────────────
+  // Initialized here (before runApp) so the plugin is fully ready before
+  // any controller starts a Realtime subscription. Get.put of a GetxService
+  // calls onInit() but does not await it — doing this eagerly in main()
+  // ensures _plugin.initialize() and the permission request complete before
+  // the first payment INSERT could arrive.
+  await Get.putAsync<AdminNotificationService>(
+    () async {
+      final svc = AdminNotificationService();
+      await svc.init();
+      return svc;
+    },
+    permanent: true,
+  );
 
   // ── Supabase ──────────────────────────────────────────────────────
   // Always initialize so Supabase.instance.client never throws "not

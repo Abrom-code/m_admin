@@ -20,7 +20,7 @@ class PaymentsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(PaymentsController(), permanent: true);
+    final controller = Get.find<PaymentsController>();
 
     return AdminScaffold(
       pageIndex: 1,
@@ -256,6 +256,7 @@ class _Table extends StatelessWidget {
         isLoading: controller.isLoading.value,
         error: controller.errorMessage.value,
         onRetry: controller.loadQueue,
+        onRefresh: controller.refreshAll,
         emptyTitle: 'No receipts here',
         emptyMessage: controller.activeTab.value == 'pending'
             ? 'Nothing is waiting for review.'

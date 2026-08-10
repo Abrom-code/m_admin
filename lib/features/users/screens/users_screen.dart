@@ -243,6 +243,7 @@ class _Table extends StatelessWidget {
         isLoading: controller.isLoading.value,
         error: controller.errorMessage.value,
         onRetry: controller.load,
+        onRefresh: controller.loadAll,
         emptyTitle: 'No users found',
         page: controller.page.value,
         pageSize: UsersController.pageSize,

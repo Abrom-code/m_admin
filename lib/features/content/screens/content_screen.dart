@@ -99,6 +99,7 @@ class _SubjectsPanel extends StatelessWidget {
         isLoading: controller.isLoading.value,
         error: controller.errorMessage.value,
         onRetry: controller.loadSubjects,
+        onRefresh: controller.loadSubjects,
         emptyTitle: 'No subjects found',
         emptyMessage: 'Run the content migration to populate subjects.',
         minWidth: 320,

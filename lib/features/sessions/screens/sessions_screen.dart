@@ -149,6 +149,7 @@ class SessionsScreen extends StatelessWidget {
           isLoading: controller.isLoading.value,
           error: controller.errorMessage.value,
           onRetry: controller.load,
+          onRefresh: controller.load,
           emptyTitle: 'No active sessions',
           page: controller.page.value,
           pageSize: SessionsController.pageSize,

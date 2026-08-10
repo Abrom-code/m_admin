@@ -44,6 +44,7 @@ class AdminDataTable<T> extends StatelessWidget {
     this.isLoading = false,
     this.error,
     this.onRetry,
+    this.onRefresh,
     this.emptyTitle = 'No data yet',
     this.emptyMessage,
     this.onRowTap,
@@ -64,6 +65,10 @@ class AdminDataTable<T> extends StatelessWidget {
   final bool isLoading;
   final String? error;
   final VoidCallback? onRetry;
+
+  /// Pull-to-refresh callback. When supplied, the table's scrollable rows
+  /// area gets a [RefreshIndicator].
+  final Future<void> Function()? onRefresh;
 
   final String emptyTitle;
   final String? emptyMessage;
@@ -122,6 +127,16 @@ class AdminDataTable<T> extends StatelessWidget {
     }
 
     if (rows.isEmpty) {
+      // Wrap in a scrollable so pull-to-refresh still fires on empty state.
+      if (onRefresh != null) {
+        return RefreshIndicator(
+          onRefresh: onRefresh!,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [_EmptyState(title: emptyTitle, message: emptyMessage)],
+          ),
+        );
+      }
       return _EmptyState(title: emptyTitle, message: emptyMessage);
     }
 
@@ -142,25 +157,7 @@ class AdminDataTable<T> extends StatelessWidget {
                 sortAscending: sortAscending,
                 onSort: onSort,
               ),
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  primary: false,
-                  itemCount: rows.length,
-                  separatorBuilder: (context, _) => Divider(
-                    height: 1,
-                    color: AppHelperFunctions.isDark(context)
-                        ? AppColors.darkBorder
-                        : AppColors.borderPrimary,
-                  ),
-                  itemBuilder: (context, index) => _BodyRow<T>(
-                    row: rows[index],
-                    columns: columns,
-                    onTap: onRowTap,
-                    rowActions: rowActions,
-                  ),
-                ),
-              ),
+              Flexible(child: _buildRowsList(context)),
             ],
           ),
         );
@@ -173,6 +170,34 @@ class AdminDataTable<T> extends StatelessWidget {
             : table;
       },
     );
+  }
+
+  /// Builds the scrollable rows list, wrapped in a [RefreshIndicator] when
+  /// [onRefresh] is provided so dragging down reloads the table.
+  Widget _buildRowsList(BuildContext context) {
+    final list = ListView.separated(
+      physics: onRefresh != null
+          ? const AlwaysScrollableScrollPhysics()
+          : const ClampingScrollPhysics(),
+      itemCount: rows.length,
+      separatorBuilder: (context, _) => Divider(
+        height: 1,
+        color: AppHelperFunctions.isDark(context)
+            ? AppColors.darkBorder
+            : AppColors.borderPrimary,
+      ),
+      itemBuilder: (context, index) => _BodyRow<T>(
+        row: rows[index],
+        columns: columns,
+        onTap: onRowTap,
+        rowActions: rowActions,
+      ),
+    );
+
+    if (onRefresh != null) {
+      return RefreshIndicator(onRefresh: onRefresh!, child: list);
+    }
+    return list;
   }
 }
 

@@ -307,18 +307,27 @@ class DashboardRepository {
             .from('payment_receipts')
             .select('id')
             .count(CountOption.exact),
+        // Count distinct users who have at least one approved receipt,
+        // not total approved receipts — so one user approved twice counts once.
         _sb
             .from('payment_receipts')
-            .select('id')
-            .eq('status', 'approved')
-            .count(CountOption.exact),
+            .select('user_id')
+            .eq('status', 'approved'),
       ]);
 
       return [
         FunnelPoint(label: 'Signups', count: (results[0] as dynamic).count as int),
         FunnelPoint(label: 'Non-inactive', count: (results[1] as dynamic).count as int),
         FunnelPoint(label: 'Submitted payment', count: (results[2] as dynamic).count as int),
-        FunnelPoint(label: 'Approved', count: (results[3] as dynamic).count as int),
+        // Distinct users with an approved receipt — one user approved twice = 1, not 2.
+        FunnelPoint(
+          label: 'Approved',
+          count: ((results[3] as List<dynamic>)
+              .map((r) => r['user_id']?.toString())
+              .whereType<String>()
+              .toSet()
+              .length),
+        ),
       ];
     } catch (e) {
       throw AppExceptionHandler.handle(e);

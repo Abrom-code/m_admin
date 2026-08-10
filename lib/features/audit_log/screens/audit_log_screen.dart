@@ -122,6 +122,7 @@ class AuditLogScreen extends StatelessWidget {
           isLoading: controller.isLoading.value,
           error: controller.errorMessage.value,
           onRetry: controller.load,
+          onRefresh: controller.load,
           emptyTitle: 'No audit entries yet',
           emptyMessage: 'Actions you take will be recorded here.',
           page: controller.page.value,

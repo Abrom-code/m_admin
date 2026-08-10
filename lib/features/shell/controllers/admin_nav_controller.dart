@@ -74,15 +74,29 @@ class AdminNavController extends GetxController {
 
   // ── Per-page refresh registry ────────────────────────────────────────
 
-  final _refreshFns = <int, VoidCallback>{};
+  final _refreshFns = <int, Future<void> Function()>{};
+
+  /// True while the current page's async refresh is running.
+  final isRefreshing = false.obs;
 
   /// Called by [AdminScaffold] during build to register the screen's refresh.
-  void setPageRefresh(int pageIndex, VoidCallback fn) {
+  void setPageRefresh(int pageIndex, Future<void> Function() fn) {
     _refreshFns[pageIndex] = fn;
   }
 
   /// Triggers the active page's refresh, if one is registered.
-  void invokeCurrentRefresh() => _refreshFns[selectedIndex.value]?.call();
+  /// Sets [isRefreshing] for the duration so the AppBar icon can animate.
+  Future<void> invokeCurrentRefresh() async {
+    final fn = _refreshFns[selectedIndex.value];
+    if (fn == null) return;
+    if (isRefreshing.value) return;
+    try {
+      isRefreshing.value = true;
+      await fn();
+    } finally {
+      isRefreshing.value = false;
+    }
+  }
 
   /// True when the active page has a registered refresh callback.
   bool get currentPageHasRefresh =>

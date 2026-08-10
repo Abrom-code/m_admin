@@ -259,19 +259,23 @@ class _NotificationsList extends StatelessWidget {
         );
       }
 
-      return ListView.separated(
-        padding: const EdgeInsets.all(AppSizes.sm),
-        itemCount: controller.rows.length,
-        separatorBuilder: (context, index) =>
-            const SizedBox(height: AppSizes.sm),
-        itemBuilder: (context, index) {
-          final notification = controller.rows[index];
-          return _NotificationCard(
-            notification: notification,
-            onTap: () => _showNotificationDetail(context, notification),
-            onDelete: () => _confirmDelete(context, notification),
-          );
-        },
+      return RefreshIndicator(
+        onRefresh: controller.load,
+        child: ListView.separated(
+          padding: const EdgeInsets.all(AppSizes.sm),
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: controller.rows.length,
+          separatorBuilder: (context, index) =>
+              const SizedBox(height: AppSizes.sm),
+          itemBuilder: (context, index) {
+            final notification = controller.rows[index];
+            return _NotificationCard(
+              notification: notification,
+              onTap: () => _showNotificationDetail(context, notification),
+              onDelete: () => _confirmDelete(context, notification),
+            );
+          },
+        ),
       );
     });
   }

@@ -12,7 +12,8 @@ import 'package:m_admin/utils/helpers/helper_functions.dart';
 /// bodies inside its `IndexedStack`.
 ///
 /// Pass [pageIndex] and [onRefresh] to register a refresh callback that the
-/// shell's AppBar refresh button will invoke for this page.
+/// shell's AppBar refresh button will invoke for this page, and that the
+/// pull-to-refresh gesture will also trigger on scrollable pages.
 class AdminScaffold extends StatelessWidget {
   const AdminScaffold({
     super.key,
@@ -28,8 +29,10 @@ class AdminScaffold extends StatelessWidget {
   /// Required together with [onRefresh] to wire up the AppBar refresh button.
   final int? pageIndex;
 
-  /// Called when the AppBar refresh button is tapped for this page.
-  final VoidCallback? onRefresh;
+  /// Called when the AppBar refresh button is tapped or the page is
+  /// pulled down. Must be a [Future<void> Function()] so the refresh
+  /// indicator knows when to stop.
+  final Future<void> Function()? onRefresh;
 
   final Widget body;
   final double maxContentWidth;
@@ -76,15 +79,30 @@ class AdminScaffold extends StatelessWidget {
         final hPad = constraints.maxWidth < 600
             ? AppSizes.md
             : AppSizes.defaultSpace;
-        return Padding(
+
+        final padded = Padding(
           padding: EdgeInsets.symmetric(
             horizontal: hPad,
             vertical: AppSizes.defaultSpace,
           ),
-          child: scrollable
-              ? SingleChildScrollView(child: constrained)
-              : constrained,
+          child: constrained,
         );
+
+        if (!scrollable) return padded;
+
+        // Scrollable pages get pull-to-refresh for free.
+        if (onRefresh != null) {
+          return RefreshIndicator(
+            onRefresh: onRefresh!,
+            child: SingleChildScrollView(
+              // physics must allow overscroll so the indicator can trigger.
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: padded,
+            ),
+          );
+        }
+
+        return SingleChildScrollView(child: padded);
       },
     );
   }

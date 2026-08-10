@@ -340,10 +340,6 @@ class PaymentsController extends GetxController {
   // ── Realtime ─────────────────────────────────────────────────────
 
   /// New submissions appear without a refresh, and the sidebar badge moves.
-  ///
-  /// Supabase Realtime supports only a single `eq()` filter, so this listens
-  /// to all inserts and reconciles locally — the same constraint the parent
-  /// app documents in realtime_service.dart.
   void _subscribeRealtime() {
     try {
       _channel = Supabase.instance.client
@@ -354,44 +350,41 @@ class PaymentsController extends GetxController {
             table: 'payment_receipts',
             callback: (payload) {
               refreshCounts();
-              // Only disturb the visible list when the operator is actually
-              // looking at the queue a new row would land in.
               if (activeTab.value == 'pending' || activeTab.value == 'all') {
                 if (page.value == 0) loadQueue();
               }
-              // Notify the admin that a new payment has been submitted.
-              _notifyNewPayment(payload.newRecord);
+              // newRecord may be empty if REPLICA IDENTITY is not FULL —
+              // extract what we can, but always fire the notification.
+              final method =
+                  payload.newRecord['payment_method']?.toString() ?? '';
+              _notifyNewPayment(method);
             },
           )
-          .subscribe();
-    } catch (_) {
-      // Realtime is an enhancement. Without it the queue still works via
-      // manual refresh, so a subscription failure must not break the screen.
+          .subscribe((status, [error]) {
+            // Log subscription state changes so problems are visible in debug.
+            if (error != null) {
+              debugPrint('[PaymentsController] Realtime error: $error');
+            }
+            debugPrint('[PaymentsController] Realtime status: $status');
+          });
+    } catch (e) {
+      debugPrint('[PaymentsController] Realtime setup failed: $e');
     }
   }
 
-  /// Shows a local OS notification and an in-app snackbar when a new payment
-  /// receipt is inserted.
-  ///
-  /// The OS notification appears even when the admin is outside the app or the
-  /// screen is off. The snackbar is a secondary in-app nudge.
-  void _notifyNewPayment(Map<String, dynamic> record) {
-    final method = record['payment_method']?.toString() ?? '';
-
-    // OS-level heads-up banner via flutter_local_notifications.
+  /// Fires a local OS notification and an in-app snackbar when a new payment
+  /// receipt INSERT arrives over Realtime.
+  void _notifyNewPayment(String paymentMethod) {
+    // OS heads-up banner.
     if (Get.isRegistered<AdminNotificationService>()) {
-      AdminNotificationService.instance.newPendingPayment(
-        paymentMethod: method,
-      );
+      AdminNotificationService.instance
+          .newPendingPayment(paymentMethod: paymentMethod);
     }
 
-    // In-app snackbar as a secondary nudge while the app is in the foreground.
-    final methodLabel = method.isEmpty
+    // In-app snackbar as a secondary nudge when the app is foregrounded.
+    final label = paymentMethod.isEmpty
         ? 'New payment'
-        : '${method[0].toUpperCase()}${method.substring(1)} payment';
-    SnackbarHelper.info(
-      'New payment pending',
-      '$methodLabel is waiting for review.',
-    );
+        : '${paymentMethod[0].toUpperCase()}${paymentMethod.substring(1)} payment';
+    SnackbarHelper.info('New payment pending', '$label is waiting for review.');
   }
 }

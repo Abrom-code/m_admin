@@ -24,6 +24,13 @@ class AdminNotificationService extends GetxService {
   @override
   Future<void> onInit() async {
     super.onInit();
+    // onInit is called by Get.put — but main() awaits init() directly via
+    // putAsync, so this is a no-op to avoid double-initializing.
+  }
+
+  /// Called by main() via Get.putAsync so initialization is fully awaited
+  /// before any Realtime subscription can fire.
+  Future<void> init() async {
     await _init();
   }
 
