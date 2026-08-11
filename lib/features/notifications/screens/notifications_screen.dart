@@ -25,33 +25,146 @@ class NotificationsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _StatsRow(controller: controller),
-          Row(
-            children: [
-              Expanded(child: _TypeFilter(controller: controller)),
-              const SizedBox(width: AppSizes.md),
-              FilledButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        NotificationComposeScreen(controller: controller),
+          // Top bar: filter chips + send button OR select-mode actions
+          Obx(() {
+            if (controller.isSelecting.value) {
+              return _SelectionBar(controller: controller, context: context);
+            }
+            return Row(
+              children: [
+                Expanded(child: _TypeFilter(controller: controller)),
+                const SizedBox(width: AppSizes.md),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          NotificationComposeScreen(controller: controller),
+                    ),
                   ),
-                ),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSizes.md,
-                    vertical: AppSizes.sm,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSizes.md,
+                      vertical: AppSizes.sm,
+                    ),
                   ),
+                  icon: const Icon(Iconsax.send_1_copy, size: 18),
+                  label: const Text('Send notification'),
                 ),
-                icon: const Icon(Iconsax.send_1_copy, size: 18),
-                label: const Text('Send notification'),
-              ),
-            ],
-          ),
+              ],
+            );
+          }),
           const SizedBox(height: AppSizes.spaceBtwItems),
           Expanded(child: _NotificationsList(controller: controller)),
         ],
       ),
     );
+  }
+}
+
+/// Toolbar shown while in selection mode.
+class _SelectionBar extends StatelessWidget {
+  const _SelectionBar({required this.controller, required this.context});
+
+  final NotificationsController controller;
+  final BuildContext context;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final count = controller.selectedIds.length;
+      final all = controller.allSelected;
+
+      return Row(
+        children: [
+          // Cancel
+          IconButton(
+            icon: const Icon(Icons.close_rounded),
+            tooltip: 'Cancel',
+            onPressed: controller.exitSelectMode,
+          ),
+          const SizedBox(width: AppSizes.xs),
+          Expanded(
+            child: Text(
+              '$count selected',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          // Select all / deselect all
+          TextButton.icon(
+            onPressed: controller.toggleSelectAll,
+            icon: Icon(
+              all ? Icons.deselect_rounded : Icons.select_all_rounded,
+              size: 18,
+            ),
+            label: Text(all ? 'Deselect all' : 'Select all'),
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: AppSizes.xs),
+          // Delete selected
+          FilledButton.icon(
+            onPressed: count == 0
+                ? null
+                : () => _confirmDeleteSelected(context, controller),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSizes.md,
+                vertical: AppSizes.sm,
+              ),
+            ),
+            icon: controller.isDeleting.value
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.delete_rounded, size: 18),
+            label: Text('Delete ($count)'),
+          ),
+        ],
+      );
+    });
+  }
+
+  Future<void> _confirmDeleteSelected(
+    BuildContext context,
+    NotificationsController controller,
+  ) async {
+    final count = controller.selectedIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete $count notification${count == 1 ? '' : 's'}?'),
+        content: Text(
+          'This will permanently remove $count notification${count == 1 ? '' : 's'} '
+          'from the admin panel. Students who already received them will still '
+          'see them on their devices.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await controller.deleteSelected();
+    }
   }
 }
 
@@ -264,11 +377,29 @@ class _NotificationsList extends StatelessWidget {
               const SizedBox(height: AppSizes.sm),
           itemBuilder: (context, index) {
             final notification = controller.rows[index];
-            return _NotificationCard(
-              notification: notification,
-              onTap: () => _showNotificationDetail(context, notification),
-              onDelete: () => _confirmDelete(context, notification),
-            );
+            return Obx(() {
+              final isSelecting = controller.isSelecting.value;
+              final isSelected =
+                  controller.selectedIds.contains(notification.id);
+              return _NotificationCard(
+                notification: notification,
+                isSelecting: isSelecting,
+                isSelected: isSelected,
+                onTap: () {
+                  if (isSelecting) {
+                    controller.toggleSelection(notification.id);
+                  } else {
+                    _showNotificationDetail(context, notification);
+                  }
+                },
+                onLongPress: () {
+                  if (!isSelecting) {
+                    controller.enterSelectMode(notification.id);
+                  }
+                },
+                onDelete: () => _confirmDelete(context, notification),
+              );
+            });
           },
         ),
       );
@@ -323,11 +454,17 @@ class _NotificationCard extends StatelessWidget {
     required this.notification,
     required this.onTap,
     required this.onDelete,
+    this.isSelecting = false,
+    this.isSelected = false,
+    this.onLongPress,
   });
 
   final AdminNotificationModel notification;
   final VoidCallback onTap;
   final VoidCallback onDelete;
+  final bool isSelecting;
+  final bool isSelected;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -346,16 +483,25 @@ class _NotificationCard extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(AppSizes.md),
         decoration: BoxDecoration(
-          color: dark ? AppColors.darkCard : AppColors.white,
+          color: isSelected
+              ? AppColors.primary.withValues(alpha: 0.08)
+              : dark
+                  ? AppColors.darkCard
+                  : AppColors.white,
           borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
           border: Border.all(
-            color: dark
-                ? AppColors.darkGrey.withValues(alpha: 0.3)
-                : AppColors.grey.withValues(alpha: 0.2),
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.5)
+                : dark
+                    ? AppColors.darkGrey.withValues(alpha: 0.3)
+                    : AppColors.grey.withValues(alpha: 0.2),
+            width: isSelected ? 1.5 : 1,
           ),
           boxShadow: [
             BoxShadow(
@@ -371,16 +517,36 @@ class _NotificationCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(
-                      AppSizes.borderRadiusSm,
+                // Checkbox in select mode, type icon otherwise
+                if (isSelecting)
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppSizes.xs),
+                    child: SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: Checkbox(
+                        value: isSelected,
+                        onChanged: (_) => onTap(),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        materialTapTargetSize:
+                            MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
                     ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(
+                        AppSizes.borderRadiusSm,
+                      ),
+                    ),
+                    child: Icon(icon, size: 16, color: color),
                   ),
-                  child: Icon(icon, size: 16, color: color),
-                ),
                 const SizedBox(width: AppSizes.xs),
                 Expanded(
                   child: Column(
@@ -449,18 +615,22 @@ class _NotificationCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: AppSizes.sm),
-                IconButton(
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  iconSize: 18,
-                  visualDensity: VisualDensity.compact,
-                  style: IconButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    backgroundColor: AppColors.error.withValues(alpha: 0.08),
+                // Hide the per-card delete button in select mode
+                if (!isSelecting) ...[
+                  const SizedBox(width: AppSizes.sm),
+                  IconButton(
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline_rounded),
+                    iconSize: 18,
+                    visualDensity: VisualDensity.compact,
+                    style: IconButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      backgroundColor:
+                          AppColors.error.withValues(alpha: 0.08),
+                    ),
+                    tooltip: 'Delete',
                   ),
-                  tooltip: 'Delete',
-                ),
+                ],
               ],
             ),
           ],

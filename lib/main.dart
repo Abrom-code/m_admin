@@ -17,11 +17,6 @@ Future<void> main() async {
 
   await GetStorage.init();
 
-  // ── .env ──────────────────────────────────────────────────────────
-  // dotenv MUST be initialized before any AppEnv getter is called.
-  // If the asset is absent (e.g. a CI build that injects secrets another way),
-  // testLoad initialises dotenv with an empty map so dotenv.env never throws
-  // NotInitializedError. Data screens will surface their own errors later.
   try {
     await dotenv.load(fileName: '.env');
   } catch (_) {
@@ -30,26 +25,13 @@ Future<void> main() async {
 
   Get.put(ThemeController(), permanent: true);
 
-  // ── Local notifications ───────────────────────────────────────────
-  // Initialized here (before runApp) so the plugin is fully ready before
-  // any controller starts a Realtime subscription. Get.put of a GetxService
-  // calls onInit() but does not await it — doing this eagerly in main()
-  // ensures _plugin.initialize() and the permission request complete before
   // the first payment INSERT could arrive.
-  await Get.putAsync<AdminNotificationService>(
-    () async {
-      final svc = AdminNotificationService();
-      await svc.init();
-      return svc;
-    },
-    permanent: true,
-  );
+  await Get.putAsync<AdminNotificationService>(() async {
+    final svc = AdminNotificationService();
+    await svc.init();
+    return svc;
+  }, permanent: true);
 
-  // ── Supabase ──────────────────────────────────────────────────────
-  // Always initialize so Supabase.instance.client never throws "not
-  // initialized". With real keys data works normally; with blank/missing
-  // keys a placeholder URL is used and each data screen shows its own
-  // error state instead of crashing the app.
   try {
     final url = dotenv.env['SUPABASE_URL']?.trim() ?? '';
     final key = dotenv.env['SUPABASE_API_KEY']?.trim() ?? '';

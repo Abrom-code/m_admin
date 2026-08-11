@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:m_admin/features/notifications/models/admin_notification_model.dart';
 import 'package:m_admin/utils/constants/app_env.dart';
@@ -111,23 +112,31 @@ class NotificationsRepository {
         audienceObj = {'type': 'all'};
       }
 
+      final pushUrl = '${AppEnv.adminFunctionsBaseUrl}/send-push';
+      final pushBody = jsonEncode({
+        'event': 'announcement',
+        'title': title,
+        'message': body,
+        'audience': audienceObj,
+        'admin_uid': adminUid,
+      });
+
+      debugPrint('[NotificationsRepository] POST $pushUrl');
+      debugPrint('[NotificationsRepository] body: $pushBody');
+
       final response = await http
           .post(
-            Uri.parse('${AppEnv.adminFunctionsBaseUrl}/send-push'),
+            Uri.parse(pushUrl),
             headers: {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer ${AppEnv.supabaseApiKey}',
               'x-webhook-secret': AppEnv.pushWebhookSecret,
             },
-            body: jsonEncode({
-              'event': 'announcement',
-              'title': title,
-              'message': body,
-              'audience': audienceObj,
-              'admin_uid': adminUid,
-            }),
+            body: pushBody,
           )
           .timeout(const Duration(seconds: 30));
+
+      debugPrint('[NotificationsRepository] response ${response.statusCode}: ${response.body}');
 
       if (response.statusCode == 401) {
         throw const AppFailure(
@@ -139,8 +148,11 @@ class NotificationsRepository {
       }
 
       if (response.statusCode != 200) {
-        // Don't throw - notification is saved even if push fails
-      } else {
+        throw AppFailure(
+          title: 'Push not sent',
+          message:
+              'Push delivery failed (${response.statusCode}): ${response.body}',
+        );
       }
     } catch (e) {
       throw AppExceptionHandler.handle(e);
@@ -151,6 +163,16 @@ class NotificationsRepository {
   Future<void> delete(int id) async {
     try {
       await _sb.from('notifications').delete().eq('id', id);
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Delete multiple notifications by ID in a single round-trip.
+  Future<void> deleteMany(List<int> ids) async {
+    if (ids.isEmpty) return;
+    try {
+      await _sb.from('notifications').delete().inFilter('id', ids);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }

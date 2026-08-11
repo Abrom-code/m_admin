@@ -19,8 +19,8 @@ class NotificationComposeScreen extends StatefulWidget {
       _NotificationComposeScreenState();
 }
 
-class _NotificationComposeScreenState
-    extends State<NotificationComposeScreen> with SingleTickerProviderStateMixin {
+class _NotificationComposeScreenState extends State<NotificationComposeScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
   final _bodyCtrl = TextEditingController();
@@ -88,23 +88,14 @@ class _NotificationComposeScreenState
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(
-              icon: Icon(Iconsax.edit_2_copy, size: 20),
-              text: 'Compose',
-            ),
-            Tab(
-              icon: Icon(Iconsax.notification_copy, size: 20),
-              text: 'Sent',
-            ),
+            Tab(icon: Icon(Iconsax.edit_2_copy, size: 20), text: 'Compose'),
+            Tab(icon: Icon(Iconsax.notification_copy, size: 20), text: 'Sent'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          _buildComposeTab(dark),
-          _buildSentTab(),
-        ],
+        children: [_buildComposeTab(dark), _buildSentTab()],
       ),
     );
   }
@@ -176,10 +167,7 @@ class _NotificationComposeScreenState
                             initialValue: _type,
                             decoration: const InputDecoration(
                               labelText: 'Type',
-                              prefixIcon: Icon(
-                                Iconsax.category_copy,
-                                size: 20,
-                              ),
+                              prefixIcon: Icon(Iconsax.category_copy, size: 20),
                             ),
                             items: [
                               for (final e in _types.entries)
@@ -192,18 +180,14 @@ class _NotificationComposeScreenState
                                 setState(() => _type = v ?? _type),
                           );
 
-                          final audienceField =
-                              DropdownButtonFormField<String>(
+                          final audienceField = DropdownButtonFormField<String>(
                             initialValue:
                                 _audienceOptions.containsKey(_audience)
-                                    ? _audience
-                                    : 'all',
+                                ? _audience
+                                : 'all',
                             decoration: const InputDecoration(
                               labelText: 'Audience',
-                              prefixIcon: Icon(
-                                Iconsax.people_copy,
-                                size: 20,
-                              ),
+                              prefixIcon: Icon(Iconsax.people_copy, size: 20),
                             ),
                             items: [
                               for (final e in _audienceOptions.entries)
@@ -220,9 +204,7 @@ class _NotificationComposeScreenState
                             return Column(
                               children: [
                                 typeField,
-                                const SizedBox(
-                                  height: AppSizes.spaceBtwItems,
-                                ),
+                                const SizedBox(height: AppSizes.spaceBtwItems),
                                 audienceField,
                               ],
                             );
@@ -248,8 +230,8 @@ class _NotificationComposeScreenState
                         ),
                         validator: (v) =>
                             AppValidator.validateEmptyText('Title', v) == null
-                                ? null
-                                : 'Title is required',
+                            ? null
+                            : 'Title is required',
                       ),
                       const SizedBox(height: AppSizes.spaceBtwItems),
                       TextFormField(
@@ -267,10 +249,9 @@ class _NotificationComposeScreenState
                           ),
                         ),
                         validator: (v) =>
-                            AppValidator.validateEmptyText('Message', v) ==
-                                    null
-                                ? null
-                                : 'Message is required',
+                            AppValidator.validateEmptyText('Message', v) == null
+                            ? null
+                            : 'Message is required',
                       ),
                     ],
                   ),
@@ -312,7 +293,7 @@ class _NotificationComposeScreenState
                 const SizedBox(height: AppSizes.spaceBtwSections),
                 Obx(
                   () => Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       OutlinedButton(
                         onPressed: widget.controller.isSending.value
@@ -352,7 +333,7 @@ class _NotificationComposeScreenState
                         label: Text(
                           widget.controller.isSending.value
                               ? 'Sending...'
-                              : 'Send notification',
+                              : 'Send',
                         ),
                       ),
                     ],
@@ -368,8 +349,7 @@ class _NotificationComposeScreenState
 
   Widget _buildSentTab() {
     return Obx(() {
-      if (widget.controller.isLoading.value &&
-          widget.controller.rows.isEmpty) {
+      if (widget.controller.isLoading.value && widget.controller.rows.isEmpty) {
         return const Center(child: CircularProgressIndicator());
       }
 
@@ -386,10 +366,7 @@ class _NotificationComposeScreenState
               const SizedBox(height: AppSizes.md),
               const Text(
                 'No notifications sent yet',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
               ),
             ],
           ),
@@ -399,7 +376,8 @@ class _NotificationComposeScreenState
       return ListView.separated(
         padding: const EdgeInsets.all(AppSizes.md),
         itemCount: widget.controller.rows.length,
-        separatorBuilder: (context, index) => const SizedBox(height: AppSizes.sm),
+        separatorBuilder: (context, index) =>
+            const SizedBox(height: AppSizes.sm),
         itemBuilder: (context, index) {
           final notification = widget.controller.rows[index];
           return _NotificationCard(notification: notification);
@@ -450,10 +428,7 @@ class _NotificationCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 3,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
@@ -490,10 +465,7 @@ class _NotificationCard extends StatelessWidget {
           const SizedBox(height: AppSizes.xs),
           Text(
             notification.title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: AppSizes.xs),
           Text(

@@ -13,11 +13,51 @@ class NotificationsController extends GetxController {
   final rows = <AdminNotificationModel>[].obs;
   final isLoading = false.obs;
   final isSending = false.obs;
+  final isDeleting = false.obs;
   final errorMessage = RxnString();
   final typeFilter = RxnString();
   final page = 0.obs;
   final stats = Rxn<Map<String, int>>();
   static const pageSize = 30;
+
+  // ── Multi-select ─────────────────────────────────────────────────
+  final isSelecting = false.obs;
+  final selectedIds = <int>{}.obs;
+
+  bool get allSelected =>
+      rows.isNotEmpty && selectedIds.length == rows.length;
+
+  void enterSelectMode(int firstId) {
+    selectedIds.clear();
+    selectedIds.add(firstId);
+    isSelecting.value = true;
+  }
+
+  void exitSelectMode() {
+    isSelecting.value = false;
+    selectedIds.clear();
+  }
+
+  void toggleSelection(int id) {
+    if (selectedIds.contains(id)) {
+      selectedIds.remove(id);
+      if (selectedIds.isEmpty) exitSelectMode();
+    } else {
+      selectedIds.add(id);
+    }
+    selectedIds.refresh();
+  }
+
+  void toggleSelectAll() {
+    if (allSelected) {
+      selectedIds.clear();
+      exitSelectMode();
+    } else {
+      selectedIds.assignAll(rows.map((n) => n.id));
+      isSelecting.value = true;
+    }
+    selectedIds.refresh();
+  }
 
   @override
   void onInit() {
@@ -92,12 +132,34 @@ class NotificationsController extends GetxController {
     try {
       await _repo.delete(id);
       rows.removeWhere((n) => n.id == id);
-      await loadStats(); // refresh stats after delete
+      selectedIds.remove(id);
+      if (selectedIds.isEmpty) exitSelectMode();
+      await loadStats();
       SnackbarHelper.success('Deleted', 'Notification removed.');
       return true;
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
       return false;
+    }
+  }
+
+  Future<void> deleteSelected() async {
+    if (selectedIds.isEmpty) return;
+    final ids = selectedIds.toList();
+    try {
+      isDeleting.value = true;
+      await _repo.deleteMany(ids);
+      rows.removeWhere((n) => ids.contains(n.id));
+      exitSelectMode();
+      await loadStats();
+      SnackbarHelper.success(
+        'Deleted',
+        '${ids.length} notification${ids.length == 1 ? '' : 's'} removed.',
+      );
+    } catch (e) {
+      AppExceptionHandler.handleResponse(e);
+    } finally {
+      isDeleting.value = false;
     }
   }
 }
