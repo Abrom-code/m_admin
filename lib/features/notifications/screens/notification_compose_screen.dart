@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:m_admin/data/repositories/users_repository.dart';
 import 'package:m_admin/features/notifications/controllers/notifications_controller.dart';
 import 'package:m_admin/features/notifications/models/admin_notification_model.dart';
+import 'package:m_admin/features/users/models/admin_user_model.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
@@ -24,9 +26,16 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
   final _bodyCtrl = TextEditingController();
+  final _userSearchCtrl = TextEditingController();
   String _type = 'announcement';
   String _audience = 'all';
   late TabController _tabController;
+
+  // User-search state
+  final _usersRepo = UsersRepository();
+  List<AdminUserModel> _userResults = [];
+  AdminUserModel? _selectedUser;
+  bool _isSearching = false;
 
   static const _types = {
     'announcement': 'Announcement',
@@ -37,6 +46,7 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
     'all': 'All students',
     'stream:Natural': 'Natural stream',
     'stream:Social': 'Social stream',
+    'user': 'Specific user',
   };
 
   @override
@@ -49,27 +59,58 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
   void dispose() {
     _titleCtrl.dispose();
     _bodyCtrl.dispose();
+    _userSearchCtrl.dispose();
     _tabController.dispose();
     super.dispose();
   }
 
+  Future<void> _searchUsers(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() => _userResults = []);
+      return;
+    }
+    setState(() => _isSearching = true);
+    try {
+      final results = await _usersRepo.fetchUsers(search: query, pageSize: 8);
+      if (mounted) setState(() => _userResults = results);
+    } finally {
+      if (mounted) setState(() => _isSearching = false);
+    }
+  }
+
+  String get _effectiveAudience {
+    if (_audience == 'user') {
+      return _selectedUser != null ? 'user:${_selectedUser!.id}' : 'user:';
+    }
+    return _audience;
+  }
+
   Future<void> _submit() async {
     if (widget.controller.isSending.value) return;
+    if (_audience == 'user' && _selectedUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a user first.')),
+      );
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
 
     final ok = await widget.controller.send(
       title: _titleCtrl.text.trim(),
       body: _bodyCtrl.text.trim(),
       type: _type,
-      audience: _audience,
+      audience: _effectiveAudience,
     );
 
     if (ok && mounted) {
       _titleCtrl.clear();
       _bodyCtrl.clear();
+      _userSearchCtrl.clear();
       setState(() {
         _type = 'announcement';
         _audience = 'all';
+        _selectedUser = null;
+        _userResults = [];
       });
       _tabController.animateTo(1);
     }
@@ -197,8 +238,14 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
                                   child: Text(e.value),
                                 ),
                             ],
-                            onChanged: (v) =>
-                                setState(() => _audience = v ?? _audience),
+                            onChanged: (v) => setState(() {
+                              _audience = v ?? _audience;
+                              if (_audience != 'user') {
+                                _selectedUser = null;
+                                _userResults = [];
+                                _userSearchCtrl.clear();
+                              }
+                            }),
                           );
 
                           if (useColumn) {
@@ -220,6 +267,78 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
                           );
                         },
                       ),
+                      // User picker — visible only when audience = 'user'
+                      if (_audience == 'user') ...[
+                        const SizedBox(height: AppSizes.spaceBtwItems),
+                        if (_selectedUser != null)
+                          _SelectedUserChip(
+                            user: _selectedUser!,
+                            onRemove: () => setState(() {
+                              _selectedUser = null;
+                              _userResults = [];
+                              _userSearchCtrl.clear();
+                            }),
+                          )
+                        else ...[
+                          TextField(
+                            controller: _userSearchCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Search by name or email',
+                              prefixIcon: const Icon(
+                                Iconsax.search_normal_copy,
+                                size: 20,
+                              ),
+                              suffixIcon: _isSearching
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            onChanged: _searchUsers,
+                          ),
+                          if (_userResults.isNotEmpty)
+                            Container(
+                              margin: const EdgeInsets.only(top: 4),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: AppColors.grey.withValues(alpha: 0.3),
+                                ),
+                                borderRadius: BorderRadius.circular(
+                                  AppSizes.borderRadiusMd,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  for (int i = 0;
+                                      i < _userResults.length;
+                                      i++) ...[
+                                    if (i > 0)
+                                      Divider(
+                                        height: 1,
+                                        color: AppColors.grey
+                                            .withValues(alpha: 0.2),
+                                      ),
+                                    _UserResultTile(
+                                      user: _userResults[i],
+                                      onTap: () => setState(() {
+                                        _selectedUser = _userResults[i];
+                                        _userResults = [];
+                                        _userSearchCtrl.clear();
+                                      }),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                        ],
+                      ],
                       const SizedBox(height: AppSizes.spaceBtwItems),
                       TextFormField(
                         controller: _titleCtrl,
@@ -302,9 +421,12 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
                             : () {
                                 _titleCtrl.clear();
                                 _bodyCtrl.clear();
+                                _userSearchCtrl.clear();
                                 setState(() {
                                   _type = 'announcement';
                                   _audience = 'all';
+                                  _selectedUser = null;
+                                  _userResults = [];
                                 });
                               },
                         style: OutlinedButton.styleFrom(
@@ -508,6 +630,138 @@ class _AdminCard extends StatelessWidget {
         ],
       ),
       child: child,
+    );
+  }
+}
+
+// ── User picker helper widgets ────────────────────────────────────────────────
+
+class _SelectedUserChip extends StatelessWidget {
+  const _SelectedUserChip({required this.user, required this.onRemove});
+
+  final AdminUserModel user;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSizes.md,
+        vertical: AppSizes.sm,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+            child: Text(
+              user.initials,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSizes.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.displayName,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  user.email,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 16),
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Remove',
+            onPressed: onRemove,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UserResultTile extends StatelessWidget {
+  const _UserResultTile({required this.user, required this.onTap});
+
+  final AdminUserModel user;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSizes.md,
+          vertical: AppSizes.sm,
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+              child: Text(
+                user.initials,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSizes.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.displayName,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    '${user.email}  ·  ${user.stream}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

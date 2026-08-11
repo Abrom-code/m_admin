@@ -1,10 +1,6 @@
 // supabase/functions/send-push/index.ts
 // MatricMate push notification dispatcher.
-// Handles three events: new_test | payment_status | announcement
-//
-// ⚠️  Any Postgres trigger that calls this function must send the
-//     x-webhook-secret header, or it will start receiving 401 responses
-//     after this version is deployed.  Update those triggers before deploying.
+// Events: new_test | payment_status | announcement
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -13,9 +9,9 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-// ── FCM helpers ───────────────────────────────────────────────────────────────
+// ── FCM auth ──────────────────────────────────────────────────────────────────
 
-async function getFcmToken(): Promise<string> {
+async function getFcmAccessToken(): Promise<string> {
   const raw = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON")!;
   const sa = JSON.parse(raw);
   const now = Math.floor(Date.now() / 1000);
@@ -48,46 +44,21 @@ async function getFcmToken(): Promise<string> {
   return access_token;
 }
 
-async function sendFcmToTopic(
-  topic: string,
-  notification: { title: string; body: string },
-  data: Record<string, string>,
-) {
-  const token = await getFcmToken();
-  const projectId = Deno.env.get("FCM_PROJECT_ID")!;
-  return fetch(
-    `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        message: {
-          topic,
-          notification,
-          data,
-          android: { notification: { channel_id: "matricmate_default" } },
-        },
-      }),
-    },
-  );
-}
+// ── FCM sender ────────────────────────────────────────────────────────────────
 
-async function sendFcmToToken(
+async function sendToToken(
+  accessToken: string,
   fcmToken: string,
   notification: { title: string; body: string },
   data: Record<string, string>,
-) {
-  const token = await getFcmToken();
+): Promise<void> {
   const projectId = Deno.env.get("FCM_PROJECT_ID")!;
-  return fetch(
+  const res = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -100,6 +71,11 @@ async function sendFcmToToken(
       }),
     },
   );
+  if (!res.ok) {
+    const body = await res.text();
+    // Log but don't throw — one bad token must not stop the rest.
+    console.error(`FCM send to token failed ${res.status}: ${body}`);
+  }
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -137,17 +113,32 @@ async function handleNewTest(
     .single();
   if (!subject) return;
 
-  const stream = subject.is_common
+  // Determine which stream this subject belongs to.
+  const stream: string = subject.is_common
     ? "common"
     : subject.is_natural
-    ? "natural"
-    : "social";
-  const topic = grade ? `grade_${grade}_${stream}` : `stream_${stream}`;
+    ? "Natural"
+    : "Social";
 
-  await sendFcmToTopic(
-    topic,
-    { title: "New Test Available", body: `${title} — ${subject.name}` },
-    { type: "new_test", test_id: String(test_id) },
+  // Fetch all users in that stream who have an FCM token.
+  let q = sb.from("users").select("fcm_token").not("fcm_token", "is", null);
+  if (!subject.is_common) {
+    q = q.eq("stream", stream);
+  }
+  const { data: users } = await q;
+  if (!users || users.length === 0) return;
+
+  const accessToken = await getFcmAccessToken();
+  const notification = {
+    title: "New Test Available",
+    body: `${title} — ${subject.name}`,
+  };
+  const data = { type: "new_test", test_id: String(test_id) };
+
+  await Promise.all(
+    users
+      .filter((u: any) => u.fcm_token)
+      .map((u: any) => sendToToken(accessToken, u.fcm_token, notification, data)),
   );
 }
 
@@ -164,30 +155,28 @@ async function handlePaymentStatus(
 
   const isApproved = status === "approved" || status === "active";
   const isRejected = status === "rejected";
-
   if (!isApproved && !isRejected) return;
 
-  const notifTitle = isApproved
-    ? "Payment Approved ✓"
-    : "Payment Not Approved";
+  const notifTitle = isApproved ? "Payment Approved ✓" : "Payment Not Approved";
   const notifBody = isApproved
-    ? "Your payment has been approved! Please refresh the app to access premium features."
-    : (rejection_reason || "Your payment was not approved. Please contact support for more details.");
+    ? "Your payment has been approved! Refresh the app to access premium features."
+    : (rejection_reason || "Your payment was not approved. Contact support for details.");
 
   // Insert into notifications so the student's in-app feed shows the result.
   await sb.from("notifications").insert({
     title: notifTitle,
     body: notifBody,
     type: "payment",
-    user_id: user_id,
+    user_id,
     payload: { status: isApproved ? "approved" : "rejected" },
     is_read: false,
     created_at: new Date().toISOString(),
   });
 
-  // Send FCM push to the student's device if they have a token.
   if (user?.fcm_token) {
-    await sendFcmToToken(
+    const accessToken = await getFcmAccessToken();
+    await sendToToken(
+      accessToken,
       user.fcm_token,
       { title: notifTitle, body: notifBody },
       { type: "payment_status", status: isApproved ? "approved" : "rejected" },
@@ -199,39 +188,58 @@ async function handleAnnouncement(
   sb: ReturnType<typeof createClient>,
   body: any,
 ) {
-  const { title, message, audience, admin_uid } = body;
+  // The Flutter admin app already inserted the notifications DB row.
+  // This function ONLY sends the FCM push.
   // audience: { type: 'all' | 'stream' | 'user', value?: string }
+  const { title, message, audience } = body;
 
-  // NOTE: The Flutter admin app already inserted the notifications row before
-  // calling this function. Do NOT insert again here — that caused duplicates.
+  const notification = { title: title ?? "", body: message ?? "" };
+  const data = { type: "announcement" };
 
-  const notification = { title, body: message };
-  const data: Record<string, string> = { type: "announcement" };
+  let tokens: string[] = [];
 
   if (audience.type === "all") {
-    await Promise.all([
-      sendFcmToTopic("stream_natural", notification, data),
-      sendFcmToTopic("stream_social", notification, data),
-      sendFcmToTopic("stream_common", notification, data),
-    ]);
+    // All users who have an FCM token.
+    const { data: users } = await sb
+      .from("users")
+      .select("fcm_token")
+      .not("fcm_token", "is", null)
+      .not("fcm_token", "eq", "");
+    tokens = (users ?? []).map((u: any) => u.fcm_token).filter(Boolean);
+
   } else if (audience.type === "stream" && audience.value) {
-    await sendFcmToTopic(`stream_${audience.value.toLowerCase()}`, notification, data);
+    // Users whose `stream` column matches exactly.
+    // audience.value comes from the admin app as "Natural" or "Social"
+    // which matches the student app's stored value.
+    const { data: users } = await sb
+      .from("users")
+      .select("fcm_token")
+      .eq("stream", audience.value)          // exact match e.g. "Natural"
+      .not("fcm_token", "is", null)
+      .not("fcm_token", "eq", "");
+    tokens = (users ?? []).map((u: any) => u.fcm_token).filter(Boolean);
+
   } else if (audience.type === "user" && audience.value) {
+    // Single user by their Firebase UID (= users.id).
     const { data: user } = await sb
       .from("users")
       .select("fcm_token")
       .eq("id", audience.value)
       .single();
-    if (user?.fcm_token) {
-      await sendFcmToToken(user.fcm_token, notification, data);
-    }
+    if (user?.fcm_token) tokens = [user.fcm_token];
   }
+
+  if (tokens.length === 0) return;
+
+  const accessToken = await getFcmAccessToken();
+  await Promise.all(
+    tokens.map((token) => sendToToken(accessToken, token, notification, data)),
+  );
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
-  // ⚠️  Gate: Postgres triggers must send x-webhook-secret header
   if (req.headers.get("x-webhook-secret") !== Deno.env.get("PUSH_WEBHOOK_SECRET")) {
     return new Response("unauthorized", { status: 401 });
   }

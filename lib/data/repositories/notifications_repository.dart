@@ -1,4 +1,9 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:m_admin/features/notifications/models/admin_notification_model.dart';
+import 'package:m_admin/utils/constants/app_env.dart';
+import 'package:m_admin/utils/exceptions/app_failure_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -51,8 +56,17 @@ class NotificationsRepository {
   }
 
   /// Sends a broadcast or user-targeted notification.
-  /// Inserts the notification record into the database.
-  /// The student app picks it up via Supabase Realtime — no FCM push needed.
+  ///
+  /// Steps:
+  ///   1. Inserts the row into `notifications` — the student app's Realtime
+  ///      listener picks this up instantly when the app is foregrounded.
+  ///   2. Calls the `send-push` edge function for FCM delivery — this reaches
+  ///      students whose app is backgrounded or killed.
+  ///
+  /// The edge function sends a **data-only** FCM message (no system notification
+  /// payload). The student app handles it in its background handler and shows
+  /// a local notification itself — avoiding a duplicate when the app is open
+  /// (the Realtime listener already showed it).
   ///
   /// [audience]: `'all'` | `'stream:<name>'` | `'user:<uid>'`
   Future<void> sendBroadcast({
@@ -72,6 +86,7 @@ class NotificationsRepository {
         userId = audience.substring(5);
       }
 
+      // 1. Save to DB — Realtime delivers it to foregrounded student apps.
       await _sb.from('notifications').insert({
         'title': title,
         'body': body,
@@ -82,6 +97,52 @@ class NotificationsRepository {
         'is_read': false,
         'created_at': DateTime.now().toUtc().toIso8601String(),
       });
+
+      // 2. FCM push — reaches backgrounded / killed student apps.
+      //    Build the audience object the edge function expects.
+      final Map<String, dynamic> audienceObj;
+      if (audience == 'all') {
+        audienceObj = {'type': 'all'};
+      } else if (audience.startsWith('stream:')) {
+        audienceObj = {'type': 'stream', 'value': audience.substring(7)};
+      } else if (audience.startsWith('user:')) {
+        audienceObj = {'type': 'user', 'value': audience.substring(5)};
+      } else {
+        audienceObj = {'type': 'all'};
+      }
+
+      final response = await http
+          .post(
+            Uri.parse('${AppEnv.adminFunctionsBaseUrl}/send-push'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ${AppEnv.supabaseApiKey}',
+              'x-webhook-secret': AppEnv.pushWebhookSecret,
+            },
+            body: jsonEncode({
+              'event': 'announcement',
+              'title': title,
+              'message': body,
+              'type': type,       // announcement | new_content — for student-side routing
+              'audience': audienceObj,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 401) {
+        throw const AppFailure(
+          title: 'Not authorised',
+          message: 'Push webhook secret rejected. Check PUSH_WEBHOOK_SECRET.',
+        );
+      }
+      if (response.statusCode != 200) {
+        // Non-fatal: DB row is already saved, Realtime will deliver it.
+        // Log but don't surface as an error to the admin.
+        debugPrint(
+          '[NotificationsRepository] FCM push failed '
+          '(${response.statusCode}): ${response.body}',
+        );
+      }
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
