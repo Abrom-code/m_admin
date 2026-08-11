@@ -108,6 +108,7 @@ class NotificationsController extends GetxController {
     required String type,
     required String audience,
   }) async {
+    if (isSending.value) return false; // guard against double-tap
     try {
       isSending.value = true;
       await _repo.sendBroadcast(

@@ -54,6 +54,7 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
   }
 
   Future<void> _submit() async {
+    if (widget.controller.isSending.value) return;
     if (!_formKey.currentState!.validate()) return;
 
     final ok = await widget.controller.send(

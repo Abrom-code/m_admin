@@ -1,9 +1,4 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:m_admin/features/notifications/models/admin_notification_model.dart';
-import 'package:m_admin/utils/constants/app_env.dart';
-import 'package:m_admin/utils/exceptions/app_failure_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -55,9 +50,9 @@ class NotificationsRepository {
     }
   }
 
-  /// Sends a broadcast or user-targeted notification via the `send-push` edge
-  /// function. The edge function handles the FCM call.
-  /// This method also inserts the notification record into the database.
+  /// Sends a broadcast or user-targeted notification.
+  /// Inserts the notification record into the database.
+  /// The student app picks it up via Supabase Realtime — no FCM push needed.
   ///
   /// [audience]: `'all'` | `'stream:<name>'` | `'user:<uid>'`
   Future<void> sendBroadcast({
@@ -68,7 +63,6 @@ class NotificationsRepository {
     Map<String, dynamic> payload = const {},
   }) async {
     try {
-      // Parse audience string to extract stream/user info
       String? targetStream;
       String? userId;
 
@@ -78,10 +72,6 @@ class NotificationsRepository {
         userId = audience.substring(5);
       }
 
-      // Get current admin UID from Supabase session
-      final adminUid = _sb.auth.currentUser?.id ?? 'unknown';
-
-      // First, save notification to database
       await _sb.from('notifications').insert({
         'title': title,
         'body': body,
@@ -92,68 +82,6 @@ class NotificationsRepository {
         'is_read': false,
         'created_at': DateTime.now().toUtc().toIso8601String(),
       });
-
-
-      // Then send push notification via edge function
-      final Map<String, dynamic> audienceObj;
-      if (audience == 'all') {
-        audienceObj = {'type': 'all'};
-      } else if (audience.startsWith('stream:')) {
-        audienceObj = {
-          'type': 'stream',
-          'value': audience.substring(7),
-        };
-      } else if (audience.startsWith('user:')) {
-        audienceObj = {
-          'type': 'user',
-          'value': audience.substring(5),
-        };
-      } else {
-        audienceObj = {'type': 'all'};
-      }
-
-      final pushUrl = '${AppEnv.adminFunctionsBaseUrl}/send-push';
-      final pushBody = jsonEncode({
-        'event': 'announcement',
-        'title': title,
-        'message': body,
-        'audience': audienceObj,
-        'admin_uid': adminUid,
-      });
-
-      debugPrint('[NotificationsRepository] POST $pushUrl');
-      debugPrint('[NotificationsRepository] body: $pushBody');
-
-      final response = await http
-          .post(
-            Uri.parse(pushUrl),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ${AppEnv.supabaseApiKey}',
-              'x-webhook-secret': AppEnv.pushWebhookSecret,
-            },
-            body: pushBody,
-          )
-          .timeout(const Duration(seconds: 30));
-
-      debugPrint('[NotificationsRepository] response ${response.statusCode}: ${response.body}');
-
-      if (response.statusCode == 401) {
-        throw const AppFailure(
-          title: 'Not authorised',
-          message:
-              'The push service rejected the webhook secret. Check '
-              'PUSH_WEBHOOK_SECRET in .env.',
-        );
-      }
-
-      if (response.statusCode != 200) {
-        throw AppFailure(
-          title: 'Push not sent',
-          message:
-              'Push delivery failed (${response.statusCode}): ${response.body}',
-        );
-      }
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
