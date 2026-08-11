@@ -24,7 +24,6 @@ class NotificationsScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _StatsRow(controller: controller),
           // Top bar: filter chips + send button OR select-mode actions
           Obx(() {
             if (controller.isSelecting.value) {
