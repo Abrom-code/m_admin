@@ -123,7 +123,7 @@ async function handleNewTest(
   // Fetch all users in that stream who have an FCM token.
   let q = sb.from("users").select("fcm_token").not("fcm_token", "is", null);
   if (!subject.is_common) {
-    q = q.eq("stream", stream);
+    q = q.ilike("stream", stream); // case-insensitive
   }
   const { data: users } = await q;
   if (!users || users.length === 0) return;
@@ -208,13 +208,12 @@ async function handleAnnouncement(
     tokens = (users ?? []).map((u: any) => u.fcm_token).filter(Boolean);
 
   } else if (audience.type === "stream" && audience.value) {
-    // Users whose `stream` column matches exactly.
-    // audience.value comes from the admin app as "Natural" or "Social"
-    // which matches the student app's stored value.
+    // Case-insensitive match so it works whether the student app stores
+    // "Natural", "natural", or "NATURAL".
     const { data: users } = await sb
       .from("users")
       .select("fcm_token")
-      .eq("stream", audience.value)          // exact match e.g. "Natural"
+      .ilike("stream", audience.value)
       .not("fcm_token", "is", null)
       .not("fcm_token", "eq", "");
     tokens = (users ?? []).map((u: any) => u.fcm_token).filter(Boolean);
