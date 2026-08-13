@@ -86,6 +86,7 @@ class NotificationsRepository {
       //    Build the audience object the edge function expects.
       final String edgeAudience;
       String? edgeTargetStream;
+      String? edgeTargetStatus;
       String? edgeUserId;
 
       if (audience == 'all') {
@@ -93,6 +94,9 @@ class NotificationsRepository {
       } else if (audience.startsWith('stream:')) {
         edgeAudience = 'stream';
         edgeTargetStream = audience.substring(7);
+      } else if (audience.startsWith('status:')) {
+        edgeAudience = 'status';
+        edgeTargetStatus = audience.substring(7);
       } else if (audience.startsWith('user:')) {
         edgeAudience = 'user';
         edgeUserId = audience.substring(5);
@@ -114,6 +118,7 @@ class NotificationsRepository {
               'body': body,
               'audience': edgeAudience,
               if (edgeTargetStream != null) 'target_stream': edgeTargetStream,
+              if (edgeTargetStatus != null) 'target_status': edgeTargetStatus,
               if (edgeUserId != null) 'user_id': edgeUserId,
             }),
           )

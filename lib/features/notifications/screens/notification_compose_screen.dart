@@ -46,6 +46,9 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
     'all': 'All students',
     'stream:Natural': 'Natural stream',
     'stream:Social': 'Social stream',
+    'status:active': 'Active (premium) users',
+    'status:inactive': 'Inactive users',
+    'status:pending': 'Pending users',
     'user': 'Specific user',
   };
 
