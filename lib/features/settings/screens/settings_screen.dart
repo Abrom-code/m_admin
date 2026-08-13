@@ -73,6 +73,8 @@ class SettingsController extends GetxController {
   final isSavingApp = false.obs;
   final trialCount = TextEditingController(text: '5');
   final subscriptionPrice = TextEditingController(text: '0');
+  final telegramLink = TextEditingController();
+  final shareLink = TextEditingController();
 
   @override
   void onInit() {
@@ -93,6 +95,8 @@ class SettingsController extends GetxController {
     webhookSecret.dispose();
     trialCount.dispose();
     subscriptionPrice.dispose();
+    telegramLink.dispose();
+    shareLink.dispose();
     super.onClose();
   }
 
@@ -129,6 +133,10 @@ class SettingsController extends GetxController {
             trialCount.text = value;
           case 'subscription_price':
             subscriptionPrice.text = value;
+          case 'telegram_link':
+            telegramLink.text = value;
+          case 'share_link':
+            shareLink.text = value;
           case 'payment_extra_accounts':
             _parseExtraAccounts(value);
         }
@@ -200,6 +208,8 @@ class SettingsController extends GetxController {
       await _upsertMany({
         'trial_count': trialCount.text.trim(),
         'subscription_price': subscriptionPrice.text.trim(),
+        'telegram_link': telegramLink.text.trim(),
+        'share_link': shareLink.text.trim(),
       });
       SnackbarHelper.success('Saved', 'App config updated.');
     } catch (e) {
@@ -651,6 +661,32 @@ class _AppConfigSection extends StatelessWidget {
                     labelText: 'Subscription price (ETB)',
                     hintText: '0',
                     prefixIcon: Icon(Iconsax.money_copy, size: 16),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSizes.md),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: c.telegramLink,
+                  decoration: const InputDecoration(
+                    labelText: 'Telegram link',
+                    hintText: 'https://t.me/...',
+                    prefixIcon: Icon(Iconsax.send_1_copy, size: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSizes.md),
+              Expanded(
+                child: TextFormField(
+                  controller: c.shareLink,
+                  decoration: const InputDecoration(
+                    labelText: 'Share link',
+                    hintText: 'https://matricmate.com/...',
+                    prefixIcon: Icon(Iconsax.share_copy, size: 16),
                   ),
                 ),
               ),
