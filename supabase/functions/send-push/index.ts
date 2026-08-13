@@ -155,12 +155,31 @@ async function handlePaymentStatus(
 
   const isApproved = status === "approved" || status === "active";
   const isRejected = status === "rejected";
-  if (!isApproved && !isRejected) return;
+  const isRevoked = status === "inactive";
+  if (!isApproved && !isRejected && !isRevoked) return;
 
-  const notifTitle = isApproved ? "Payment Approved ✓" : "Payment Not Approved";
-  const notifBody = isApproved
-    ? "Your payment has been approved! Refresh the app to access premium features."
-    : (rejection_reason || "Your payment was not approved. Contact support for details.");
+  let notifTitle: string;
+  let notifBody: string;
+  let payloadStatus: string;
+
+  if (isApproved) {
+    notifTitle = "Payment Approved ✓";
+    notifBody =
+      "Your payment has been approved! Refresh the app to access premium features.";
+    payloadStatus = "approved";
+  } else if (isRevoked) {
+    notifTitle = "Premium Access Revoked";
+    notifBody = rejection_reason
+      ? `Your premium access has been revoked. Reason: ${rejection_reason}`
+      : "Your premium access has been revoked. Contact support for details.";
+    payloadStatus = "revoked";
+  } else {
+    notifTitle = "Payment Not Approved";
+    notifBody =
+      rejection_reason ||
+      "Your payment was not approved. Contact support for details.";
+    payloadStatus = "rejected";
+  }
 
   // Insert into notifications so the student's in-app feed shows the result.
   await sb.from("notifications").insert({
@@ -168,7 +187,7 @@ async function handlePaymentStatus(
     body: notifBody,
     type: "payment",
     user_id,
-    payload: { status: isApproved ? "approved" : "rejected" },
+    payload: { status: payloadStatus },
     is_read: false,
     created_at: new Date().toISOString(),
   });
@@ -179,7 +198,7 @@ async function handlePaymentStatus(
       accessToken,
       user.fcm_token,
       { title: notifTitle, body: notifBody },
-      { type: "payment_status", status: isApproved ? "approved" : "rejected" },
+      { type: "payment_status", status: payloadStatus },
     );
   }
 }

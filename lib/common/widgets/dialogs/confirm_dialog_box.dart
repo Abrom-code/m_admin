@@ -271,4 +271,88 @@ class AppDialogBoxes {
 
     return result ?? false;
   }
+
+  /// A destructive confirmation that includes an optional reason text field.
+  ///
+  /// Returns the entered reason string (possibly empty) on confirm, or `null`
+  /// if the dialog is cancelled.
+  static Future<String?> confirmWithReason({
+    required String title,
+    required String message,
+    String confirmLabel = 'Confirm',
+    String cancelLabel = 'Cancel',
+    String reasonHint = 'Reason (optional)',
+  }) async {
+    final dark = AppHelperFunctions.isDark(Get.context!);
+    final reasonController = TextEditingController();
+
+    final result = await Get.dialog<String?>(
+      AlertDialog(
+        backgroundColor: dark ? AppColors.darkCard : AppColors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSizes.sm),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: AppColors.error,
+                size: AppSizes.iconMd,
+              ),
+            ),
+            const SizedBox(width: AppSizes.sm),
+            Expanded(child: Text(title)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message),
+            const SizedBox(height: AppSizes.md),
+            TextField(
+              controller: reasonController,
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: reasonHint,
+                hintStyle: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back<String?>(result: null),
+            child: Text(cancelLabel),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              minimumSize: const Size(96, 44),
+            ),
+            onPressed: () =>
+                Get.back<String?>(result: reasonController.text.trim()),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+      barrierDismissible: false,
+    );
+
+    reasonController.dispose();
+    return result;
+  }
 }

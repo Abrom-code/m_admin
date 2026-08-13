@@ -127,7 +127,11 @@ class UsersController extends GetxController {
     load();
   }
 
-  Future<void> setSubscription(AdminUserModel user, String status) async {
+  Future<void> setSubscription(
+    AdminUserModel user,
+    String status, {
+    String? reason,
+  }) async {
     if (isActing(user.id)) return;
 
     try {
@@ -155,7 +159,11 @@ class UsersController extends GetxController {
       }
 
       // Send push notification (best-effort — must not fail the action).
-      await _repo.sendSubscriptionPush(userId: user.id, status: status);
+      await _repo.sendSubscriptionPush(
+        userId: user.id,
+        status: status,
+        reason: reason,
+      );
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
     } finally {

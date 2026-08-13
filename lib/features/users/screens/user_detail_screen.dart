@@ -59,12 +59,28 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
       _ => 'Set $status',
     };
 
+    // For revoke, show a dialog with an optional reason text field.
+    if (status == 'inactive') {
+      final result = await AppDialogBoxes.confirmWithReason(
+        title: verb,
+        message: 'Manually change ${user.displayName}\'s subscription '
+            'to "$status"? This overrides any pending receipt review.',
+        confirmLabel: verb,
+        reasonHint: 'Reason for revoking (included in notification)',
+      );
+      if (result == null) return; // cancelled
+
+      await UsersController.instance
+          .setSubscription(user, status, reason: result);
+      return;
+    }
+
     final confirmed = await AppDialogBoxes.confirm(
       title: verb,
       message: 'Manually change ${user.displayName}\'s subscription '
           'to "$status"? This overrides any pending receipt review.',
       confirmLabel: verb,
-      isDestructive: status == 'inactive',
+      isDestructive: false,
     );
     if (!confirmed) return;
 
