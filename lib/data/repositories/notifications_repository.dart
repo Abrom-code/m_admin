@@ -77,38 +77,27 @@ class NotificationsRepository {
     Map<String, dynamic> payload = const {},
   }) async {
     try {
-      String? targetStream;
-      String? userId;
-
-      if (audience.startsWith('stream:')) {
-        targetStream = audience.substring(7);
-      } else if (audience.startsWith('user:')) {
-        userId = audience.substring(5);
-      }
-
-      // 1. Save to DB — Realtime delivers it to foregrounded student apps.
-      await _sb.from('notifications').insert({
-        'title': title,
-        'body': body,
-        'type': type,
-        'user_id': userId,
-        'target_stream': targetStream,
-        'payload': payload,
-        'is_read': false,
-        'created_at': DateTime.now().toUtc().toIso8601String(),
-      });
+      // The edge function inserts the notification row into the DB AND sends
+      // FCM. We don't insert here — doing so caused duplicate rows because
+      // the edge function also inserts. Realtime picks up the DB row inserted
+      // by the edge function for foregrounded student apps.
 
       // 2. FCM push — reaches backgrounded / killed student apps.
       //    Build the audience object the edge function expects.
-      final Map<String, dynamic> audienceObj;
+      final String edgeAudience;
+      String? edgeTargetStream;
+      String? edgeUserId;
+
       if (audience == 'all') {
-        audienceObj = {'type': 'all'};
+        edgeAudience = 'all';
       } else if (audience.startsWith('stream:')) {
-        audienceObj = {'type': 'stream', 'value': audience.substring(7)};
+        edgeAudience = 'stream';
+        edgeTargetStream = audience.substring(7);
       } else if (audience.startsWith('user:')) {
-        audienceObj = {'type': 'user', 'value': audience.substring(5)};
+        edgeAudience = 'user';
+        edgeUserId = audience.substring(5);
       } else {
-        audienceObj = {'type': 'all'};
+        edgeAudience = 'all';
       }
 
       final response = await http
@@ -122,9 +111,10 @@ class NotificationsRepository {
             body: jsonEncode({
               'event': 'announcement',
               'title': title,
-              'message': body,
-              'type': type,       // announcement | new_content — for student-side routing
-              'audience': audienceObj,
+              'body': body,
+              'audience': edgeAudience,
+              if (edgeTargetStream != null) 'target_stream': edgeTargetStream,
+              if (edgeUserId != null) 'user_id': edgeUserId,
             }),
           )
           .timeout(const Duration(seconds: 30));
