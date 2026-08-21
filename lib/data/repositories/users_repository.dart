@@ -21,7 +21,7 @@ class UsersRepository {
       var q = _sb
           .from('users')
           .select('id, first_name, last_name, email, stream, '
-              'subscription_status, created_at');
+              'subscription_status, created_at, receipt_upload_count');
 
       if (statusFilter != null && statusFilter.isNotEmpty) {
         q = q.eq('subscription_status', statusFilter);
@@ -79,6 +79,18 @@ class UsersRepository {
       await _sb
           .from('users')
           .update({'subscription_status': status})
+          .eq('id', userId);
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Updates receipt upload attempt count for a user (e.g. reset limit).
+  Future<void> setReceiptUploadCount(String userId, int count) async {
+    try {
+      await _sb
+          .from('users')
+          .update({'receipt_upload_count': count})
           .eq('id', userId);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
