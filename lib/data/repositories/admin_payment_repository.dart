@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:http/http.dart' as http;
@@ -9,16 +9,9 @@ import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Data access for the payment review queue.
-///
-/// Approve and reject use two sequential direct writes (payment_receipts, then
-/// users). Without an RPC there is no single transaction, but each write is
-/// idempotent so retrying on a partial failure is safe.
 class AdminPaymentRepository {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  /// One query yields receipt + student identity + current premium flag.
-  ///
-  /// `status: 'all'` skips the status filter.
   Future<List<PaymentReview>> fetchQueue({
     required String status,
     String? search,
@@ -99,9 +92,9 @@ class AdminPaymentRepository {
           .maybeSingle();
 
       if (row == null) {
-        throw AppFailure(
+        throw const AppFailure(
           title: 'Not found',
-          message: 'Receipt #$id no longer exists.',
+          message: 'Receipt no longer exists.',
         );
       }
 
@@ -111,34 +104,57 @@ class AdminPaymentRepository {
     }
   }
 
-  /// Approves a payment: marks the receipt approved and grants the user premium.
-  ///
-  /// Two sequential writes instead of one RPC transaction — if the second
-  /// write ever fails the receipt is already approved, so re-running approve
-  /// is safe (idempotent on the users row).
-  ///
-  /// The push is sent by the caller AFTER this returns so a failed FCM call
-  /// never rolls back the database change.
+  /// Approves a payment: marks the receipt approved, sets expiration, and grants the user premium.
   Future<void> approve({
     required String receiptId,
     required String userId,
     required String adminUid,
     num? amount,
+    String? planKey,
+    int? planDurationMonths,
     String? note,
   }) async {
     try {
-      final now = DateTime.now().toUtc().toIso8601String();
+      final now = DateTime.now().toUtc();
+      final nowIso = now.toIso8601String();
 
+      // 1. Update the receipt
       await _supabase.from('payment_receipts').update({
         'status': 'approved',
         'reviewed_by': adminUid,
-        'reviewed_at': now,
-        'amount': ?amount,
+        'reviewed_at': nowIso,
+        'amount': amount,
       }).eq('id', receiptId);
 
+      // 2. Calculate subscription expiration
+      final months = planDurationMonths ?? 12;
+      
+      // Fetch current user expiration if active
+      final userRow = await _supabase
+          .from('users')
+          .select('subscription_expires_at, subscription_status')
+          .eq('id', userId)
+          .maybeSingle();
+
+      final currentExpiryRaw = userRow?['subscription_expires_at'];
+      final currentExpiry = currentExpiryRaw != null
+          ? DateTime.tryParse(currentExpiryRaw.toString())
+          : null;
+
+      final baseDate = (currentExpiry != null && currentExpiry.isAfter(DateTime.now()))
+          ? currentExpiry
+          : DateTime.now();
+
+      final newExpiry = DateTime(baseDate.year, baseDate.month + months, baseDate.day);
+
+      // 3. Grant active premium with calculated expiration and plan
       await _supabase
           .from('users')
-          .update({'subscription_status': 'active'})
+          .update({
+            'subscription_status': 'active',
+            'subscription_plan': planKey ?? '1_year',
+            'subscription_expires_at': newExpiry.toUtc().toIso8601String(),
+          })
           .eq('id', userId);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
@@ -146,10 +162,6 @@ class AdminPaymentRepository {
   }
 
   /// Rejects a payment: marks the receipt rejected and sets user to inactive.
-  ///
-  /// `subscription_status` is written as `'inactive'` (not `'rejected'`)
-  /// because UserModel in the student app has no rejected state — the student
-  /// would end up stranded. The rejection reason is recorded on the receipt.
   Future<void> reject({
     required String receiptId,
     required String userId,
@@ -168,20 +180,16 @@ class AdminPaymentRepository {
 
       await _supabase
           .from('users')
-          .update({'subscription_status': 'inactive'})
+          .update({
+            'subscription_status': 'inactive',
+            'subscription_expires_at': null,
+          })
           .eq('id', userId);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
   }
 
-  /// Prefers a short-lived signed URL over the stored public one.
-  ///
-  /// The `receipts` bucket is currently PUBLIC — the student app calls
-  /// `getPublicUrl` and never `createSignedUrl`, so every receipt is a
-  /// permanent unauthenticated URL that anyone with the link can read. That
-  /// should be flipped to private (Phase 13); this method already works
-  /// either way, falling back to the stored URL if signing is refused.
   Future<String> signedReceiptUrl(String path, {String? fallbackUrl}) async {
     try {
       return await _supabase.storage
@@ -193,10 +201,6 @@ class AdminPaymentRepository {
     }
   }
 
-  /// Notifies the student of a review outcome.
-  ///
-  /// Failures here are reported but must not roll anything back — the write
-  /// already committed, and Realtime will deliver the subscription change.
   Future<void> sendPaymentPush({
     required String userId,
     required String status,
@@ -244,11 +248,6 @@ class AdminPaymentRepository {
     }
   }
 
-  /// Escapes PostgREST `or()` metacharacters.
-  ///
-  /// The parent app's AnalyticsController interpolates filter values straight
-  /// into its queries. That pattern is not reproduced here, where the value is
-  /// typed by a human into a search box.
   static String _escapeFilterValue(String value) {
     return value
         .replaceAll(r'\', r'\\')

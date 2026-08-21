@@ -1,11 +1,6 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 /// A payment receipt joined to the student who submitted it.
-///
-/// Parsed defensively throughout (`json['x']?.toString() ?? ''`) in the same
-/// style as the parent app's models — the joined `users` object is null when a
-/// receipt references a deleted account, and several columns did not exist
-/// before migration 0001, so historical rows are sparse.
 class PaymentReview {
   const PaymentReview({
     required this.id,
@@ -25,6 +20,8 @@ class PaymentReview {
     this.reviewedBy,
     this.reviewedAt,
     this.rejectionReason,
+    this.planKey,
+    this.planDurationMonths,
   });
 
   final String id;
@@ -34,16 +31,14 @@ class PaymentReview {
   final String userEmail;
   final String userStream;
 
-  /// The student's CURRENT premium flag, which is not the same thing as this
-  /// receipt's status — a user may have an approved receipt and a later
-  /// manual revocation.
+  /// The student's CURRENT premium flag
   final String subscriptionStatus;
 
   final String receiptPath;
   final String receiptUrl;
   final String verificationUrl;
 
-  /// `'telebirr' | 'cbe' | 'abyssinia' | 'mpesa'` — lowercase enum `.name`.
+  /// `'telebirr' | 'cbe' | 'abyssinia' | 'mpesa'`
   final String paymentMethod;
 
   final num? amount;
@@ -57,6 +52,9 @@ class PaymentReview {
   final DateTime? reviewedAt;
   final String? rejectionReason;
 
+  final String? planKey;
+  final int? planDurationMonths;
+
   bool get isPending => status == 'pending';
   bool get isApproved => status == 'approved';
   bool get isRejected => status == 'rejected';
@@ -68,10 +66,16 @@ class PaymentReview {
   String get amountLabel =>
       amount == null ? '—' : '${amount!.toStringAsFixed(0)} $currency';
 
+  String get planLabel => switch (planKey) {
+    '6_months' => '6 Months',
+    '1_year' => '1 Year',
+    '2_years' => '2 Years',
+    '3_years' => '3 Years',
+    '4_years' => '4 Years',
+    _ => planKey ?? (planDurationMonths != null ? '$planDurationMonths Months' : '1 Year'),
+  };
+
   factory PaymentReview.fromJson(Map<String, dynamic> json) {
-    // The join arrives as a nested object under `users`. PostgREST returns a
-    // list instead of an object when the relationship is ambiguous, so accept
-    // both rather than throwing on a shape difference.
     final rawUser = json['users'];
     final Map<String, dynamic> user = rawUser is Map<String, dynamic>
         ? rawUser
@@ -101,6 +105,8 @@ class PaymentReview {
       reviewedBy: json['reviewed_by']?.toString(),
       reviewedAt: _parseDate(json['reviewed_at']),
       rejectionReason: json['rejection_reason']?.toString(),
+      planKey: json['plan_key']?.toString(),
+      planDurationMonths: (json['plan_duration_months'] as num?)?.toInt(),
     );
   }
 
@@ -111,6 +117,8 @@ class PaymentReview {
     DateTime? reviewedAt,
     String? rejectionReason,
     String? subscriptionStatus,
+    String? planKey,
+    int? planDurationMonths,
   }) {
     return PaymentReview(
       id: id,
@@ -130,6 +138,8 @@ class PaymentReview {
       reviewedBy: reviewedBy ?? this.reviewedBy,
       reviewedAt: reviewedAt ?? this.reviewedAt,
       rejectionReason: rejectionReason ?? this.rejectionReason,
+      planKey: planKey ?? this.planKey,
+      planDurationMonths: planDurationMonths ?? this.planDurationMonths,
     );
   }
 
@@ -146,11 +156,6 @@ class PaymentReview {
 }
 
 /// Display metadata for a payment method.
-///
-/// Built-in methods (telebirr, cbe, abyssinia, mpesa) are seeded from
-/// hardcoded defaults and overridden at runtime by [loadFromConfig] once
-/// the admin app fetches values from `app_config`.  Extra methods added
-/// from the Settings screen are appended to [byKey] the same way.
 class PaymentMethodInfo {
   const PaymentMethodInfo({
     required this.label,
@@ -162,7 +167,6 @@ class PaymentMethodInfo {
   final String account;
   final String holder;
 
-  // ── Defaults (used before app_config is loaded or as fallback) ──────
   static const _defaultHolder = 'Beshasha Desmon';
 
   static const Map<String, PaymentMethodInfo> _defaults = {
@@ -188,22 +192,10 @@ class PaymentMethodInfo {
     ),
   };
 
-  /// Live map — starts as the defaults, overwritten by [loadFromConfig].
   static Map<String, PaymentMethodInfo> byKey =
       Map<String, PaymentMethodInfo>.from(_defaults);
 
-  /// Called once after `app_config` rows are fetched (e.g. from
-  /// SettingsController or a dedicated config service).  Pass the full
-  /// key→value map from the table.
-  ///
-  /// Keys expected:
-  ///   payment_telebirr, payment_telebirr_holder
-  ///   payment_cbe_birr, payment_cbe_birr_holder
-  ///   payment_abyssinia, payment_abyssinia_holder
-  ///   payment_mpesa, payment_mpesa_holder
-  ///   payment_extra_accounts  (JSON array)
   static void loadFromConfig(Map<String, String> cfg) {
-    // Helper: override a built-in entry when the config provides a value.
     PaymentMethodInfo merge(
       String key,
       String label,
@@ -231,7 +223,6 @@ class PaymentMethodInfo {
           'payment_mpesa', 'payment_mpesa_holder'),
     };
 
-    // Append extra accounts from JSON array stored in app_config.
     final extraRaw = cfg['payment_extra_accounts'] ?? '';
     if (extraRaw.isNotEmpty) {
       try {
@@ -249,7 +240,6 @@ class PaymentMethodInfo {
           }
         }
       } catch (_) {
-        // Malformed JSON — skip extra accounts silently.
       }
     }
 

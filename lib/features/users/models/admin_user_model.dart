@@ -1,4 +1,4 @@
-/// A row from `public.users` as seen from the admin console.
+﻿/// A row from public.users as seen from the admin console.
 ///
 /// Column list from the Supabase access catalogue:
 ///   id text (Firebase UID — NOT a uuid)
@@ -9,9 +9,8 @@
 ///   subscription_status text ('inactive' | 'pending' | 'active')
 ///   fcm_token text (write-only; never displayed)
 ///   receipt_upload_count int (number of receipt upload attempts)
-///
-/// No created_at / updated_at — the catalogue confirmed they are never
-/// referenced by the student app, so they may or may not exist.
+///   subscription_plan text
+///   subscription_expires_at timestamptz
 class AdminUserModel {
   const AdminUserModel({
     required this.id,
@@ -22,6 +21,8 @@ class AdminUserModel {
     required this.subscriptionStatus,
     this.createdAt,
     this.receiptUploadCount = 0,
+    this.subscriptionPlan,
+    this.subscriptionExpiresAt,
   });
 
   final String id; // Firebase UID
@@ -32,15 +33,17 @@ class AdminUserModel {
   final String subscriptionStatus; // 'inactive' | 'pending' | 'active'
   final DateTime? createdAt;
   final int receiptUploadCount;
+  final String? subscriptionPlan;
+  final DateTime? subscriptionExpiresAt;
 
   String get displayName {
-    final name = '$firstName $lastName'.trim();
+    final name = ' '.trim();
     return name.isEmpty ? (email.isEmpty ? id : email) : name;
   }
 
   String get initials {
     if (firstName.isNotEmpty && lastName.isNotEmpty) {
-      return '${firstName[0]}${lastName[0]}'.toUpperCase();
+      return ''.toUpperCase();
     }
     if (displayName.isNotEmpty) {
       return displayName[0].toUpperCase();
@@ -48,10 +51,38 @@ class AdminUserModel {
     return '?';
   }
 
-  bool get isActive => subscriptionStatus == 'active';
+  bool get isActive =>
+      subscriptionStatus == 'active' &&
+      (subscriptionExpiresAt == null ||
+          subscriptionExpiresAt!.isAfter(DateTime.now()));
+
   bool get isPending => subscriptionStatus == 'pending';
   bool get isInactive => subscriptionStatus == 'inactive';
+
+  bool get isExpired =>
+      subscriptionStatus == 'active' &&
+      subscriptionExpiresAt != null &&
+      subscriptionExpiresAt!.isBefore(DateTime.now());
+
   bool get exceededUploadLimit => receiptUploadCount >= 2;
+
+  String get planLabel => switch (subscriptionPlan) {
+    '6_months' => '6 Months',
+    '1_year' => '1 Year',
+    '2_years' => '2 Years',
+    '3_years' => '3 Years',
+    '4_years' => '4 Years',
+    _ => subscriptionPlan ?? '—',
+  };
+
+  String get remainingDaysText {
+    if (subscriptionExpiresAt == null) return '';
+    final diff = subscriptionExpiresAt!.difference(DateTime.now()).inDays;
+    if (diff <= 0) return 'Expired';
+    if (diff > 365) return ' yrs left';
+    if (diff > 30) return ' mo left';
+    return ' d left';
+  }
 
   factory AdminUserModel.fromJson(Map<String, dynamic> json) {
     return AdminUserModel(
@@ -67,12 +98,18 @@ class AdminUserModel {
           : DateTime.tryParse(json['created_at'].toString()),
       receiptUploadCount:
           (json['receipt_upload_count'] as num?)?.toInt() ?? 0,
+      subscriptionPlan: json['subscription_plan']?.toString(),
+      subscriptionExpiresAt: json['subscription_expires_at'] == null
+          ? null
+          : DateTime.tryParse(json['subscription_expires_at'].toString()),
     );
   }
 
   AdminUserModel copyWith({
     String? subscriptionStatus,
     int? receiptUploadCount,
+    String? subscriptionPlan,
+    DateTime? subscriptionExpiresAt,
   }) => AdminUserModel(
     id: id,
     firstName: firstName,
@@ -82,5 +119,8 @@ class AdminUserModel {
     subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
     createdAt: createdAt,
     receiptUploadCount: receiptUploadCount ?? this.receiptUploadCount,
+    subscriptionPlan: subscriptionPlan ?? this.subscriptionPlan,
+    subscriptionExpiresAt:
+        subscriptionExpiresAt ?? this.subscriptionExpiresAt,
   );
 }

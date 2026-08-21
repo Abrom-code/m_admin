@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -21,7 +21,8 @@ class UsersRepository {
       var q = _sb
           .from('users')
           .select('id, first_name, last_name, email, stream, '
-              'subscription_status, created_at, receipt_upload_count');
+              'subscription_status, created_at, receipt_upload_count, '
+              'subscription_plan, subscription_expires_at');
 
       if (statusFilter != null && statusFilter.isNotEmpty) {
         q = q.eq('subscription_status', statusFilter);
@@ -73,12 +74,25 @@ class UsersRepository {
   Future<void> setSubscriptionStatus(
     String userId,
     String status,
-    String adminUid,
-  ) async {
+    String adminUid, {
+    String? plan,
+    DateTime? expiresAt,
+  }) async {
     try {
+      final update = <String, dynamic>{'subscription_status': status};
+      if (status == 'inactive') {
+        update['subscription_expires_at'] = null;
+        update['subscription_plan'] = null;
+      } else if (status == 'active') {
+        if (plan != null) update['subscription_plan'] = plan;
+        if (expiresAt != null) {
+          update['subscription_expires_at'] = expiresAt.toUtc().toIso8601String();
+        }
+      }
+
       await _sb
           .from('users')
-          .update({'subscription_status': status})
+          .update(update)
           .eq('id', userId);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
@@ -98,9 +112,6 @@ class UsersRepository {
   }
 
   /// Sends a push notification for a manual subscription change (grant or revoke).
-  ///
-  /// Best-effort: failures are logged but must not surface to the admin,
-  /// because the database write already committed.
   Future<void> sendSubscriptionPush({
     required String userId,
     required String status,
@@ -126,7 +137,6 @@ class UsersRepository {
           .timeout(const Duration(seconds: 20));
 
       if (response.statusCode != 200) {
-        // Non-fatal — just log in debug.
         debugPrint(
           '[UsersRepository] Push notification failed '
           '(${response.statusCode}): ${response.body}',
@@ -145,7 +155,7 @@ class UsersRepository {
           .from('payment_receipts')
           .select(
             'id, status, payment_method, amount, created_at, '
-            'reviewed_by, reviewed_at, rejection_reason',
+            'reviewed_by, reviewed_at, rejection_reason, plan_key, plan_duration_months',
           )
           .eq('user_id', userId)
           .order('created_at', ascending: false);
@@ -178,8 +188,7 @@ class UsersRepository {
     }
   }
 
-  /// Escapes PostgREST `or()` metacharacters — same logic as
-  /// [AdminPaymentRepository._escapeFilterValue].
+  /// Escapes PostgREST `or()` metacharacters.
   static String _escapeFilterValue(String value) {
     return value
         .replaceAll(r'\', r'\\')
