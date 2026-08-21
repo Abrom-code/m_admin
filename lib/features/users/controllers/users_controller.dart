@@ -172,6 +172,28 @@ class UsersController extends GetxController {
     }
   }
 
+  Future<void> setReceiptUploadCount(AdminUserModel user, int count) async {
+    if (isActing(user.id)) return;
+
+    try {
+      actingIds.add(user.id);
+      actingIds.refresh();
+
+      await _repo.setReceiptUploadCount(user.id, count);
+      applyLocalUploadCountUpdate(user.id, count);
+
+      SnackbarHelper.success(
+        'Upload Limit Updated',
+        '${user.displayName}\'s upload attempts set to $count.',
+      );
+    } catch (e) {
+      AppExceptionHandler.handleResponse(e);
+    } finally {
+      actingIds.remove(user.id);
+      actingIds.refresh();
+    }
+  }
+
   /// Updates a user's subscription status in the in-memory list without a
   /// network round-trip. Called by [PaymentsController] after approve/reject
   /// so the Users screen stays in sync without a full reload.
@@ -182,7 +204,14 @@ class UsersController extends GetxController {
     rows.refresh();
   }
 
-  // ── Realtime ─────────────────────────────────────────────────────
+  void applyLocalUploadCountUpdate(String userId, int count) {
+    final idx = rows.indexWhere((r) => r.id == userId);
+    if (idx == -1) return;
+    rows[idx] = rows[idx].copyWith(receiptUploadCount: count);
+    rows.refresh();
+  }
+
+  // ── Realtime ────────────────────────────────────────────────────────
 
   /// Listen for UPDATE events on `users` so subscription_status changes made
   /// by payments (or another admin session) propagate to this screen without
@@ -198,9 +227,19 @@ class UsersController extends GetxController {
             callback: (payload) {
               final newRow = payload.newRecord;
               final userId = newRow['id']?.toString();
+              if (userId == null) return;
               final newStatus = newRow['subscription_status']?.toString();
-              if (userId == null || newStatus == null) return;
-              applyLocalStatusUpdate(userId, newStatus);
+              final uploadCount =
+                  (newRow['receipt_upload_count'] as num?)?.toInt();
+
+              final idx = rows.indexWhere((r) => r.id == userId);
+              if (idx != -1) {
+                rows[idx] = rows[idx].copyWith(
+                  subscriptionStatus: newStatus ?? rows[idx].subscriptionStatus,
+                  receiptUploadCount: uploadCount ?? rows[idx].receiptUploadCount,
+                );
+                rows.refresh();
+              }
               // Also keep counts accurate.
               refreshCounts();
             },

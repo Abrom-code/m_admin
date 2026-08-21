@@ -87,6 +87,19 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     await UsersController.instance.setSubscription(user, status);
   }
 
+  Future<void> _resetUploadCount(AdminUserModel user) async {
+    final confirmed = await AppDialogBoxes.confirm(
+      title: 'Reset upload limit',
+      message:
+          'Reset receipt upload attempts for ${user.displayName} from ${user.receiptUploadCount} back to 0?',
+      confirmLabel: 'Reset to 0',
+      isDestructive: false,
+    );
+    if (!confirmed) return;
+
+    await UsersController.instance.setReceiptUploadCount(user, 0);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Obx re-renders whenever UsersController.rows changes, so the status
@@ -130,7 +143,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
             const SizedBox(height: AppSizes.spaceBtwItems),
 
             AdminSection(
-              title: 'Subscription',
+              title: 'Subscription & Upload Limit',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -168,63 +181,121 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: AppSizes.sm),
+                  Row(
+                    children: [
+                      const Text(
+                        'Upload attempts',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: (user.exceededUploadLimit
+                                  ? AppColors.error
+                                  : AppColors.primary)
+                              .withValues(alpha: 0.12),
+                          borderRadius:
+                              BorderRadius.circular(AppSizes.borderRadiusSm),
+                        ),
+                        child: Text(
+                          '${user.receiptUploadCount} / 2${user.exceededUploadLimit ? ' (Limit Reached)' : ''}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: user.exceededUploadLimit
+                                ? AppColors.error
+                                : AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: AppSizes.spaceBtwItems),
                   Obx(() {
                     final acting = Get.isRegistered<UsersController>() &&
                         UsersController.instance.isActing(user.id);
-                    return Row(
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (!user.isActive)
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.success,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSizes.md,
-                                  vertical: AppSizes.sm,
+                        Row(
+                          children: [
+                            if (!user.isActive)
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.success,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: AppSizes.md,
+                                      vertical: AppSizes.sm,
+                                    ),
+                                  ),
+                                  onPressed: acting ? null : () => _setStatus('active'),
+                                  icon: acting
+                                      ? const SizedBox(
+                                          height: 14,
+                                          width: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.white,
+                                          ),
+                                        )
+                                      : const Icon(Icons.check_circle_outline, size: 18),
+                                  label: const Text('Grant premium'),
                                 ),
                               ),
-                              onPressed: acting ? null : () => _setStatus('active'),
-                              icon: acting
-                                  ? const SizedBox(
-                                      height: 14,
-                                      width: 14,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppColors.white,
-                                      ),
-                                    )
-                                  : const Icon(Icons.check_circle_outline, size: 18),
-                              label: const Text('Grant premium'),
-                            ),
-                          ),
-                        if (!user.isActive && !user.isInactive)
-                          const SizedBox(width: AppSizes.sm),
-                        if (!user.isInactive)
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.error,
-                                side: const BorderSide(color: AppColors.error),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSizes.md,
-                                  vertical: AppSizes.sm,
+                            if (!user.isActive && !user.isInactive)
+                              const SizedBox(width: AppSizes.sm),
+                            if (!user.isInactive)
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.error,
+                                    side: const BorderSide(color: AppColors.error),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: AppSizes.md,
+                                      vertical: AppSizes.sm,
+                                    ),
+                                  ),
+                                  onPressed: acting ? null : () => _setStatus('inactive'),
+                                  icon: acting
+                                      ? const SizedBox(
+                                          height: 14,
+                                          width: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.error,
+                                          ),
+                                        )
+                                      : const Icon(Icons.block, size: 18),
+                                  label: const Text('Revoke premium'),
                                 ),
                               ),
-                              onPressed: acting ? null : () => _setStatus('inactive'),
-                              icon: acting
-                                  ? const SizedBox(
-                                      height: 14,
-                                      width: 14,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppColors.error,
-                                      ),
-                                    )
-                                  : const Icon(Icons.block, size: 18),
-                              label: const Text('Revoke premium'),
+                          ],
+                        ),
+                        if (user.receiptUploadCount > 0) ...[
+                          const SizedBox(height: AppSizes.sm),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(color: AppColors.primary),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSizes.md,
+                                vertical: AppSizes.sm,
+                              ),
                             ),
+                            onPressed: acting ? null : () => _resetUploadCount(user),
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            label: const Text('Reset upload limit to 0'),
                           ),
+                        ],
                       ],
                     );
                   }),
