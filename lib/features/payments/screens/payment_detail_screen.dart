@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -15,9 +15,6 @@ import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 
 /// Full review surface for a single receipt.
-///
-/// Keyboard shortcuts let a reviewer work a queue without reaching for the
-/// mouse: `A` approve, `R` reject, `J`/`K` next/previous.
 class PaymentDetailScreen extends StatefulWidget {
   const PaymentDetailScreen({
     super.key,
@@ -121,8 +118,6 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     );
   }
 
-  // ── Keyboard ──────────────────────────────────────────────────────
-
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
@@ -150,8 +145,6 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     setState(() => _review = next);
   }
 
-  // ── Actions ───────────────────────────────────────────────────────
-
   Future<void> _approve() async {
     if (_controller.isActing(_review.id)) return;
 
@@ -160,11 +153,12 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     final confirmed = await AppDialogBoxes.confirm(
       title: 'Approve payment',
       message:
-          'Grant premium access to ${_review.displayName} '
+          'Grant ${_review.planLabel} premium access to ${_review.displayName} '
           '(${_review.userEmail})?',
       confirmLabel: 'Approve',
       detail: _ConfirmDetail(
         rows: {
+          'Plan': _review.planLabel,
           'Amount': '$amount ${_review.currency}',
           'Method': PaymentMethodInfo.labelOf(_review.paymentMethod),
           'Current status': _review.subscriptionStatus,
@@ -192,8 +186,6 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     if (ok) _advance();
   }
 
-  /// Moves to the next pending item so the queue can be worked end to end.
-  /// When nothing is left, closes the sheet.
   void _advance() {
     final next = _controller.nextPendingAfter(_review);
 
@@ -264,6 +256,13 @@ class _DetailPane extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _KeyValue(label: 'Plan', value: review.planLabel),
+              _KeyValue(
+                label: 'Amount',
+                value: review.amount != null
+                    ? '${review.amount} ${review.currency}'
+                    : '—',
+              ),
               _KeyValue(
                 label: 'Method',
                 value: PaymentMethodInfo.labelOf(review.paymentMethod),

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -103,7 +103,6 @@ class PaymentsController extends GetxController {
             counts['pending'] ?? 0;
       }
     } catch (_) {
-      // Counts are decoration; a failure here must not blank the queue.
     }
   }
 
@@ -159,10 +158,6 @@ class PaymentsController extends GetxController {
   // ── Actions ──────────────────────────────────────────────────────
 
   /// Approves a receipt and notifies the student.
-  ///
-  /// Returns true when the database write succeeded — a failed push is
-  /// reported but does not make this false, because the payment IS approved
-  /// and the student's app will pick it up over Realtime.
   Future<bool> approve(PaymentReview review, {num? amount}) async {
     if (isActing(review.id)) return false;
 
@@ -175,6 +170,8 @@ class PaymentsController extends GetxController {
         userId: review.userId,
         adminUid: _session.adminUid,
         amount: amount ?? review.amount,
+        planKey: review.planKey,
+        planDurationMonths: review.planDurationMonths,
       );
 
       _applyLocal(
@@ -188,11 +185,11 @@ class PaymentsController extends GetxController {
       );
 
       // Keep the Users screen in sync without requiring a full reload.
-      _syncUsersController(review.userId, 'active');
+      _syncUsersController(review.userId, 'active', plan: review.planKey);
 
       SnackbarHelper.success(
         'Payment approved',
-        '${review.displayName} now has premium access.',
+        '${review.displayName} now has ${review.planLabel} premium access.',
       );
 
       await _notify(review.userId, 'active');
@@ -201,7 +198,6 @@ class PaymentsController extends GetxController {
       return true;
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
-      // The row may have been actioned by someone else — resync.
       await refreshAll();
       return false;
     } finally {
@@ -248,9 +244,6 @@ class PaymentsController extends GetxController {
         '${review.displayName} has been notified.',
       );
 
-      // 'rejected' here is the PUSH COPY only — the edge function has wording
-      // for it. The user's stored status was set to 'inactive' by the RPC,
-      // because UserModel cannot represent 'rejected'.
       await _notify(review.userId, 'rejected', reason: trimmed);
       await refreshCounts();
       _refreshDashboard();
@@ -273,28 +266,33 @@ class PaymentsController extends GetxController {
         reason: reason,
       );
     } catch (_) {
-      // Push is best-effort. The payment is already committed, so a failed
-      // notification must not surface an error to the admin.
     }
   }
 
   /// Propagates a subscription status change to [UsersController] if it is
   /// alive, so the Users screen stays consistent without a full reload.
-  void _syncUsersController(String userId, String status) {
+  void _syncUsersController(
+    String userId,
+    String status, {
+    String? plan,
+    DateTime? expiresAt,
+  }) {
     if (Get.isRegistered<UsersController>()) {
-      UsersController.instance.applyLocalStatusUpdate(userId, status);
+      UsersController.instance.applyLocalStatusUpdate(
+        userId,
+        status,
+        plan: plan,
+        expiresAt: expiresAt,
+      );
     }
   }
 
-  /// Triggers a silent dashboard reload so subscription funnel and revenue
-  /// stats reflect the just-approved/rejected payment.
   void _refreshDashboard() {
     if (Get.isRegistered<DashboardController>()) {
       DashboardController.instance.load();
     }
   }
 
-  /// Replaces a row in place, or drops it when it no longer matches the tab.
   void _applyLocal(PaymentReview updated) {
     final index = rows.indexWhere((r) => r.id == updated.id);
     if (index == -1) return;
@@ -305,9 +303,6 @@ class PaymentsController extends GetxController {
       rows[index] = updated;
     }
 
-    // If the same user has other rows visible (multiple submissions), patch
-    // their subscriptionStatus so the displayed badge stays accurate without
-    // a full reload.
     for (var i = 0; i < rows.length; i++) {
       if (rows[i].userId == updated.userId && rows[i].id != updated.id) {
         rows[i] = rows[i].copyWith(subscriptionStatus: updated.subscriptionStatus);
@@ -317,8 +312,6 @@ class PaymentsController extends GetxController {
     rows.refresh();
   }
 
-  /// The next pending item after [current], so a reviewer can work the queue
-  /// without returning to the list.
   PaymentReview? nextPendingAfter(PaymentReview current) {
     final pending = rows.where((r) => r.isPending).toList();
     if (pending.isEmpty) return null;
@@ -339,7 +332,6 @@ class PaymentsController extends GetxController {
 
   // ── Realtime ─────────────────────────────────────────────────────
 
-  /// New submissions appear without a refresh, and the sidebar badge moves.
   void _subscribeRealtime() {
     try {
       _channel = Supabase.instance.client
@@ -353,15 +345,12 @@ class PaymentsController extends GetxController {
               if (activeTab.value == 'pending' || activeTab.value == 'all') {
                 if (page.value == 0) loadQueue();
               }
-              // newRecord may be empty if REPLICA IDENTITY is not FULL —
-              // extract what we can, but always fire the notification.
               final method =
                   payload.newRecord['payment_method']?.toString() ?? '';
               _notifyNewPayment(method);
             },
           )
           .subscribe((status, [error]) {
-            // Log subscription state changes so problems are visible in debug.
             if (error != null) {
               debugPrint('[PaymentsController] Realtime error: $error');
             }
@@ -372,16 +361,12 @@ class PaymentsController extends GetxController {
     }
   }
 
-  /// Fires a local OS notification and an in-app snackbar when a new payment
-  /// receipt INSERT arrives over Realtime.
   void _notifyNewPayment(String paymentMethod) {
-    // OS heads-up banner.
     if (Get.isRegistered<AdminNotificationService>()) {
       AdminNotificationService.instance
           .newPendingPayment(paymentMethod: paymentMethod);
     }
 
-    // In-app snackbar as a secondary nudge when the app is foregrounded.
     final label = paymentMethod.isEmpty
         ? 'New payment'
         : '${paymentMethod[0].toUpperCase()}${paymentMethod.substring(1)} payment';

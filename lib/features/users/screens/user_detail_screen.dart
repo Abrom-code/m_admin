@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -41,9 +41,6 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     }
   }
 
-  /// Returns the freshest copy of this user: from the controller's live list
-  /// if present (so status changes propagate), otherwise falls back to the
-  /// widget argument.
   AdminUserModel get _liveUser {
     if (!Get.isRegistered<UsersController>()) return widget.user;
     final controller = UsersController.instance;
@@ -51,24 +48,115 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     return idx != -1 ? controller.rows[idx] : widget.user;
   }
 
+  Future<void> _grantPremiumWithPlan(AdminUserModel user) async {
+    const plans = [
+      {'key': '6_months', 'label': '6 Months', 'months': 6},
+      {'key': '1_year', 'label': '1 Year (Default)', 'months': 12},
+      {'key': '2_years', 'label': '2 Years', 'months': 24},
+      {'key': '3_years', 'label': '3 Years', 'months': 36},
+      {'key': '4_years', 'label': '4 Years', 'months': 48},
+    ];
+
+    String selectedPlanKey = '1_year';
+    int selectedMonths = 12;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Grant Premium Access'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Select subscription plan duration for ${user.displayName}:',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  for (final p in plans)
+                    InkWell(
+                      onTap: () {
+                        setDialogState(() {
+                          selectedPlanKey = p['key'] as String;
+                          selectedMonths = p['months'] as int;
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            Radio<String>(
+                              value: p['key'] as String,
+                              groupValue: selectedPlanKey,
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setDialogState(() {
+                                    selectedPlanKey = val;
+                                    selectedMonths = p['months'] as int;
+                                  });
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            Text(p['label'] as String),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('Grant Access'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    final now = DateTime.now();
+    final expiry = DateTime(now.year, now.month + selectedMonths, now.day);
+
+    await UsersController.instance.setSubscription(
+      user,
+      'active',
+      plan: selectedPlanKey,
+      expiresAt: expiry,
+    );
+  }
+
   Future<void> _setStatus(String status) async {
     final user = _liveUser;
-    final verb = switch (status) {
-      'active' => 'Grant premium',
-      'inactive' => 'Revoke premium',
-      _ => 'Set $status',
-    };
 
-    // For revoke, show a dialog with an optional reason text field.
+    if (status == 'active') {
+      await _grantPremiumWithPlan(user);
+      return;
+    }
+
     if (status == 'inactive') {
       final result = await AppDialogBoxes.confirmWithReason(
-        title: verb,
-        message: 'Manually change ${user.displayName}\'s subscription '
-            'to "$status"? This overrides any pending receipt review.',
-        confirmLabel: verb,
+        title: 'Revoke premium',
+        message: 'Manually revoke premium access for ${user.displayName}? '
+            'This will deactivate their subscription.',
+        confirmLabel: 'Revoke premium',
         reasonHint: 'Reason for revoking (included in notification)',
       );
-      if (result == null) return; // cancelled
+      if (result == null) return;
 
       await UsersController.instance
           .setSubscription(user, status, reason: result);
@@ -76,10 +164,9 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     }
 
     final confirmed = await AppDialogBoxes.confirm(
-      title: verb,
-      message: 'Manually change ${user.displayName}\'s subscription '
-          'to "$status"? This overrides any pending receipt review.',
-      confirmLabel: verb,
+      title: 'Set $status',
+      message: 'Change ${user.displayName}\'s subscription to "$status"?',
+      confirmLabel: 'Confirm',
       isDestructive: false,
     );
     if (!confirmed) return;
@@ -102,8 +189,6 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Obx re-renders whenever UsersController.rows changes, so the status
-    // pill and action buttons stay accurate after any external update.
     return Obx(() {
       final user = _liveUser;
       return _buildScaffold(context, user);
@@ -157,6 +242,27 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                         ),
                       ),
                       const Spacer(),
+                      if (user.isExpired)
+                        Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withValues(alpha: 0.15),
+                            borderRadius:
+                                BorderRadius.circular(AppSizes.borderRadiusSm),
+                          ),
+                          child: const Text(
+                            'EXPIRED',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.error,
+                            ),
+                          ),
+                        ),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
@@ -181,6 +287,18 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                       ),
                     ],
                   ),
+                  if (user.subscriptionPlan != null &&
+                      user.subscriptionPlan!.isNotEmpty) ...[
+                    const SizedBox(height: AppSizes.sm),
+                    _Row('Plan', user.planLabel),
+                  ],
+                  if (user.subscriptionExpiresAt != null) ...[
+                    const SizedBox(height: AppSizes.sm),
+                    _Row(
+                      'Expires',
+                      '${DateFormat('d MMM yyyy').format(user.subscriptionExpiresAt!)} (${user.remainingDaysText})',
+                    ),
+                  ],
                   const SizedBox(height: AppSizes.sm),
                   Row(
                     children: [
@@ -385,6 +503,15 @@ class _ReceiptRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = data['status']?.toString() ?? '';
     final method = data['payment_method']?.toString() ?? '';
+    final planKey = data['plan_key']?.toString();
+    final planLabel = switch (planKey) {
+      '6_months' => '6 Months',
+      '1_year' => '1 Year',
+      '2_years' => '2 Years',
+      '3_years' => '3 Years',
+      '4_years' => '4 Years',
+      _ => planKey ?? '',
+    };
     final date = data['created_at'] == null
         ? '—'
         : DateFormat('d MMM yyyy').format(
@@ -420,7 +547,9 @@ class _ReceiptRow extends StatelessWidget {
                     ),
                     const SizedBox(width: AppSizes.sm),
                     Text(
-                      method.isEmpty ? '' : '· $method',
+                      method.isEmpty
+                          ? ''
+                          : '· $method${planLabel.isNotEmpty ? ' ($planLabel)' : ''}',
                       style: const TextStyle(
                         fontSize: 11,
                         color: AppColors.textSecondary,

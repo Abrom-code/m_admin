@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/users_repository.dart';
@@ -130,6 +130,8 @@ class UsersController extends GetxController {
   Future<void> setSubscription(
     AdminUserModel user,
     String status, {
+    String? plan,
+    DateTime? expiresAt,
     String? reason,
   }) async {
     if (isActing(user.id)) return;
@@ -142,14 +144,21 @@ class UsersController extends GetxController {
         user.id,
         status,
         _session.adminUid,
+        plan: plan,
+        expiresAt: expiresAt,
       );
 
       // Update the in-memory row so the list reflects the change immediately.
-      applyLocalStatusUpdate(user.id, status);
+      applyLocalStatusUpdate(
+        user.id,
+        status,
+        plan: plan,
+        expiresAt: expiresAt,
+      );
 
       SnackbarHelper.success(
         'Updated',
-        '${user.displayName} is now $status.',
+        ' is now .',
       );
       await refreshCounts();
 
@@ -184,7 +193,7 @@ class UsersController extends GetxController {
 
       SnackbarHelper.success(
         'Upload Limit Updated',
-        '${user.displayName}\'s upload attempts set to $count.',
+        '\'s upload attempts set to .',
       );
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
@@ -195,12 +204,20 @@ class UsersController extends GetxController {
   }
 
   /// Updates a user's subscription status in the in-memory list without a
-  /// network round-trip. Called by [PaymentsController] after approve/reject
-  /// so the Users screen stays in sync without a full reload.
-  void applyLocalStatusUpdate(String userId, String status) {
+  /// network round-trip.
+  void applyLocalStatusUpdate(
+    String userId,
+    String status, {
+    String? plan,
+    DateTime? expiresAt,
+  }) {
     final idx = rows.indexWhere((r) => r.id == userId);
     if (idx == -1) return;
-    rows[idx] = rows[idx].copyWith(subscriptionStatus: status);
+    rows[idx] = rows[idx].copyWith(
+      subscriptionStatus: status,
+      subscriptionPlan: status == 'inactive' ? null : (plan ?? rows[idx].subscriptionPlan),
+      subscriptionExpiresAt: status == 'inactive' ? null : (expiresAt ?? rows[idx].subscriptionExpiresAt),
+    );
     rows.refresh();
   }
 
@@ -213,9 +230,6 @@ class UsersController extends GetxController {
 
   // ── Realtime ────────────────────────────────────────────────────────
 
-  /// Listen for UPDATE events on `users` so subscription_status changes made
-  /// by payments (or another admin session) propagate to this screen without
-  /// a manual refresh.
   void _subscribeRealtime() {
     try {
       _channel = Supabase.instance.client
@@ -231,22 +245,26 @@ class UsersController extends GetxController {
               final newStatus = newRow['subscription_status']?.toString();
               final uploadCount =
                   (newRow['receipt_upload_count'] as num?)?.toInt();
+              final plan = newRow['subscription_plan']?.toString();
+              final expiry = newRow['subscription_expires_at'] != null
+                  ? DateTime.tryParse(newRow['subscription_expires_at'].toString())
+                  : null;
 
               final idx = rows.indexWhere((r) => r.id == userId);
               if (idx != -1) {
                 rows[idx] = rows[idx].copyWith(
                   subscriptionStatus: newStatus ?? rows[idx].subscriptionStatus,
                   receiptUploadCount: uploadCount ?? rows[idx].receiptUploadCount,
+                  subscriptionPlan: plan ?? rows[idx].subscriptionPlan,
+                  subscriptionExpiresAt: expiry ?? rows[idx].subscriptionExpiresAt,
                 );
                 rows.refresh();
               }
-              // Also keep counts accurate.
               refreshCounts();
             },
           )
           .subscribe();
     } catch (_) {
-      // Realtime is an enhancement — a failure here must not break the screen.
     }
   }
 }
