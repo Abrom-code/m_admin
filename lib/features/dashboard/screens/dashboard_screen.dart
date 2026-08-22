@@ -8,6 +8,7 @@ import 'package:m_admin/features/dashboard/controllers/dashboard_controller.dart
 import 'package:m_admin/features/dashboard/screens/widgets/dashboard_chart_cards.dart';
 import 'package:m_admin/features/dashboard/screens/widgets/signup_chart_card.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
+import 'package:m_admin/features/payments/screens/payment_detail_screen.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/utils/constants/colors.dart';
@@ -28,7 +29,22 @@ class DashboardScreen extends StatelessWidget {
         if (controller.isLoading.value && controller.stats.value == null) {
           return const Padding(
             padding: EdgeInsets.all(AppSizes.xl),
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(strokeWidth: 2.5),
+                  SizedBox(height: AppSizes.md),
+                  Text(
+                    'Loading executive dashboard...',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           );
         }
 
@@ -40,33 +56,67 @@ class DashboardScreen extends StatelessWidget {
           );
         }
 
-        final s = controller.stats.value;
-        if (s == null) return const SizedBox.shrink();
+        final stats = controller.stats.value;
+        if (stats == null) return const SizedBox.shrink();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _StatGrid(stats: s),
-            const SizedBox(height: AppSizes.spaceBtwItems),
-            if (s.pendingPayments > 0) _PendingBanner(count: s.pendingPayments),
-            if (s.pendingPayments > 0)
-              const SizedBox(height: AppSizes.spaceBtwItems),
-            const SignupChartCard(),
-            const SizedBox(height: AppSizes.spaceBtwItems),
-            const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: PaidUnpaidDonutCard()),
-                SizedBox(width: AppSizes.spaceBtwItems),
-                Expanded(child: StreamSplitCard()),
-              ],
+            // ── 1. Modern Hero & Welcome Bar ───────────────────────
+            _DashboardHeroHeader(
+              pendingCount: stats.pendingPayments,
+              onRefresh: controller.load,
             ),
             const SizedBox(height: AppSizes.spaceBtwItems),
+
+            // ── 2. Pending Priority Notice (if any) ────────────────
+            if (stats.pendingPayments > 0) ...[
+              _PendingAlertBanner(count: stats.pendingPayments),
+              const SizedBox(height: AppSizes.spaceBtwItems),
+            ],
+
+            // ── 3. Executive KPI Metrics Grid ──────────────────────
+            _ExecutiveMetricGrid(stats: stats),
+            const SizedBox(height: AppSizes.spaceBtwItems),
+
+            // ── 4. Main Growth & Revenue Analytics ─────────────────
+            const SignupChartCard(),
+            const SizedBox(height: AppSizes.spaceBtwItems),
+
+            // ── 5. Visual Distribution Hub ────────────────────────
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth >= 750) {
+                  return const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: PaidUnpaidDonutCard()),
+                      SizedBox(width: AppSizes.spaceBtwItems),
+                      Expanded(child: StreamSplitCard()),
+                    ],
+                  );
+                }
+                return const Column(
+                  children: [
+                    PaidUnpaidDonutCard(),
+                    SizedBox(height: AppSizes.spaceBtwItems),
+                    StreamSplitCard(),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: AppSizes.spaceBtwItems),
+
+            // ── 6. Conversion Funnel ───────────────────────────────
             const FunnelCard(),
             const SizedBox(height: AppSizes.spaceBtwItems),
+
+            // ── 7. Subject Exam Matrix ─────────────────────────────
             const SubjectTestCountCard(),
             const SizedBox(height: AppSizes.spaceBtwItems),
-            _RecentTable(rows: s.recentReceipts),
+
+            // ── 8. Recent Payment Receipts Hub ─────────────────────
+            _ModernRecentReceiptsHub(rows: stats.recentReceipts),
           ],
         );
       }),
@@ -74,49 +124,323 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-// ── Stat grid ──────────────────────────────────────────────────────────
+// ── 1. Hero Header ─────────────────────────────────────────────────────────
 
-class _StatGrid extends StatelessWidget {
-  const _StatGrid({required this.stats});
+class _DashboardHeroHeader extends StatelessWidget {
+  const _DashboardHeroHeader({
+    required this.pendingCount,
+    required this.onRefresh,
+  });
+
+  final int pendingCount;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final now = DateTime.now();
+    final dateStr = DateFormat('EEEE, d MMMM yyyy').format(now);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSizes.md),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: dark
+              ? [
+                  AppColors.primary.withValues(alpha: 0.15),
+                  AppColors.darkCard,
+                ]
+              : [
+                  AppColors.primary.withValues(alpha: 0.08),
+                  AppColors.white,
+                ],
+        ),
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
+        border: Border.all(
+          color: dark
+              ? AppColors.primary.withValues(alpha: 0.25)
+              : AppColors.primary.withValues(alpha: 0.15),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 650;
+
+          final titleSection = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Welcome back, Admin 👋',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: dark ? AppColors.white : AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.circle,
+                          size: 7,
+                          color: AppColors.success,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Live Sync',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 3),
+              Text(
+                dateStr,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          );
+
+          final quickActions = Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              if (pendingCount > 0)
+                ActionChip(
+                  avatar: const Icon(
+                    Iconsax.receipt_item_copy,
+                    size: 14,
+                    color: AppColors.warning,
+                  ),
+                  label: Text(
+                    'Review ($pendingCount)',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.warning,
+                    ),
+                  ),
+                  backgroundColor: AppColors.warning.withValues(alpha: 0.12),
+                  side: BorderSide(
+                    color: AppColors.warning.withValues(alpha: 0.3),
+                  ),
+                  onPressed: () =>
+                      AdminNavController.instance.changePage(1),
+                ),
+              ActionChip(
+                avatar: const Icon(
+                  Iconsax.user_copy,
+                  size: 14,
+                  color: AppColors.primary,
+                ),
+                label: const Text(
+                  'Students',
+                  style: TextStyle(fontSize: 11.5),
+                ),
+                onPressed: () =>
+                    AdminNavController.instance.changePage(3),
+              ),
+              ActionChip(
+                avatar: const Icon(
+                  Iconsax.book_copy,
+                  size: 14,
+                  color: AppColors.info,
+                ),
+                label: const Text(
+                  'Tests',
+                  style: TextStyle(fontSize: 11.5),
+                ),
+                onPressed: () =>
+                    AdminNavController.instance.changePage(2),
+              ),
+              IconButton.outlined(
+                tooltip: 'Refresh dashboard',
+                visualDensity: VisualDensity.compact,
+                onPressed: onRefresh,
+                icon: const Icon(Iconsax.refresh_copy, size: 15),
+              ),
+            ],
+          );
+
+          if (isCompact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                titleSection,
+                const SizedBox(height: AppSizes.sm),
+                quickActions,
+              ],
+            );
+          }
+
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              titleSection,
+              quickActions,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ── 2. Pending Priority Banner ─────────────────────────────────────────────
+
+class _PendingAlertBanner extends StatelessWidget {
+  const _PendingAlertBanner({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSizes.md,
+        vertical: AppSizes.sm + 2,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(
+          color: AppColors.warning.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Iconsax.warning_2_copy,
+              color: AppColors.warning,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$count Payment Receipt${count == 1 ? '' : 's'} Pending Verification',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.warning,
+                  ),
+                ),
+                const Text(
+                  'Students are waiting for exam access approval.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              visualDensity: VisualDensity.compact,
+            ),
+            icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+            label: const Text('Review Now', style: TextStyle(fontSize: 11.5)),
+            onPressed: () => AdminNavController.instance.changePage(1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 3. Executive KPI Metrics Grid ──────────────────────────────────────────
+
+class _ExecutiveMetricGrid extends StatelessWidget {
+  const _ExecutiveMetricGrid({required this.stats});
 
   final DashboardStats stats;
 
   @override
   Widget build(BuildContext context) {
+    final conversionRate = stats.totalUsers > 0
+        ? (stats.paidUsers / stats.totalUsers * 100).toStringAsFixed(1)
+        : '0.0';
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossCount = constraints.maxWidth >= 700 ? 3 : 2;
-        // Fixed mainAxisExtent prevents overflow when card width is small on
-        // narrow screens; childAspectRatio would produce cards shorter than
-        // the 44px icon + 32px padding minimum.
+        final crossCount = constraints.maxWidth >= 950
+            ? 3
+            : (constraints.maxWidth >= 580 ? 2 : 1);
+
         return GridView(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossCount,
             crossAxisSpacing: AppSizes.spaceBtwItems,
             mainAxisSpacing: AppSizes.spaceBtwItems,
-            mainAxisExtent: 90,
+            mainAxisExtent: 104,
           ),
           shrinkWrap: true,
           primary: false,
           children: [
-            _StatCard(
-              icon: Iconsax.people_copy,
-              label: 'Total students',
-              value: _fmtInt(stats.totalUsers),
+            _ExecutiveStatCard(
+              icon: Iconsax.profile_2user_copy,
+              label: 'Total Registered Students',
+              value: NumberFormat('#,##0').format(stats.totalUsers),
+              badgeText: 'All Time',
               color: AppColors.primary,
               onTap: () => AdminNavController.instance.changePage(3),
             ),
-            _StatCard(
+            _ExecutiveStatCard(
               icon: Iconsax.crown_copy,
-              label: 'Paid (active)',
-              value: _fmtInt(stats.paidUsers),
+              label: 'Active Premium Subscribers',
+              value: NumberFormat('#,##0').format(stats.paidUsers),
+              badgeText: '$conversionRate% of total',
               color: AppColors.success,
               onTap: () => AdminNavController.instance.changePage(3),
             ),
-            _StatCard(
+            _ExecutiveStatCard(
               icon: Iconsax.profile_delete_copy,
-              label: 'Unpaid',
-              value: _fmtInt(stats.unpaidUsers),
+              label: 'Free / Unpaid Students',
+              value: NumberFormat('#,##0').format(stats.unpaidUsers),
+              badgeText: 'Upsell target',
               color: stats.unpaidUsers > 0
                   ? AppColors.textSecondary
                   : AppColors.darkGrey,
@@ -124,28 +448,31 @@ class _StatGrid extends StatelessWidget {
                   ? () => AdminNavController.instance.changePage(3)
                   : null,
             ),
-            _StatCard(
-              icon: Iconsax.receipt_copy,
-              label: 'Pending review',
-              value: _fmtInt(stats.pendingPayments),
+            _ExecutiveStatCard(
+              icon: Iconsax.receipt_item_copy,
+              label: 'Pending Receipt Review',
+              value: '${stats.pendingPayments}',
+              badgeText: stats.pendingPayments > 0 ? 'Requires Action' : 'Cleared',
               color: stats.pendingPayments > 0
                   ? AppColors.warning
-                  : AppColors.darkGrey,
+                  : AppColors.success,
               onTap: stats.pendingPayments > 0
                   ? () => AdminNavController.instance.changePage(1)
                   : null,
             ),
-            _StatCard(
+            _ExecutiveStatCard(
               icon: Iconsax.user_add_copy,
-              label: 'New this week',
-              value: _fmtInt(stats.newUsersThisWeek),
+              label: 'New Registrations This Week',
+              value: '+${NumberFormat('#,##0').format(stats.newUsersThisWeek)}',
+              badgeText: '7-day momentum',
               color: AppColors.info,
               onTap: () => AdminNavController.instance.changePage(3),
             ),
-            _StatCard(
+            _ExecutiveStatCard(
               icon: Iconsax.money_recive_copy,
-              label: 'Total revenue',
+              label: 'Total Gross Revenue',
               value: _fmtRevenue(stats.totalRevenue),
+              badgeText: 'Detailed breakdown ➔',
               color: AppColors.success,
               onTap: () => _showRevenueDialog(Get.context!),
             ),
@@ -155,13 +482,14 @@ class _StatGrid extends StatelessWidget {
     );
   }
 
-  String _fmtInt(int n) => NumberFormat.compact().format(n);
-
   String _fmtRevenue(double amount) {
-    if (amount >= 1000) {
-      return 'ETB ${NumberFormat.compact().format(amount)}';
+    if (amount >= 1000000) {
+      return 'ETB ${(amount / 1000000).toStringAsFixed(2)}M';
     }
-    return 'ETB ${NumberFormat('#,##0').format(amount)}';
+    if (amount >= 1000) {
+      return 'ETB ${NumberFormat('#,##0').format(amount)}';
+    }
+    return 'ETB ${NumberFormat('#,##0.00').format(amount)}';
   }
 
   void _showRevenueDialog(BuildContext context) {
@@ -172,11 +500,12 @@ class _StatGrid extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({
+class _ExecutiveStatCard extends StatelessWidget {
+  const _ExecutiveStatCard({
     required this.icon,
     required this.label,
     required this.value,
+    required this.badgeText,
     required this.color,
     this.onTap,
   });
@@ -184,6 +513,7 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final String badgeText;
   final Color color;
   final VoidCallback? onTap;
 
@@ -191,77 +521,106 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
 
-    return AdminCard(
+    return InkWell(
       onTap: onTap,
-      child: Row(
-        children: [
-          Container(
-            height: 44,
-            width: 44,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-            ),
-            child: Icon(icon, color: color, size: AppSizes.iconMd),
+      borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSizes.md,
+          vertical: AppSizes.sm + 2,
+        ),
+        decoration: BoxDecoration(
+          color: dark ? AppColors.darkCard : AppColors.white,
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+          border: Border.all(
+            color: dark
+                ? color.withValues(alpha: 0.2)
+                : AppColors.borderPrimary.withValues(alpha: 0.6),
           ),
-          const SizedBox(width: AppSizes.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  value,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: dark ? AppColors.white : AppColors.textPrimary,
-                  ),
-                ),
-                Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-          ),
-        ],
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              height: 48,
+              width: 48,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: dark ? 0.15 : 0.1),
+                borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                border: Border.all(
+                  color: color.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: AppSizes.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          value,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: dark ? AppColors.white : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      badgeText,
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ── Pending banner ─────────────────────────────────────────────────────
+// ── 8. Modern Recent Receipts Hub ──────────────────────────────────────────
 
-class _PendingBanner extends StatelessWidget {
-  const _PendingBanner({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return AdminNoticeCard(
-      color: AppColors.warning,
-      icon: Icons.pending_actions_rounded,
-      message: '$count receipt${count == 1 ? '' : 's'} waiting for review.',
-      action: TextButton(
-        onPressed: () => AdminNavController.instance.changePage(1),
-        child: const Text('Review now'),
-      ),
-    );
-  }
-}
-
-// ── Recent receipts horizontal scroll ─────────────────────────────────
-
-class _RecentTable extends StatelessWidget {
-  const _RecentTable({required this.rows});
+class _ModernRecentReceiptsHub extends StatelessWidget {
+  const _ModernRecentReceiptsHub({required this.rows});
 
   final List<RecentReceiptRow> rows;
 
@@ -270,37 +629,79 @@ class _RecentTable extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Text(
-            'Recent receipts',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                  ),
+                  child: const Icon(
+                    Iconsax.receipt_2_copy,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Recent Payment Receipts',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+            TextButton.icon(
+              onPressed: () {
+                AdminNavController.instance.changePage(1); // Go to payments
+              },
+              icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+              label: const Text('View All Queue'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: AppSizes.spaceBtwItems),
+        const SizedBox(height: AppSizes.sm),
         rows.isEmpty
             ? const AdminCard(
                 child: Center(
                   child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: AppSizes.md),
-                    child: Text(
-                      'No receipts yet.',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
+                    padding: EdgeInsets.symmetric(vertical: AppSizes.lg),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Iconsax.receipt_item_copy,
+                          size: 32,
+                          color: AppColors.textSecondary,
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'No payment receipts submitted yet.',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               )
             : SizedBox(
-                height: 140,
+                height: 154,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: rows.length,
                   separatorBuilder: (context, index) =>
                       const SizedBox(width: AppSizes.sm),
-                  itemBuilder: (context, i) => _ReceiptCard(row: rows[i]),
+                  itemBuilder: (context, i) =>
+                      _ModernReceiptCard(row: rows[i]),
                 ),
               ),
       ],
@@ -308,8 +709,8 @@ class _RecentTable extends StatelessWidget {
   }
 }
 
-class _ReceiptCard extends StatelessWidget {
-  const _ReceiptCard({required this.row});
+class _ModernReceiptCard extends StatelessWidget {
+  const _ModernReceiptCard({required this.row});
 
   final RecentReceiptRow row;
 
@@ -317,113 +718,161 @@ class _ReceiptCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
 
-    return Container(
-      width: 220,
-      padding: const EdgeInsets.all(AppSizes.md),
-      decoration: BoxDecoration(
-        color: dark ? AppColors.darkCard : AppColors.white,
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
-        border: Border.all(
-          color: dark
-              ? AppColors.darkGrey.withValues(alpha: 0.3)
-              : AppColors.grey.withValues(alpha: 0.2),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            spreadRadius: -2,
-            offset: const Offset(0, 4),
+    return InkWell(
+      onTap: () {
+        // Open review flow for this receipt
+        final review = PaymentReview(
+          id: row.id.toString(),
+          userId: '',
+          userName: row.displayName,
+          userEmail: row.userEmail,
+          userStream: '',
+          subscriptionStatus: row.status == 'approved' ? 'active' : 'inactive',
+          receiptPath: '',
+          receiptUrl: '',
+          verificationUrl: '',
+          paymentMethod: row.paymentMethod,
+          amount: row.amount,
+          currency: 'ETB',
+          status: row.status,
+          createdAt: row.createdAt,
+        );
+        Get.to(() => PaymentDetailScreen(review: review));
+      },
+      borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+      child: Container(
+        width: 250,
+        padding: const EdgeInsets.all(AppSizes.sm + 2),
+        decoration: BoxDecoration(
+          color: dark ? AppColors.darkCard : AppColors.white,
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+          border: Border.all(
+            color: dark
+                ? AppColors.darkGrey.withValues(alpha: 0.25)
+                : AppColors.borderPrimary.withValues(alpha: 0.7),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      row.displayName,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: dark ? AppColors.white : AppColors.textPrimary,
-                      ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+                  child: Text(
+                    row.displayName.isNotEmpty
+                        ? row.displayName[0].toUpperCase()
+                        : 'S',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
                     ),
                   ),
-                  const SizedBox(width: AppSizes.xs),
-                  PaymentStatusPill(status: row.status),
-                ],
-              ),
-              const SizedBox(height: AppSizes.xs),
-              Text(
-                row.userEmail,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSizes.sm),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              PaymentMethodChip(method: row.paymentMethod),
-              if (PaymentMethodInfo.of(row.paymentMethod) case final info?)
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSizes.xs),
-                  child: Text(
-                    '${info.account} · ${info.holder}',
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                    style: const TextStyle(
-                      fontSize: 10,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        row.displayName,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.bold,
+                          color: dark ? AppColors.white : AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        row.userEmail,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                PaymentStatusPill(status: row.status),
+              ],
+            ),
+            const Divider(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                PaymentMethodChip(method: row.paymentMethod),
+                Text(
+                  '${row.amount.toStringAsFixed(0)} ETB',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: dark ? AppColors.white : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Iconsax.clock_copy,
+                      size: 11,
                       color: AppColors.textSecondary,
                     ),
-                  ),
+                    const SizedBox(width: 4),
+                    Text(
+                      row.createdAt == null
+                          ? '—'
+                          : DateFormat('d MMM, HH:mm').format(row.createdAt!),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
-            ],
-          ),
-          const SizedBox(height: AppSizes.xs),
-          Row(
-            children: [
-              const Icon(
-                Iconsax.clock_copy,
-                size: 12,
-                color: AppColors.textSecondary,
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  row.createdAt == null
-                      ? '—'
-                      : DateFormat('d MMM, HH:mm').format(row.createdAt!),
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textSecondary,
-                  ),
+                const Row(
+                  children: [
+                    Text(
+                      'Details',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 14,
+                      color: AppColors.primary,
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ── Error view ─────────────────────────────────────────────────────────
+// ── Error View ─────────────────────────────────────────────────────────────
 
 class _ErrorView extends StatelessWidget {
   const _ErrorView({required this.message, required this.onRetry});
@@ -467,7 +916,7 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
-// ── Revenue detail dialog ──────────────────────────────────────────────
+// ── Revenue Detail Dialog ──────────────────────────────────────────────────
 
 class _RevenueDetailDialog extends StatefulWidget {
   const _RevenueDetailDialog();
@@ -485,7 +934,6 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
   @override
   void initState() {
     super.initState();
-    // Default to last 30 days
     _selectedRange = DateTimeRange(
       start: DateTime.now().subtract(const Duration(days: 30)),
       end: DateTime.now(),
@@ -585,16 +1033,25 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
           children: [
             Row(
               children: [
-                const Icon(
-                  Iconsax.money_recive_copy,
-                  color: AppColors.success,
-                  size: AppSizes.iconMd,
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                  ),
+                  child: const Icon(
+                    Iconsax.money_recive_copy,
+                    color: AppColors.success,
+                    size: 18,
+                  ),
                 ),
                 const SizedBox(width: AppSizes.sm),
                 Expanded(
                   child: Text(
-                    'Revenue Details',
-                    style: Theme.of(context).textTheme.titleLarge,
+                    'Revenue Breakdown',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                 ),
                 IconButton(
@@ -612,7 +1069,7 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                   const Text(
                     'Total Revenue (All Time)',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12.5,
                       color: AppColors.textSecondary,
                     ),
                   ),
@@ -623,7 +1080,7 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                       'ETB ${NumberFormat('#,##0.00').format(total)}',
                       style: const TextStyle(
                         fontSize: 24,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         color: AppColors.success,
                       ),
                     );
@@ -633,13 +1090,13 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
             ),
             const SizedBox(height: AppSizes.spaceBtwItems),
             const Text(
-              'Revenue by Date Range',
+              'Filter by Date Range',
               style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: AppSizes.sm),
+            const SizedBox(height: AppSizes.xs),
             OutlinedButton.icon(
               onPressed: _pickDateRange,
               icon: const Icon(Iconsax.calendar_copy, size: AppSizes.iconSm),
@@ -679,7 +1136,7 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                             const Text(
                               'Revenue in Selected Range',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 12.5,
                                 color: AppColors.textSecondary,
                               ),
                             ),
@@ -688,7 +1145,7 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                               'ETB ${NumberFormat('#,##0.00').format(_rangeRevenue ?? 0)}',
                               style: TextStyle(
                                 fontSize: 20,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
                                 color: dark ? AppColors.white : AppColors.textPrimary,
                               ),
                             ),
@@ -701,7 +1158,7 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                 Navigator.of(context).pop();
                 AdminNavController.instance.changePage(1); // Go to payments
               },
-              child: const Text('View Payments'),
+              child: const Text('View Payments Queue'),
             ),
           ],
         ),
