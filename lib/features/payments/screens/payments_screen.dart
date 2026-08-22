@@ -43,7 +43,7 @@ class PaymentsScreen extends StatelessWidget {
   }
 }
 
-// ── 1. Compact Metric Summary Strip ────────────────────────────────────────
+// ── 1. Compact Metric Row (All 4 in a Single Row) ──────────────────────────
 
 class _PaymentMetricRibbon extends StatelessWidget {
   const _PaymentMetricRibbon({required this.controller});
@@ -59,53 +59,48 @@ class _PaymentMetricRibbon extends StatelessWidget {
       final allCount = controller.counts['all'] ?? 0;
       final active = controller.activeTab.value;
 
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final count = constraints.maxWidth >= 900
-              ? 4
-              : (constraints.maxWidth >= 500 ? 2 : 1);
-
-          return GridView(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: count,
-              crossAxisSpacing: AppSizes.sm,
-              mainAxisSpacing: AppSizes.xs,
-              mainAxisExtent: 44,
+      return Row(
+        children: [
+          Expanded(
+            child: _CompactRibbonCard(
+              label: 'Pending',
+              value: '$pendingCount',
+              dotColor: AppColors.warning,
+              isSelected: active == 'pending',
+              onTap: () => controller.changeTab('pending'),
             ),
-            shrinkWrap: true,
-            primary: false,
-            children: [
-              _CompactRibbonCard(
-                label: 'Pending',
-                value: '$pendingCount',
-                dotColor: AppColors.warning,
-                isSelected: active == 'pending',
-                onTap: () => controller.changeTab('pending'),
-              ),
-              _CompactRibbonCard(
-                label: 'Approved',
-                value: NumberFormat('#,##0').format(approvedCount),
-                dotColor: AppColors.success,
-                isSelected: active == 'approved',
-                onTap: () => controller.changeTab('approved'),
-              ),
-              _CompactRibbonCard(
-                label: 'Rejected',
-                value: NumberFormat('#,##0').format(rejectedCount),
-                dotColor: AppColors.error,
-                isSelected: active == 'rejected',
-                onTap: () => controller.changeTab('rejected'),
-              ),
-              _CompactRibbonCard(
-                label: 'All Receipts',
-                value: NumberFormat('#,##0').format(allCount),
-                dotColor: AppColors.primary,
-                isSelected: active == 'all',
-                onTap: () => controller.changeTab('all'),
-              ),
-            ],
-          );
-        },
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: _CompactRibbonCard(
+              label: 'Approved',
+              value: NumberFormat('#,##0').format(approvedCount),
+              dotColor: AppColors.success,
+              isSelected: active == 'approved',
+              onTap: () => controller.changeTab('approved'),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: _CompactRibbonCard(
+              label: 'Rejected',
+              value: NumberFormat('#,##0').format(rejectedCount),
+              dotColor: AppColors.error,
+              isSelected: active == 'rejected',
+              onTap: () => controller.changeTab('rejected'),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: _CompactRibbonCard(
+              label: 'All Receipts',
+              value: NumberFormat('#,##0').format(allCount),
+              dotColor: AppColors.primary,
+              isSelected: active == 'all',
+              onTap: () => controller.changeTab('all'),
+            ),
+          ),
+        ],
       );
     });
   }
@@ -135,10 +130,11 @@ class _CompactRibbonCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 6),
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: isSelected
-              ? dotColor.withValues(alpha: dark ? 0.15 : 0.08)
+              ? dotColor.withValues(alpha: dark ? 0.18 : 0.08)
               : (dark ? AppColors.darkCard : AppColors.white),
           borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
           border: Border.all(
@@ -153,40 +149,48 @@ class _CompactRibbonCard extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: dotColor,
-                    shape: BoxShape.circle,
+            Flexible(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: dotColor,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 7),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                    color: isSelected
-                        ? (dark ? AppColors.white : AppColors.textPrimary)
-                        : AppColors.textSecondary,
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isSelected
+                            ? (dark ? AppColors.white : AppColors.textPrimary)
+                            : AppColors.textSecondary,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            const SizedBox(width: 4),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
               decoration: BoxDecoration(
                 color: dotColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(3),
               ),
               child: Text(
                 value,
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w800,
                   color: dotColor,
                 ),
