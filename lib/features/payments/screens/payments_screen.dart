@@ -43,7 +43,7 @@ class PaymentsScreen extends StatelessWidget {
   }
 }
 
-// ── 1. Content-Driven Metric Summary Strip ─────────────────────────────────
+// ── 1. Compact Metric Summary Strip ────────────────────────────────────────
 
 class _PaymentMetricRibbon extends StatelessWidget {
   const _PaymentMetricRibbon({required this.controller});
@@ -63,49 +63,43 @@ class _PaymentMetricRibbon extends StatelessWidget {
         builder: (context, constraints) {
           final count = constraints.maxWidth >= 900
               ? 4
-              : (constraints.maxWidth >= 550 ? 2 : 1);
+              : (constraints.maxWidth >= 500 ? 2 : 1);
 
           return GridView(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: count,
               crossAxisSpacing: AppSizes.sm,
-              mainAxisSpacing: AppSizes.sm,
-              mainAxisExtent: 78,
+              mainAxisSpacing: AppSizes.xs,
+              mainAxisExtent: 44,
             ),
             shrinkWrap: true,
             primary: false,
             children: [
-              _RibbonCard(
-                title: 'PENDING VERIFICATION',
+              _CompactRibbonCard(
+                label: 'Pending',
                 value: '$pendingCount',
-                tag: pendingCount > 0 ? 'Action Required' : 'Cleared',
-                tagColor: pendingCount > 0
-                    ? AppColors.warning
-                    : AppColors.success,
+                dotColor: AppColors.warning,
                 isSelected: active == 'pending',
                 onTap: () => controller.changeTab('pending'),
               ),
-              _RibbonCard(
-                title: 'APPROVED RECEIPTS',
+              _CompactRibbonCard(
+                label: 'Approved',
                 value: NumberFormat('#,##0').format(approvedCount),
-                tag: 'Active Granted',
-                tagColor: AppColors.success,
+                dotColor: AppColors.success,
                 isSelected: active == 'approved',
                 onTap: () => controller.changeTab('approved'),
               ),
-              _RibbonCard(
-                title: 'REJECTED / INVALID',
+              _CompactRibbonCard(
+                label: 'Rejected',
                 value: NumberFormat('#,##0').format(rejectedCount),
-                tag: 'Declined',
-                tagColor: AppColors.error,
+                dotColor: AppColors.error,
                 isSelected: active == 'rejected',
                 onTap: () => controller.changeTab('rejected'),
               ),
-              _RibbonCard(
-                title: 'TOTAL SUBMISSIONS',
+              _CompactRibbonCard(
+                label: 'All Receipts',
                 value: NumberFormat('#,##0').format(allCount),
-                tag: 'All Time',
-                tagColor: AppColors.primary,
+                dotColor: AppColors.primary,
                 isSelected: active == 'all',
                 onTap: () => controller.changeTab('all'),
               ),
@@ -117,20 +111,18 @@ class _PaymentMetricRibbon extends StatelessWidget {
   }
 }
 
-class _RibbonCard extends StatelessWidget {
-  const _RibbonCard({
-    required this.title,
+class _CompactRibbonCard extends StatelessWidget {
+  const _CompactRibbonCard({
+    required this.label,
     required this.value,
-    required this.tag,
-    required this.tagColor,
+    required this.dotColor,
     required this.isSelected,
     required this.onTap,
   });
 
-  final String title;
+  final String label;
   final String value;
-  final String tag;
-  final Color tagColor;
+  final Color dotColor;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -140,80 +132,64 @@ class _RibbonCard extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 6),
         decoration: BoxDecoration(
-          color: dark ? AppColors.darkCard : AppColors.white,
-          borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+          color: isSelected
+              ? dotColor.withValues(alpha: dark ? 0.15 : 0.08)
+              : (dark ? AppColors.darkCard : AppColors.white),
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
           border: Border.all(
             color: isSelected
-                ? tagColor
+                ? dotColor
                 : (dark
                     ? AppColors.darkGrey.withValues(alpha: 0.25)
                     : AppColors.borderPrimary.withValues(alpha: 0.7)),
             width: isSelected ? 1.5 : 1.0,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: isSelected
-                  ? tagColor.withValues(alpha: 0.1)
-                  : Colors.black.withValues(alpha: 0.02),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                    style: const TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                      color: AppColors.textSecondary,
-                    ),
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(width: 4),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: tagColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Text(
-                    tag,
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: tagColor,
-                    ),
+                const SizedBox(width: 7),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    color: isSelected
+                        ? (dark ? AppColors.white : AppColors.textPrimary)
+                        : AppColors.textSecondary,
                   ),
                 ),
               ],
             ),
-            Text(
-              value,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w800,
-                color: isSelected
-                    ? tagColor
-                    : (dark ? AppColors.white : AppColors.textPrimary),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
+              decoration: BoxDecoration(
+                color: dotColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: dotColor,
+                ),
               ),
             ),
           ],

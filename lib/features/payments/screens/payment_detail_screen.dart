@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/data/repositories/admin_payment_repository.dart';
@@ -14,7 +15,7 @@ import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 
-/// Full review surface for a single receipt.
+/// Modern, content-first payment receipt review & audit screen.
 class PaymentDetailScreen extends StatefulWidget {
   const PaymentDetailScreen({
     super.key,
@@ -71,7 +72,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
 
           final right = SingleChildScrollView(
             padding: const EdgeInsets.all(AppSizes.md),
-            child: _DetailPane(review: _review),
+            child: _ModernDetailPane(review: _review),
           );
 
           if (!twoPane) {
@@ -97,7 +98,35 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Receipt #${_review.id}'),
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            Text(
+              'Receipt #${_review.id}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(width: 10),
+            PaymentMethodChip(method: _review.paymentMethod),
+            if (_review.amount != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${_review.amount!.toStringAsFixed(0)} ${_review.currency}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
           onPressed: () => Navigator.of(context).maybePop(),
@@ -110,7 +139,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
         ],
       ),
       body: body,
-      bottomNavigationBar: _ActionBar(
+      bottomNavigationBar: _ModernActionBar(
         review: _review,
         onApprove: _approve,
         onReject: _reject,
@@ -189,124 +218,198 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
   }
 }
 
-// ── Right pane ────────────────────────────────────────────────────────
+// ── Right Detail Pane ──────────────────────────────────────────────────────
 
-class _DetailPane extends StatelessWidget {
-  const _DetailPane({required this.review});
+class _ModernDetailPane extends StatelessWidget {
+  const _ModernDetailPane({required this.review});
 
   final PaymentReview review;
 
   @override
   Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
     final method = PaymentMethodInfo.of(review.paymentMethod);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── Student ──────────────────────────────────────────────
-        AdminSection(
-          title: 'Student',
+        // ── 1. Student Identity Card ──────────────────────────────
+        AdminCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _KeyValue(label: 'Name', value: review.displayName),
-              _KeyValue(label: 'Email', value: review.userEmail),
-              _KeyValue(
-                label: 'Stream',
-                value: review.userStream.isEmpty ? '—' : review.userStream,
-              ),
-              _KeyValue(label: 'User ID', value: review.userId, copyable: true),
-              Padding(
-                padding: const EdgeInsets.only(top: AppSizes.sm),
-                child: Row(
-                  children: [
-                    const Text(
-                      'Current access',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+                    child: Text(
+                      review.displayName.isNotEmpty
+                          ? review.displayName[0].toUpperCase()
+                          : 'S',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
                       ),
                     ),
-                    const SizedBox(width: AppSizes.sm),
-                    StatusPill(
-                      label: review.subscriptionStatus,
-                      color: subscriptionStatusColor(review.subscriptionStatus),
-                      dense: true,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          review.displayName,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: dark ? AppColors.white : AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          review.userEmail,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                  if (review.userStream.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (review.userStream.toLowerCase() == 'natural'
+                                ? AppColors.primary
+                                : AppColors.amberAccent)
+                            .withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        review.userStream,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: review.userStream.toLowerCase() == 'natural'
+                              ? AppColors.primary
+                              : AppColors.amberAccent,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const Divider(height: 20),
+              _DetailRow(
+                label: 'Current Status',
+                valueWidget: StatusPill(
+                  label: review.subscriptionStatus,
+                  color: subscriptionStatusColor(review.subscriptionStatus),
+                  dense: true,
                 ),
+              ),
+              _DetailRow(
+                label: 'User ID',
+                value: review.userId,
+                copyable: true,
               ),
             ],
           ),
         ),
         const SizedBox(height: AppSizes.spaceBtwItems),
 
-        // ── Payment ──────────────────────────────────────────────
-        AdminSection(
-          title: 'Payment',
+        // ── 2. Payment & Verification Card ─────────────────────────
+        AdminCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _KeyValue(label: 'Plan', value: review.planLabel),
-              _KeyValue(
-                label: 'Amount',
+              const Text(
+                'PAYMENT TRANSACTION',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AppSizes.sm),
+              _DetailRow(
+                label: 'Selected Plan',
+                value: review.planLabel,
+              ),
+              _DetailRow(
+                label: 'Verified Amount',
                 value: review.amount != null
-                    ? '${review.amount} ${review.currency}'
+                    ? '${review.amount!.toStringAsFixed(0)} ${review.currency}'
                     : '—',
               ),
-              _KeyValue(
-                label: 'Method',
+              _DetailRow(
+                label: 'Payment Method',
                 value: PaymentMethodInfo.labelOf(review.paymentMethod),
               ),
-              if (method != null) ...[
-                _KeyValue(
-                  label: 'Paid to',
-                  value: '${method.account}  (${method.holder})',
+              if (method != null)
+                _DetailRow(
+                  label: 'Account / Holder',
+                  value: '${method.account} · ${method.holder}',
                   copyable: true,
                 ),
-              ],
-              _KeyValue(
-                label: 'Submitted',
+              _DetailRow(
+                label: 'Submitted At',
                 value: review.createdAt == null
                     ? '—'
                     : DateFormat('d MMM yyyy, HH:mm').format(review.createdAt!),
               ),
-              const SizedBox(height: AppSizes.sm),
-
-              if (review.verificationUrl.isNotEmpty)
-                _KeyValue(
-                  label: 'Transaction',
+              if (review.verificationUrl.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                _DetailRow(
+                  label: 'Bank Verification',
                   value: review.verificationUrl,
                   onTap: () =>
                       AppHelperFunctions.openUrl(review.verificationUrl),
                 ),
+              ],
             ],
           ),
         ),
 
-        // ── Review outcome ───────────────────────────────────────
+        // ── 3. Review Outcome (if already reviewed) ────────────────
         if (review.isReviewed) ...[
           const SizedBox(height: AppSizes.spaceBtwItems),
-          AdminSection(
-            title: 'Review',
+          AdminCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _KeyValue(label: 'Outcome', value: review.status),
-                _KeyValue(
-                  label: 'Reviewed at',
+                const Text(
+                  'REVIEW AUDIT LOG',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AppSizes.sm),
+                _DetailRow(label: 'Outcome', value: review.status),
+                _DetailRow(
+                  label: 'Reviewed At',
                   value: review.reviewedAt == null
                       ? '—'
-                      : DateFormat(
-                          'd MMM yyyy, HH:mm',
-                        ).format(review.reviewedAt!),
+                      : DateFormat('d MMM yyyy, HH:mm')
+                          .format(review.reviewedAt!),
                 ),
-                _KeyValue(
-                  label: 'Reviewed by',
+                _DetailRow(
+                  label: 'Reviewed By',
                   value: review.reviewedBy ?? '—',
                 ),
                 if ((review.rejectionReason ?? '').isNotEmpty)
-                  _KeyValue(label: 'Reason', value: review.rejectionReason!),
+                  _DetailRow(
+                    label: 'Decline Reason',
+                    value: review.rejectionReason,
+                  ),
               ],
             ),
           ),
@@ -316,59 +419,83 @@ class _DetailPane extends StatelessWidget {
   }
 }
 
-class _KeyValue extends StatelessWidget {
-  const _KeyValue({
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({
     required this.label,
-    required this.value,
+    this.value,
+    this.valueWidget,
     this.copyable = false,
     this.onTap,
   });
 
   final String label;
-  final String value;
+  final String? value;
+  final Widget? valueWidget;
   final bool copyable;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 140,
+            width: 125,
             child: Text(
               label,
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 11.5,
                 color: AppColors.textSecondary,
               ),
             ),
           ),
           Expanded(
-            child: onTap != null
-                ? InkWell(
-                    onTap: onTap,
-                    child: Text(
-                      value,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.info,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  )
-                : SelectableText(value, style: const TextStyle(fontSize: 12)),
+            child: valueWidget ??
+                (onTap != null
+                    ? InkWell(
+                        onTap: onTap,
+                        child: Text(
+                          value ?? '',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.info,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      )
+                    : SelectableText(
+                        value ?? '',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: dark ? AppColors.white : AppColors.textPrimary,
+                        ),
+                      )),
           ),
-          if (copyable)
-            IconButton(
-              tooltip: 'Copy',
-              iconSize: AppSizes.iconSm,
-              visualDensity: VisualDensity.compact,
-              onPressed: () => Clipboard.setData(ClipboardData(text: value)),
-              icon: const Icon(Icons.copy_rounded),
+          if (copyable && value != null)
+            InkWell(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: value!));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Copied to clipboard'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              },
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(
+                  Iconsax.copy_copy,
+                  size: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
         ],
       ),
@@ -376,10 +503,10 @@ class _KeyValue extends StatelessWidget {
   }
 }
 
-// ── Footer ────────────────────────────────────────────────────────────
+// ── Bottom Action Bar ──────────────────────────────────────────────────────
 
-class _ActionBar extends StatelessWidget {
-  const _ActionBar({
+class _ModernActionBar extends StatelessWidget {
+  const _ModernActionBar({
     required this.review,
     required this.onApprove,
     required this.onReject,
@@ -396,8 +523,15 @@ class _ActionBar extends StatelessWidget {
 
     if (!review.isPending) {
       return Container(
-        padding: const EdgeInsets.all(AppSizes.md),
-        color: dark ? AppColors.darkSurface : AppColors.softGrey,
+        padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 12),
+        decoration: BoxDecoration(
+          color: dark ? AppColors.darkCard : AppColors.white,
+          border: Border(
+            top: BorderSide(
+              color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+            ),
+          ),
+        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -405,15 +539,16 @@ class _ActionBar extends StatelessWidget {
               review.isApproved
                   ? Icons.check_circle_rounded
                   : Icons.cancel_rounded,
-              size: AppSizes.iconSm,
+              size: 16,
               color: paymentStatusColor(review.status),
             ),
-            const SizedBox(width: AppSizes.sm),
+            const SizedBox(width: 8),
             Text(
-              'Already ${review.status} — no further action available.',
-              style: const TextStyle(
+              'Already marked as ${review.status.toUpperCase()}',
+              style: TextStyle(
                 fontSize: 12,
-                color: AppColors.textSecondary,
+                fontWeight: FontWeight.bold,
+                color: paymentStatusColor(review.status),
               ),
             ),
           ],
@@ -425,7 +560,7 @@ class _ActionBar extends StatelessWidget {
       final busy = controller.isActing(review.id);
 
       return Container(
-        padding: const EdgeInsets.all(AppSizes.md),
+        padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 10),
         decoration: BoxDecoration(
           color: dark ? AppColors.darkCard : AppColors.white,
           border: Border(
@@ -435,27 +570,36 @@ class _ActionBar extends StatelessWidget {
           ),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            OutlinedButton(
+            // Keyboard hints on wider screens
+            const Expanded(
+              child: Text(
+                'Shortcuts: [A] Approve · [R] Reject · [J/K] Next/Prev',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            OutlinedButton.icon(
               onPressed: busy ? null : onReject,
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.error,
                 side: const BorderSide(color: AppColors.error),
-                minimumSize: const Size(44, 44),
-                padding: EdgeInsets.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               ),
-              child: const Icon(Icons.close_rounded, size: AppSizes.iconSm),
+              icon: const Icon(Icons.close_rounded, size: 15),
+              label: const Text('Decline', style: TextStyle(fontSize: 12)),
             ),
             const SizedBox(width: AppSizes.sm),
-            ElevatedButton(
+            ElevatedButton.icon(
               onPressed: busy ? null : onApprove,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.success,
-                minimumSize: const Size(44, 44),
-                padding: EdgeInsets.zero,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
-              child: busy
+              icon: busy
                   ? const SizedBox(
                       height: 14,
                       width: 14,
@@ -464,7 +608,11 @@ class _ActionBar extends StatelessWidget {
                         color: Colors.white,
                       ),
                     )
-                  : const Icon(Icons.check_rounded, size: AppSizes.iconSm),
+                  : const Icon(Icons.check_rounded, size: 16),
+              label: const Text(
+                'Approve & Grant Plan',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),

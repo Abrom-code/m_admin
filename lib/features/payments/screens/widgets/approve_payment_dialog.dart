@@ -311,23 +311,26 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
 
               if (widget.review.subscriptionStatus == 'active') ...[
                 const SizedBox(height: AppSizes.xs),
-                SwitchListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text(
-                    'Extend from active expiration date',
-                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Extend from active expiration date',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: const Text(
+                      'Adds the duration on top of remaining active days',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                    ),
+                    value: _extendFromCurrent,
+                    onChanged: (val) {
+                      setState(() {
+                        _extendFromCurrent = val;
+                      });
+                    },
                   ),
-                  subtitle: const Text(
-                    'Adds the duration on top of remaining active days',
-                    style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
-                  ),
-                  value: _extendFromCurrent,
-                  onChanged: (val) {
-                    setState(() {
-                      _extendFromCurrent = val;
-                    });
-                  },
                 ),
               ],
 
