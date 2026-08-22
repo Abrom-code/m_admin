@@ -62,7 +62,7 @@ class DashboardScreen extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── 1. Top Header Bar (Clean, Minimal, No Welcome Box) ──
+            // ── 1. Top Header Bar (Safe & Responsive) ──────────────
             _DashboardTopBar(
               pendingCount: stats.pendingPayments,
               onRefresh: controller.load,
@@ -73,16 +73,16 @@ class DashboardScreen extends StatelessWidget {
             _ContentKpiGrid(stats: stats),
             const SizedBox(height: AppSizes.spaceBtwItems),
 
-            // ── 3. Executive Two-Column Layout for Desktop / Tablet ─
+            // ── 3. Executive Layout ────────────────────────────────
             LayoutBuilder(
               builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 960;
+                final isWide = constraints.maxWidth >= 1050;
 
                 if (isWide) {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ── Left Column (Main Charts & Exam Coverage) ──
+                      // ── Left Column (Main Growth Chart & Exam Coverage) ──
                       const Expanded(
                         flex: 6,
                         child: Column(
@@ -96,7 +96,7 @@ class DashboardScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: AppSizes.spaceBtwItems),
 
-                      // ── Right Column (Receipts, Funnel, Distribution) ──
+                      // ── Right Column (Receipts, Funnel, Distribution) ────
                       Expanded(
                         flex: 5,
                         child: Column(
@@ -106,14 +106,9 @@ class DashboardScreen extends StatelessWidget {
                             const SizedBox(height: AppSizes.spaceBtwItems),
                             const FunnelCard(),
                             const SizedBox(height: AppSizes.spaceBtwItems),
-                            const Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(child: PaidUnpaidDonutCard()),
-                                SizedBox(width: AppSizes.spaceBtwItems),
-                                Expanded(child: StreamSplitCard()),
-                              ],
-                            ),
+                            const PaidUnpaidDonutCard(),
+                            const SizedBox(height: AppSizes.spaceBtwItems),
+                            const StreamSplitCard(),
                           ],
                         ),
                       ),
@@ -121,7 +116,7 @@ class DashboardScreen extends StatelessWidget {
                   );
                 }
 
-                // ── Single Column for Mobile / Narrow Screens ────────
+                // ── Single Column for Narrow Screens ────────────────
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -131,13 +126,26 @@ class DashboardScreen extends StatelessWidget {
                     const SizedBox(height: AppSizes.spaceBtwItems),
                     const FunnelCard(),
                     const SizedBox(height: AppSizes.spaceBtwItems),
-                    const Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: PaidUnpaidDonutCard()),
-                        SizedBox(width: AppSizes.spaceBtwItems),
-                        Expanded(child: StreamSplitCard()),
-                      ],
+                    LayoutBuilder(
+                      builder: (context, innerConstraints) {
+                        if (innerConstraints.maxWidth >= 650) {
+                          return const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: PaidUnpaidDonutCard()),
+                              SizedBox(width: AppSizes.spaceBtwItems),
+                              Expanded(child: StreamSplitCard()),
+                            ],
+                          );
+                        }
+                        return const Column(
+                          children: [
+                            PaidUnpaidDonutCard(),
+                            SizedBox(height: AppSizes.spaceBtwItems),
+                            StreamSplitCard(),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: AppSizes.spaceBtwItems),
                     const SubjectTestCountCard(),
@@ -167,10 +175,12 @@ class _DashboardTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 520;
+
+        final titleRow = Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'Dashboard Overview',
@@ -180,9 +190,9 @@ class _DashboardTopBar extends StatelessWidget {
                 color: dark ? AppColors.white : AppColors.textPrimary,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: AppColors.success.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
@@ -193,7 +203,7 @@ class _DashboardTopBar extends StatelessWidget {
                   Icon(Icons.circle, size: 6, color: AppColors.success),
                   SizedBox(width: 4),
                   Text(
-                    'Live Sync',
+                    'Live',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -204,8 +214,10 @@ class _DashboardTopBar extends StatelessWidget {
               ),
             ),
           ],
-        ),
-        Row(
+        );
+
+        final actionsRow = Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             if (pendingCount > 0)
               InkWell(
@@ -213,7 +225,7 @@ class _DashboardTopBar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.warning.withValues(alpha: 0.12),
                     borderRadius:
@@ -232,9 +244,9 @@ class _DashboardTopBar extends StatelessWidget {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        '$pendingCount Pending Review',
+                        '$pendingCount Pending',
                         style: const TextStyle(
-                          fontSize: 11.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.bold,
                           color: AppColors.warning,
                         ),
@@ -243,16 +255,37 @@ class _DashboardTopBar extends StatelessWidget {
                   ),
                 ),
               ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             IconButton(
               tooltip: 'Refresh data',
               visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               onPressed: onRefresh,
               icon: const Icon(Iconsax.refresh_copy, size: 16),
             ),
           ],
-        ),
-      ],
+        );
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleRow,
+              const SizedBox(height: 6),
+              actionsRow,
+            ],
+          );
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            titleRow,
+            actionsRow,
+          ],
+        );
+      },
     );
   }
 }
@@ -281,7 +314,7 @@ class _ContentKpiGrid extends StatelessWidget {
             crossAxisCount: count,
             crossAxisSpacing: AppSizes.sm,
             mainAxisSpacing: AppSizes.sm,
-            mainAxisExtent: 88,
+            mainAxisExtent: 102,
           ),
           shrinkWrap: true,
           primary: false,
@@ -319,9 +352,9 @@ class _ContentKpiGrid extends StatelessWidget {
             _ContentKpiCard(
               title: 'NEW REGISTRATIONS',
               value: '+${NumberFormat('#,##0').format(stats.newUsersThisWeek)}',
-              tag: 'Last 7 days',
+              tag: '7-day pace',
               tagColor: AppColors.info,
-              subtext: 'Weekly growth pace',
+              subtext: 'Weekly momentum',
               onTap: () => AdminNavController.instance.changePage(3),
             ),
             _ContentKpiCard(
@@ -381,10 +414,7 @@ class _ContentKpiCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSizes.md,
-          vertical: 10,
-        ),
+        padding: const EdgeInsets.all(AppSizes.sm + 2),
         decoration: BoxDecoration(
           color: dark ? AppColors.darkCard : AppColors.white,
           borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
@@ -413,6 +443,7 @@ class _ContentKpiCard extends StatelessWidget {
                   child: Text(
                     title,
                     overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
@@ -421,6 +452,7 @@ class _ContentKpiCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(width: 4),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
@@ -431,7 +463,7 @@ class _ContentKpiCard extends StatelessWidget {
                   child: Text(
                     tag,
                     style: TextStyle(
-                      fontSize: 9.5,
+                      fontSize: 9,
                       fontWeight: FontWeight.bold,
                       color: tagColor,
                     ),
@@ -443,8 +475,9 @@ class _ContentKpiCard extends StatelessWidget {
             Text(
               value,
               overflow: TextOverflow.ellipsis,
+              maxLines: 1,
               style: TextStyle(
-                fontSize: 21,
+                fontSize: 20,
                 fontWeight: FontWeight.w800,
                 color: dark ? AppColors.white : AppColors.textPrimary,
               ),
@@ -484,15 +517,19 @@ class _RecentReceiptsQueue extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'RECENT PAYMENT SUBMISSIONS',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: AppColors.textSecondary,
+              const Expanded(
+                child: Text(
+                  'RECENT PAYMENT SUBMISSIONS',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
+              const SizedBox(width: 4),
               InkWell(
                 onTap: () => AdminNavController.instance.changePage(1),
                 child: const Text(
@@ -566,8 +603,9 @@ class _RecentReceiptsQueue extends StatelessWidget {
                                   Text(
                                     row.displayName,
                                     overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
                                     style: TextStyle(
-                                      fontSize: 12.5,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                       color: dark
                                           ? AppColors.white
@@ -577,8 +615,9 @@ class _RecentReceiptsQueue extends StatelessWidget {
                                   Text(
                                     row.userEmail,
                                     overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
                                     style: const TextStyle(
-                                      fontSize: 10.5,
+                                      fontSize: 10,
                                       color: AppColors.textSecondary,
                                     ),
                                   ),
@@ -592,7 +631,7 @@ class _RecentReceiptsQueue extends StatelessWidget {
                                 Text(
                                   '${row.amount.toStringAsFixed(0)} ETB',
                                   style: TextStyle(
-                                    fontSize: 12.5,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     color: dark
                                         ? AppColors.white
@@ -605,13 +644,13 @@ class _RecentReceiptsQueue extends StatelessWidget {
                                       : DateFormat('d MMM, HH:mm')
                                           .format(row.createdAt!),
                                   style: const TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 9.5,
                                     color: AppColors.textSecondary,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             PaymentStatusPill(status: row.status),
                           ],
                         ),

@@ -27,15 +27,19 @@ class PaidUnpaidDonutCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'PAID VS UNPAID',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: AppColors.textSecondary,
+              const Expanded(
+                child: Text(
+                  'PAID VS UNPAID',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
+              const SizedBox(width: 4),
               Obx(() {
                 final s = controller.stats.value;
                 final pct = s != null && s.totalUsers > 0
@@ -90,7 +94,7 @@ class PaidUnpaidDonutCard extends StatelessWidget {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: AppSizes.xs),
-                child: AdminDonutChart(segments: segments, size: 105),
+                child: AdminDonutChart(segments: segments, size: 100),
               ),
             );
           }),
@@ -122,15 +126,19 @@ class StreamSplitCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'STREAM DISTRIBUTION',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: AppColors.textSecondary,
+              const Expanded(
+                child: Text(
+                  'STREAM DISTRIBUTION',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
+              const SizedBox(width: 4),
               Obx(() {
                 final split = controller.streamSplit;
                 final total = split.fold<int>(0, (sum, s) => sum + s.count);
@@ -175,7 +183,7 @@ class StreamSplitCard extends StatelessWidget {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: AppSizes.xs),
-                child: AdminDonutChart(segments: segments, size: 105),
+                child: AdminDonutChart(segments: segments, size: 100),
               ),
             );
           }),
@@ -202,15 +210,19 @@ class FunnelCard extends StatelessWidget {
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'CONVERSION FUNNEL',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: AppColors.textSecondary,
+              Expanded(
+                child: Text(
+                  'CONVERSION FUNNEL',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
+              SizedBox(width: 4),
               Text(
                 'Registration to Paid',
                 style: TextStyle(
@@ -272,47 +284,42 @@ class FunnelCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Text(
-                    '${index + 1}. ',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+              Text(
+                '${index + 1}. ',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
               ),
-              Row(
-                children: [
-                  Text(
-                    NumberFormat('#,##0').format(count),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: dark ? AppColors.white : AppColors.textPrimary,
-                    ),
+              Expanded(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${pctTop.toStringAsFixed(0)}%',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
-                ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                NumberFormat('#,##0').format(count),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: dark ? AppColors.white : AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${pctTop.toStringAsFixed(0)}%',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
               ),
             ],
           ),
@@ -364,15 +371,19 @@ class SubjectTestCountCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'EXAM COVERAGE BY SUBJECT',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: AppColors.textSecondary,
+              const Expanded(
+                child: Text(
+                  'EXAM COVERAGE BY SUBJECT',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
+              const SizedBox(width: 6),
               InkWell(
                 onTap: () => AdminNavController.instance.changePage(2),
                 child: const Text(
@@ -471,6 +482,7 @@ class SubjectTestCountCard extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(width: 6),
               Text(
                 '${subject.testCount} ${subject.testCount == 1 ? 'test' : 'tests'}',
                 style: TextStyle(
