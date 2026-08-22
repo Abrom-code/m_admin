@@ -218,34 +218,37 @@ class _Toolbar extends StatelessWidget {
         vertical: AppSizes.xs,
       ),
       color: dark ? AppColors.darkSurface : AppColors.white,
-      child: Row(
-        children: [
-          IconButton(
-            tooltip: 'Rotate 90°',
-            onPressed: onRotate,
-            icon: const Icon(Icons.rotate_90_degrees_cw_rounded),
-            iconSize: AppSizes.iconSm + 2,
-          ),
-          IconButton(
-            tooltip: 'Reset view',
-            onPressed: onReset,
-            icon: const Icon(Icons.center_focus_strong_rounded),
-            iconSize: AppSizes.iconSm + 2,
-          ),
-          if (onFullScreen != null)
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
             IconButton(
-              tooltip: 'Full screen with zoom',
-              onPressed: onFullScreen,
-              icon: const Icon(Icons.fullscreen_rounded),
-              iconSize: AppSizes.iconSm + 4,
+              tooltip: 'Rotate 90°',
+              onPressed: onRotate,
+              icon: const Icon(Icons.rotate_90_degrees_cw_rounded),
+              iconSize: AppSizes.iconSm + 2,
             ),
-          const Spacer(),
-          TextButton.icon(
-            onPressed: onOpenOriginal,
-            icon: const Icon(Icons.open_in_new_rounded, size: AppSizes.iconSm),
-            label: const Text('Open original'),
-          ),
-        ],
+            IconButton(
+              tooltip: 'Reset view',
+              onPressed: onReset,
+              icon: const Icon(Icons.center_focus_strong_rounded),
+              iconSize: AppSizes.iconSm + 2,
+            ),
+            if (onFullScreen != null)
+              IconButton(
+                tooltip: 'Full screen with zoom',
+                onPressed: onFullScreen,
+                icon: const Icon(Icons.fullscreen_rounded),
+                iconSize: AppSizes.iconSm + 4,
+              ),
+            const SizedBox(width: AppSizes.sm),
+            TextButton.icon(
+              onPressed: onOpenOriginal,
+              icon: const Icon(Icons.open_in_new_rounded, size: AppSizes.iconSm),
+              label: const Text('Open original'),
+            ),
+          ],
+        ),
       ),
     );
   }

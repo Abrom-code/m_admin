@@ -99,33 +99,37 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
-        title: Row(
-          children: [
-            Text(
-              'Receipt #${_review.id}',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(width: 10),
-            PaymentMethodChip(method: _review.paymentMethod),
-            if (_review.amount != null) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '${_review.amount!.toStringAsFixed(0)} ${_review.currency}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primary,
+        title: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Receipt #${_review.id}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(width: 10),
+              PaymentMethodChip(method: _review.paymentMethod),
+              if (_review.amount != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '${_review.amount!.toStringAsFixed(0)} ${_review.currency}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
@@ -261,6 +265,8 @@ class _ModernDetailPane extends StatelessWidget {
                       children: [
                         Text(
                           review.displayName,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -269,6 +275,8 @@ class _ModernDetailPane extends StatelessWidget {
                         ),
                         Text(
                           review.userEmail,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                           style: const TextStyle(
                             fontSize: 11.5,
                             color: AppColors.textSecondary,
@@ -543,12 +551,15 @@ class _ModernActionBar extends StatelessWidget {
               color: paymentStatusColor(review.status),
             ),
             const SizedBox(width: 8),
-            Text(
-              'Already marked as ${review.status.toUpperCase()}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: paymentStatusColor(review.status),
+            Flexible(
+              child: Text(
+                'Already marked as ${review.status.toUpperCase()}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: paymentStatusColor(review.status),
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -569,52 +580,59 @@ class _ModernActionBar extends StatelessWidget {
             ),
           ),
         ),
-        child: Row(
-          children: [
-            // Keyboard hints on wider screens
-            const Expanded(
-              child: Text(
-                'Shortcuts: [A] Approve · [R] Reject · [J/K] Next/Prev',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            OutlinedButton.icon(
-              onPressed: busy ? null : onReject,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              ),
-              icon: const Icon(Icons.close_rounded, size: 15),
-              label: const Text('Decline', style: TextStyle(fontSize: 12)),
-            ),
-            const SizedBox(width: AppSizes.sm),
-            ElevatedButton.icon(
-              onPressed: busy ? null : onApprove,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.success,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-              icon: busy
-                  ? const SizedBox(
-                      height: 14,
-                      width: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 600;
+
+            return Row(
+              children: [
+                if (!isCompact)
+                  const Expanded(
+                    child: Text(
+                      'Shortcuts: [A] Approve · [R] Reject · [J/K] Next/Prev',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
                       ),
-                    )
-                  : const Icon(Icons.check_rounded, size: 16),
-              label: const Text(
-                'Approve & Grant Plan',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
+                    ),
+                  ),
+                if (isCompact) const Spacer(),
+                OutlinedButton.icon(
+                  onPressed: busy ? null : onReject,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: const BorderSide(color: AppColors.error),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                  icon: const Icon(Icons.close_rounded, size: 15),
+                  label: const Text('Decline', style: TextStyle(fontSize: 12)),
+                ),
+                const SizedBox(width: AppSizes.sm),
+                ElevatedButton.icon(
+                  onPressed: busy ? null : onApprove,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
+                  icon: busy
+                      ? const SizedBox(
+                          height: 14,
+                          width: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.check_rounded, size: 16),
+                  label: const Text(
+                    'Approve & Grant Plan',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       );
     });

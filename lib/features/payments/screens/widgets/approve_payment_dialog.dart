@@ -180,9 +180,11 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
             size: 24,
           ),
           SizedBox(width: 10),
-          Text(
-            'Approve Payment & Grant Premium',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          Expanded(
+            child: Text(
+              'Approve Payment & Grant Premium',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -477,12 +479,16 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
             Expanded(
               child: Row(
                 children: [
-                  Text(
-                    plan.title,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.w600,
+                  Flexible(
+                    child: Text(
+                      plan.title,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.w600,
+                      ),
                     ),
                   ),
                   if (plan.badgeText != null) ...[
@@ -506,7 +512,7 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
                       ),
                     ),
                   ],
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Text(
                     '${plan.defaultPrice} ETB',
                     style: const TextStyle(
@@ -580,14 +586,17 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
                   : null,
             ),
             const SizedBox(width: 8),
-            const Text(
-              'Custom Expiry Date',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+            const Expanded(
+              child: Text(
+                'Custom Expiry Date',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            const Spacer(),
             if (isSelected)
               TextButton.icon(
                 onPressed: _pickCustomDate,

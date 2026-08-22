@@ -59,48 +59,43 @@ class _PaymentMetricRibbon extends StatelessWidget {
       final allCount = controller.counts['all'] ?? 0;
       final active = controller.activeTab.value;
 
-      return Row(
-        children: [
-          Expanded(
-            child: _CompactRibbonCard(
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _CompactRibbonCard(
               label: 'Pending',
               value: '$pendingCount',
               dotColor: AppColors.warning,
               isSelected: active == 'pending',
               onTap: () => controller.changeTab('pending'),
             ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: _CompactRibbonCard(
+            const SizedBox(width: 8),
+            _CompactRibbonCard(
               label: 'Approved',
               value: NumberFormat('#,##0').format(approvedCount),
               dotColor: AppColors.success,
               isSelected: active == 'approved',
               onTap: () => controller.changeTab('approved'),
             ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: _CompactRibbonCard(
+            const SizedBox(width: 8),
+            _CompactRibbonCard(
               label: 'Rejected',
               value: NumberFormat('#,##0').format(rejectedCount),
               dotColor: AppColors.error,
               isSelected: active == 'rejected',
               onTap: () => controller.changeTab('rejected'),
             ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: _CompactRibbonCard(
+            const SizedBox(width: 8),
+            _CompactRibbonCard(
               label: 'All Receipts',
               value: NumberFormat('#,##0').format(allCount),
               dotColor: AppColors.primary,
               isSelected: active == 'all',
               onTap: () => controller.changeTab('all'),
             ),
-          ),
-        ],
+          ],
+        ),
       );
     });
   }
@@ -131,7 +126,7 @@ class _CompactRibbonCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
               ? dotColor.withValues(alpha: dark ? 0.18 : 0.08)
@@ -147,45 +142,33 @@ class _CompactRibbonCard extends StatelessWidget {
           ),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Flexible(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: dotColor,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      label,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.w500,
-                        color: isSelected
-                            ? (dark ? AppColors.white : AppColors.textPrimary)
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: dotColor,
+                shape: BoxShape.circle,
               ),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected
+                    ? (dark ? AppColors.white : AppColors.textPrimary)
+                    : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
-                color: dotColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(3),
+                color: dotColor.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
                 value,
