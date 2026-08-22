@@ -35,6 +35,7 @@ class UsersRepository {
       if (search != null && search.trim().isNotEmpty) {
         final safe = _escapeFilterValue(search.trim());
         q = q.or(
+          'id.ilike.%$safe%,'
           'first_name.ilike.%$safe%,'
           'last_name.ilike.%$safe%,'
           'email.ilike.%$safe%',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
@@ -9,6 +10,7 @@ import 'package:m_admin/features/users/models/admin_user_model.dart';
 import 'package:m_admin/features/users/screens/user_detail_screen.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
+import 'package:m_admin/utils/helpers/helper_functions.dart';
 
 class UsersScreen extends StatelessWidget {
   const UsersScreen({super.key});
@@ -24,224 +26,321 @@ class UsersScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _StatusTabs(controller: controller),
+          _UserMetricRibbon(controller: controller),
           const SizedBox(height: AppSizes.spaceBtwItems),
-          _FilterBar(controller: controller),
+          _UserFilterBar(controller: controller),
           const SizedBox(height: AppSizes.spaceBtwItems),
-          Expanded(child: _Table(controller: controller)),
+          Expanded(child: _UserTable(controller: controller)),
         ],
       ),
     );
   }
 }
 
-class _StatusTabs extends StatelessWidget {
-  const _StatusTabs({required this.controller});
+// ── 1. Status Ribbon ────────────────────────────────────────────────────────
+
+class _UserMetricRibbon extends StatelessWidget {
+  const _UserMetricRibbon({required this.controller});
 
   final UsersController controller;
 
-  static const _tabs = [
-    ('', 'All'),
-    ('active', 'Active'),
-    ('pending', 'Pending'),
-    ('inactive', 'Inactive'),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return Obx(
-      () => Wrap(
-        spacing: AppSizes.xs,
-        runSpacing: AppSizes.xs,
-        children: [
-          for (final (key, label) in _tabs)
-            ChoiceChip(
-              showCheckmark: false,
-              selected: (controller.statusFilter.value ?? '') == key,
-              onSelected: (_) => controller.setStatusFilter(
-                key.isEmpty ? null : key,
-              ),
-              label: Text(
-                controller.counts[key] == null
-                    ? label
-                    : '$label (${controller.counts[key]})',
-                style: const TextStyle(fontSize: 11),
-              ),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              visualDensity: VisualDensity.compact,
+    return Obx(() {
+      final active = controller.statusFilter.value ?? '';
+      final allCount = controller.counts[''] ?? 0;
+      final activeCount = controller.counts['active'] ?? 0;
+      final pendingCount = controller.counts['pending'] ?? 0;
+      final inactiveCount = controller.counts['inactive'] ?? 0;
+
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _CompactUserRibbonCard(
+              label: 'All Users',
+              value: NumberFormat('#,##0').format(allCount),
+              dotColor: AppColors.primary,
+              isSelected: active.isEmpty,
+              onTap: () => controller.setStatusFilter(null),
             ),
-        ],
+            const SizedBox(width: 8),
+            _CompactUserRibbonCard(
+              label: 'Active',
+              value: NumberFormat('#,##0').format(activeCount),
+              dotColor: AppColors.success,
+              isSelected: active == 'active',
+              onTap: () => controller.setStatusFilter('active'),
+            ),
+            const SizedBox(width: 8),
+            _CompactUserRibbonCard(
+              label: 'Pending',
+              value: NumberFormat('#,##0').format(pendingCount),
+              dotColor: AppColors.warning,
+              isSelected: active == 'pending',
+              onTap: () => controller.setStatusFilter('pending'),
+            ),
+            const SizedBox(width: 8),
+            _CompactUserRibbonCard(
+              label: 'Inactive',
+              value: NumberFormat('#,##0').format(inactiveCount),
+              dotColor: AppColors.error,
+              isSelected: active == 'inactive',
+              onTap: () => controller.setStatusFilter('inactive'),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+class _CompactUserRibbonCard extends StatelessWidget {
+  const _CompactUserRibbonCard({
+    required this.label,
+    required this.value,
+    required this.dotColor,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final Color dotColor;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? dotColor.withValues(alpha: dark ? 0.18 : 0.08)
+              : (dark ? AppColors.darkSurface : AppColors.white),
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+          border: Border.all(
+            color: isSelected
+                ? dotColor.withValues(alpha: 0.55)
+                : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: dotColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected
+                    ? (dark ? AppColors.white : AppColors.textPrimary)
+                    : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: dotColor.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: dotColor,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _FilterBar extends StatefulWidget {
-  const _FilterBar({required this.controller});
+// ── 2. Modern Filter Bar ───────────────────────────────────────────────────
+
+class _UserFilterBar extends StatelessWidget {
+  const _UserFilterBar({required this.controller});
+
   final UsersController controller;
 
   @override
-  State<_FilterBar> createState() => _FilterBarState();
-}
-
-class _FilterBarState extends State<_FilterBar> {
-  final _focus = FocusNode();
-  bool _searchExpanded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _focus.addListener(_onFocusChange);
-    if (widget.controller.searchController.text.isNotEmpty) {
-      _searchExpanded = true;
-    }
-  }
-
-  void _onFocusChange() {
-    if (!_focus.hasFocus && widget.controller.searchController.text.isEmpty) {
-      setState(() => _searchExpanded = false);
-    }
-  }
-
-  void _expand() {
-    setState(() => _searchExpanded = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
-  }
-
-  @override
-  void dispose() {
-    _focus.removeListener(_onFocusChange);
-    _focus.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor =
-        Theme.of(context).colorScheme.outline.withValues(alpha: 0.35);
+    final dark = AppHelperFunctions.isDark(context);
+    final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
     final bgColor = dark
-        ? AppColors.darkGrey.withValues(alpha: 0.3)
-        : AppColors.grey.withValues(alpha: 0.1);
+        ? AppColors.darkSurface
+        : AppColors.white;
 
-    return AdminCard(
-      padding: const EdgeInsets.all(AppSizes.sm),
-      child: Row(
-        children: [
-          // ── Search field (collapsed = icon only, expanded = full field) ──
-          GestureDetector(
-            onTap: _searchExpanded ? null : _expand,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeInOut,
-              width: _searchExpanded ? 220 : 34,
-              height: 34,
-              clipBehavior: Clip.hardEdge,
-              decoration: BoxDecoration(
-                color: _searchExpanded ? bgColor : Colors.transparent,
-                borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-              ),
-              child: AbsorbPointer(
-                absorbing: !_searchExpanded,
-                child: TextField(
-                  controller: widget.controller.searchController,
-                  focusNode: _focus,
-                  onChanged: widget.controller.onSearchChanged,
-                  style: const TextStyle(fontSize: 13),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: 'Search by name or email...',
-                    hintStyle: TextStyle(
-                      color: AppColors.textSecondary.withValues(alpha: 0.6),
-                      fontSize: 13,
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      size: 18,
-                      color: AppColors.textSecondary,
-                    ),
-                    suffixIcon: ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: widget.controller.searchController,
-                      builder: (_, value, _) {
-                        if (value.text.isEmpty) return const SizedBox.shrink();
-                        return IconButton(
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            size: 16,
-                            color: AppColors.textSecondary,
-                          ),
-                          onPressed: () {
-                            widget.controller.searchController.clear();
-                            widget.controller.onSearchChanged('');
-                          },
-                          visualDensity: VisualDensity.compact,
-                        );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSizes.sm, vertical: AppSizes.xs),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(color: borderColor),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 600;
+
+          final searchInput = Container(
+            height: 36,
+            decoration: BoxDecoration(
+              color: dark ? AppColors.darkGrey.withValues(alpha: 0.3) : AppColors.grey.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+            ),
+            child: TextField(
+              controller: controller.searchController,
+              onChanged: controller.onSearchChanged,
+              onSubmitted: (_) => FocusScope.of(context).unfocus(),
+              onTapOutside: (_) => FocusScope.of(context).unfocus(),
+              style: const TextStyle(fontSize: 12.5),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Search by name, email or UID...',
+                hintStyle: TextStyle(
+                  color: AppColors.textSecondary.withValues(alpha: 0.6),
+                  fontSize: 12.5,
+                ),
+                prefixIcon: const Icon(
+                  Iconsax.search_normal_copy,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                ),
+                suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: controller.searchController,
+                  builder: (_, value, _) {
+                    if (value.text.isEmpty) return const SizedBox.shrink();
+                    return IconButton(
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        size: 15,
+                        color: AppColors.textSecondary,
+                      ),
+                      onPressed: () {
+                        controller.searchController.clear();
+                        controller.onSearchChanged('');
                       },
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+                      visualDensity: VisualDensity.compact,
+                    );
+                  },
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+            ),
+          );
+
+          final filterRow = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Obx(
+                () => Container(
+                  height: 36,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: dark ? AppColors.darkSurface : AppColors.white,
+                    borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String?>(
+                      value: controller.streamFilter.value,
+                      isDense: true,
+                      hint: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.tune_rounded, size: 14, color: AppColors.textSecondary),
+                          SizedBox(width: 6),
+                          Text('All Streams', style: TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16),
+                      items: [
+                        const DropdownMenuItem(
+                          value: null,
+                          child: Text('All Streams', style: TextStyle(fontSize: 12)),
+                        ),
+                        ...controller.availableStreams.map(
+                          (s) => DropdownMenuItem(
+                            value: s,
+                            child: Text(s, style: const TextStyle(fontSize: 12)),
+                          ),
+                        ),
+                      ],
+                      onChanged: controller.setStreamFilter,
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: AppSizes.sm),
-          // ── Filter pills — scrollable so they never overflow the row ────
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  // Stream dropdown pill
-                  Obx(
-                    () => _FilterDropdown<String?>(
-                      borderColor: borderColor,
-                      icon: Icons.tune_rounded,
-                      hint: 'Stream',
-                      value: widget.controller.streamFilter.value,
-                      items: [
-                        const DropdownMenuItem(
-                            value: null, child: Text('All streams')),
-                        ...widget.controller.availableStreams.map(
-                          (s) => DropdownMenuItem(value: s, child: Text(s)),
-                        ),
-                      ],
-                      onChanged: widget.controller.setStreamFilter,
-                    ),
+              const SizedBox(width: AppSizes.xs),
+              Obx(() {
+                final active = controller.streamFilter.value != null ||
+                    controller.searchController.text.isNotEmpty;
+                if (!active) return const SizedBox.shrink();
+                return IconButton(
+                  tooltip: 'Clear filters',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: controller.clearFilters,
+                  icon: const Icon(
+                    Icons.filter_alt_off_rounded,
+                    size: AppSizes.iconSm,
+                    color: AppColors.error,
                   ),
-                  const SizedBox(width: AppSizes.sm),
-                  // Clear (only when a filter is active)
-                  Obx(() {
-                    final active =
-                        widget.controller.streamFilter.value != null ||
-                            widget.controller.searchController.text.isNotEmpty;
-                    if (!active) return const SizedBox.shrink();
-                    return IconButton(
-                      tooltip: 'Clear filters',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: widget.controller.clearFilters,
-                      icon: const Icon(
-                        Icons.filter_alt_off_rounded,
-                        size: AppSizes.iconSm,
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-        ],
+                );
+              }),
+            ],
+          );
+
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                searchInput,
+                const SizedBox(height: 6),
+                filterRow,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: searchInput),
+              const SizedBox(width: AppSizes.sm),
+              filterRow,
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-class _Table extends StatelessWidget {
-  const _Table({required this.controller});
+// ── 3. Modern User Table ───────────────────────────────────────────────────
+
+class _UserTable extends StatelessWidget {
+  const _UserTable({required this.controller});
 
   final UsersController controller;
 
@@ -254,7 +353,8 @@ class _Table extends StatelessWidget {
         error: controller.errorMessage.value,
         onRetry: controller.load,
         onRefresh: controller.loadAll,
-        emptyTitle: 'No users found',
+        emptyTitle: 'No students found',
+        emptyMessage: 'Try adjusting your search query or stream filters.',
         page: controller.page.value,
         pageSize: UsersController.pageSize,
         totalCount: controller.counts[''],
@@ -262,83 +362,52 @@ class _Table extends StatelessWidget {
         onRowTap: (user) => _openDetail(context, user),
         columns: [
           AdminColumn(
-            label: 'NAME',
-            flex: 2,
-            cell: (_, user) => Row(
-              children: [
-                CircleAvatar(
-                  radius: 13,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                  child: Text(
-                    user.initials,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSizes.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        user.displayName,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        user.email,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            label: 'STUDENT',
+            flex: 3,
+            cell: (_, user) => _StudentProfileCell(user: user),
           ),
           AdminColumn(
             label: 'STREAM',
-            flex: 1,
-            cell: (_, user) => Text(
-              user.stream.isEmpty ? '—' : user.stream,
-              style: const TextStyle(fontSize: 12),
-            ),
+            width: 100,
+            cell: (_, user) => _StreamBadge(stream: user.stream),
           ),
           AdminColumn(
-            label: 'STATUS',
-            flex: 1,
-            cell: (_, user) => _StatusPill(status: user.subscriptionStatus),
+            label: 'SUBSCRIPTION',
+            width: 120,
+            cell: (_, user) => _UserStatusBadge(user: user),
+          ),
+          AdminColumn(
+            label: 'PLAN / EXPIRY',
+            flex: 2,
+            cell: (_, user) => _PlanExpiryCell(user: user),
+          ),
+          AdminColumn(
+            label: 'UPLOADS',
+            width: 80,
+            cell: (_, user) => _UploadCountBadge(user: user),
           ),
           AdminColumn(
             label: 'JOINED',
-            width: 90,
+            width: 95,
             cell: (_, user) => Text(
               user.createdAt == null
                   ? '—'
-                  : DateFormat('d MMM yy').format(user.createdAt!),
-              style: const TextStyle(fontSize: 11),
+                  : DateFormat('d MMM yyyy').format(user.createdAt!),
+              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
             ),
           ),
         ],
-        rowActions: (context, user) => TextButton(
+        rowActions: (context, user) => IconButton(
+          tooltip: 'Manage Student',
+          icon: const Icon(Icons.arrow_forward_ios_rounded, size: 13),
           onPressed: () => _openDetail(context, user),
-          child: const Text('View'),
         ),
       ),
     );
   }
 
   void _openDetail(BuildContext context, AdminUserModel user) {
+    FocusScope.of(context).unfocus();
     final wide = MediaQuery.sizeOf(context).width >= 1100;
     if (wide) {
       showDialog(
@@ -349,7 +418,7 @@ class _Table extends StatelessWidget {
             vertical: 40,
           ),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680, maxHeight: 700),
+            constraints: const BoxConstraints(maxWidth: 680, maxHeight: 720),
             child: UserDetailScreen(user: user),
           ),
         ),
@@ -360,77 +429,226 @@ class _Table extends StatelessWidget {
   }
 }
 
-// ── Shared filter dropdown pill ────────────────────────────────────────
+// ── 4. Table Cell Components ───────────────────────────────────────────────
 
-class _FilterDropdown<T> extends StatelessWidget {
-  const _FilterDropdown({
-    required this.borderColor,
-    required this.icon,
-    required this.hint,
-    required this.value,
-    required this.items,
-    required this.onChanged,
-  });
-
-  final Color borderColor;
-  final IconData icon;
-  final String hint;
-  final T? value;
-  final List<DropdownMenuItem<T?>> items;
-  final ValueChanged<T?> onChanged;
+class _StudentProfileCell extends StatelessWidget {
+  const _StudentProfileCell({required this.user});
+  final AdminUserModel user;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 34,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-        border: Border.all(color: borderColor),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T?>(
-          value: value,
-          isDense: true,
-          hint: Row(
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [
+                AppColors.primary.withValues(alpha: 0.8),
+                AppColors.primary,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              user.initials,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSizes.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 13),
-              const SizedBox(width: 5),
-              Text(hint, style: const TextStyle(fontSize: 12)),
+              Text(
+                user.displayName,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                user.email,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ],
           ),
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 14),
-          items: items,
-          onChanged: onChanged,
         ),
+      ],
+    );
+  }
+}
+
+class _StreamBadge extends StatelessWidget {
+  const _StreamBadge({required this.stream});
+  final String stream;
+
+  @override
+  Widget build(BuildContext context) {
+    if (stream.isEmpty || stream == '—') {
+      return const Text('—', style: TextStyle(fontSize: 12, color: AppColors.textSecondary));
+    }
+
+    final isNatural = stream.toLowerCase().contains('natural');
+    final color = isNatural ? AppColors.success : AppColors.warning;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isNatural ? Icons.science_rounded : Icons.menu_book_rounded,
+            size: 11,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              stream,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ── Status pill ────────────────────────────────────────────────────────
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.status});
-
-  final String status;
+class _UserStatusBadge extends StatelessWidget {
+  const _UserStatusBadge({required this.user});
+  final AdminUserModel user;
 
   @override
   Widget build(BuildContext context) {
+    final status = user.subscriptionStatus;
     final color = subscriptionStatusColor(status);
+    final isExpired = user.isExpired;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+        color: (isExpired ? AppColors.error : color).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(
+              color: isExpired ? AppColors.error : color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              isExpired ? 'Expired' : status.toUpperCase(),
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: isExpired ? AppColors.error : color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanExpiryCell extends StatelessWidget {
+  const _PlanExpiryCell({required this.user});
+  final AdminUserModel user;
+
+  @override
+  Widget build(BuildContext context) {
+    if (user.subscriptionPlan == null || user.subscriptionPlan!.isEmpty) {
+      return const Text('—', style: TextStyle(fontSize: 11, color: AppColors.textSecondary));
+    }
+
+    final hasExpiry = user.subscriptionExpiresAt != null;
+    final isExpired = user.isExpired;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          user.planLabel,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (hasExpiry)
+          Text(
+            user.remainingDaysText,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: isExpired ? FontWeight.w700 : FontWeight.w500,
+              color: isExpired
+                  ? AppColors.error
+                  : (user.remainingDaysText.contains('left') ? AppColors.success : AppColors.textSecondary),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _UploadCountBadge extends StatelessWidget {
+  const _UploadCountBadge({required this.user});
+  final AdminUserModel user;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = user.receiptUploadCount;
+    final isMax = user.exceededUploadLimit;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: (isMax ? AppColors.error : AppColors.primary).withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        status,
+        '$count / 2',
         style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: color,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          color: isMax ? AppColors.error : AppColors.primary,
         ),
       ),
     );

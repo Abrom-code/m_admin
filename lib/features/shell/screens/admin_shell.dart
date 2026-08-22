@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
@@ -12,19 +13,17 @@ import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/shell/screens/widgets/admin_sidebar.dart';
 import 'package:m_admin/features/users/screens/users_screen.dart';
 import 'package:m_admin/routes/routes.dart';
+import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:m_admin/utils/helpers/helper_functions.dart';
 
-/// Breakpoint below which the sidebar collapses into a drawer.
+/// Breakpoint below which the sidebar collapses into a drawer and bottom navigation bar.
 const double kSidebarBreakpoint = 900;
 
 /// Fixed sidebar width on wide layouts.
 const double kSidebarWidth = 260;
 
 /// The persistent frame of the admin console.
-///
-/// The parent app uses a floating pill bottom nav for five phone tabs. An
-/// admin tool is a desk tool, so this is a persistent left sidebar on wide
-/// screens, falling back to a drawer under 900px.
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
 
@@ -89,7 +88,7 @@ class _AdminShellState extends State<AdminShell> {
         );
 
         if (isWide) {
-          // Wide layout: persistent sidebar – no drawer needed.
+          // Wide layout: persistent sidebar – no drawer or bottom nav needed.
           return Scaffold(
             appBar: appBar,
             body: Row(
@@ -104,7 +103,7 @@ class _AdminShellState extends State<AdminShell> {
           );
         }
 
-        // Narrow layout: drawer mode – swipe from the left edge to open.
+        // Narrow layout: bottom navigation bar + drawer for secondary pages (Sessions, Settings).
         return Scaffold(
           key: _scaffoldKey,
           appBar: appBar,
@@ -122,6 +121,7 @@ class _AdminShellState extends State<AdminShell> {
             onHorizontalDragEnd: _onHorizontalDragEnd,
             child: _Pages(nav: nav),
           ),
+          bottomNavigationBar: _AdminBottomNavBar(nav: nav),
         );
       },
     );
@@ -146,10 +146,121 @@ class _AdminShellState extends State<AdminShell> {
   }
 }
 
-/// The tab bodies.
-///
-/// An [IndexedStack] so tab state survives switching — a scrolled payment
-/// queue or a half-written announcement is still there on return.
+// ── Bottom Navigation Bar ──────────────────────────────────────────────────
+
+class _AdminBottomNavBar extends StatelessWidget {
+  const _AdminBottomNavBar({required this.nav});
+
+  final AdminNavController nav;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+
+    return Obx(() {
+      final currentIdx = nav.selectedIndex.value;
+      // Tabs 0: Dashboard, 1: Payments, 2: Notifications, 3: Users, 4: Content.
+      final selectedDest = (currentIdx >= 0 && currentIdx <= 4) ? currentIdx : 0;
+
+      return Container(
+        decoration: BoxDecoration(
+          color: dark ? AppColors.darkSurface : AppColors.white,
+          border: Border(
+            top: BorderSide(
+              color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+              width: 1,
+            ),
+          ),
+        ),
+        child: NavigationBar(
+          height: 62,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          indicatorColor: AppColors.primary.withValues(alpha: 0.16),
+          selectedIndex: selectedDest,
+          onDestinationSelected: (index) {
+            nav.changePage(index);
+          },
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(Iconsax.chart_2_copy, size: 20),
+              selectedIcon: Icon(Iconsax.chart_2, size: 20, color: AppColors.primary),
+              label: 'Dashboard',
+            ),
+            NavigationDestination(
+              icon: _NavBadge(
+                count: nav.pendingPaymentCount.value,
+                color: AppColors.warning,
+                child: const Icon(Iconsax.receipt_copy, size: 20),
+              ),
+              selectedIcon: _NavBadge(
+                count: nav.pendingPaymentCount.value,
+                color: AppColors.warning,
+                child: const Icon(Iconsax.receipt_2, size: 20, color: AppColors.primary),
+              ),
+              label: 'Payments',
+            ),
+            NavigationDestination(
+              icon: _NavBadge(
+                count: nav.unreadAlertCount.value,
+                color: AppColors.error,
+                child: const Icon(Iconsax.notification_copy, size: 20),
+              ),
+              selectedIcon: _NavBadge(
+                count: nav.unreadAlertCount.value,
+                color: AppColors.error,
+                child: const Icon(Iconsax.notification, size: 20, color: AppColors.primary),
+              ),
+              label: 'Alerts',
+            ),
+            const NavigationDestination(
+              icon: Icon(Iconsax.people_copy, size: 20),
+              selectedIcon: Icon(Iconsax.profile_2user, size: 20, color: AppColors.primary),
+              label: 'Users',
+            ),
+            const NavigationDestination(
+              icon: Icon(Iconsax.book_copy, size: 20),
+              selectedIcon: Icon(Iconsax.book, size: 20, color: AppColors.primary),
+              label: 'Content',
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+class _NavBadge extends StatelessWidget {
+  const _NavBadge({
+    required this.count,
+    required this.color,
+    required this.child,
+  });
+
+  final int count;
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (count <= 0) return child;
+    return Badge(
+      label: Text(
+        count > 99 ? '99+' : '$count',
+        style: const TextStyle(
+          fontSize: 9.5,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+      backgroundColor: color,
+      child: child,
+    );
+  }
+}
+
+// ── Tab Bodies ─────────────────────────────────────────────────────────────
+
 class _Pages extends StatelessWidget {
   const _Pages({required this.nav});
 

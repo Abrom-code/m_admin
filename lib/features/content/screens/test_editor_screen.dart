@@ -50,23 +50,26 @@ class _TestEditorScreenState extends State<TestEditorScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(widget.testId == null ? 'New test' : 'Edit test'),
-            if (widget.subjectName.isNotEmpty)
-              Text(
-                widget.subjectName,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.6),
+        title: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(widget.testId == null ? 'New test' : 'Edit test'),
+              if (widget.subjectName.isNotEmpty)
+                Text(
+                  widget.subjectName,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.6),
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
         actions: [
           Padding(

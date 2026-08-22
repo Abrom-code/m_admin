@@ -26,30 +26,72 @@ class NotificationsScreen extends StatelessWidget {
         children: [
           // Top bar: filter chips + send button OR select-mode actions
           Obx(() {
-            if (controller.isSelecting.value) {
-              return _SelectionBar(controller: controller, context: context);
-            }
-            return Row(
-              children: [
-                Expanded(child: _TypeFilter(controller: controller)),
-                const SizedBox(width: AppSizes.md),
-                FilledButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          NotificationComposeScreen(controller: controller),
+            final dark = AppHelperFunctions.isDark(context);
+            final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppSizes.sm, vertical: AppSizes.xs),
+              decoration: BoxDecoration(
+                color: dark ? AppColors.darkSurface : AppColors.white,
+                borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                border: Border.all(color: borderColor),
+              ),
+              child: controller.isSelecting.value
+                  ? _SelectionBar(controller: controller, context: context)
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isNarrow = constraints.maxWidth < 600;
+
+                        final typeFilter = _TypeFilter(controller: controller);
+                        final sendBtn = FilledButton.icon(
+                          onPressed: () {
+                            FocusScope.of(context).unfocus();
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    NotificationComposeScreen(controller: controller),
+                              ),
+                            );
+                          },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSizes.md,
+                              vertical: 8,
+                            ),
+                          ),
+                          icon: const Icon(Iconsax.send_1_copy, size: 16),
+                          label: const Text('Send notification', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        );
+
+                        if (isNarrow) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: typeFilter,
+                              ),
+                              const SizedBox(height: 6),
+                              sendBtn,
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: typeFilter,
+                              ),
+                            ),
+                            const SizedBox(width: AppSizes.sm),
+                            sendBtn,
+                          ],
+                        );
+                      },
                     ),
-                  ),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSizes.md,
-                      vertical: AppSizes.sm,
-                    ),
-                  ),
-                  icon: const Icon(Iconsax.send_1_copy, size: 18),
-                  label: const Text('Send notification'),
-                ),
-              ],
             );
           }),
           const SizedBox(height: AppSizes.spaceBtwItems),
@@ -167,102 +209,7 @@ class _SelectionBar extends StatelessWidget {
   }
 }
 
-class _StatsRow extends StatelessWidget {
-  const _StatsRow({required this.controller});
 
-  final NotificationsController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final s = controller.stats.value;
-      if (s == null) return const SizedBox.shrink();
-
-      return Wrap(
-        spacing: AppSizes.sm,
-        runSpacing: AppSizes.sm,
-        children: [
-          _StatChip(
-            label: 'Total sent',
-            value: s['total']?.toString() ?? '0',
-            icon: Iconsax.notification_bing_copy,
-            color: AppColors.info,
-          ),
-          _StatChip(
-            label: 'Announcements',
-            value: s['announcement']?.toString() ?? '0',
-            icon: Iconsax.message_copy,
-            color: AppColors.primary,
-          ),
-          _StatChip(
-            label: 'Content',
-            value: s['new_content']?.toString() ?? '0',
-            icon: Iconsax.document_text_copy,
-            color: AppColors.success,
-          ),
-          _StatChip(
-            label: 'Payment',
-            value: s['payment']?.toString() ?? '0',
-            icon: Iconsax.wallet_copy,
-            color: AppColors.warning,
-          ),
-        ],
-      );
-    });
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  const _StatChip({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSizes.md,
-        vertical: AppSizes.sm,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: AppSizes.xs),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
-          const SizedBox(width: AppSizes.xs),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _TypeFilter extends StatelessWidget {
   const _TypeFilter({required this.controller});

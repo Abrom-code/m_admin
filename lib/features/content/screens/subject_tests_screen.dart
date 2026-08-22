@@ -36,7 +36,7 @@ class TestRow {
   bool get isUntimed => time == -1;
 
   Color get typeColor {
-    switch (type) {
+    switch (type.toLowerCase()) {
       case 'chapter':
         return AppColors.primary;
       case 'entrance':
@@ -119,6 +119,7 @@ class SubjectTestsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
     final controller = Get.put(
       SubjectTestsController(subject: subject),
       tag: 'subject_tests_${subject.id}',
@@ -130,34 +131,74 @@ class SubjectTestsScreen extends StatelessWidget {
         arguments: {
           'subject_id': subject.id,
           'subject_name': subject.name,
-          'test_id': ?testId,
+          'test_id': testId,
         },
       )?.then((_) => controller.loadTests());
     }
 
     return Scaffold(
+      backgroundColor: dark ? AppColors.dark : AppColors.light,
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(subject.name, overflow: TextOverflow.ellipsis),
-            Text(
-              '${subject.testCount} tests · ${subject.questionCount} questions',
-              style: TextStyle(
-                fontSize: 11,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+        backgroundColor: dark ? AppColors.darkSurface : AppColors.white,
+        title: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    subject.name,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  Obx(
+                    () => Text(
+                      '${controller.tests.length} tests · ${controller.tests.fold(0, (sum, t) => sum + t.questionCount)} questions',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+            );
+          },
         ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: AppSizes.md),
-            child: FilledButton.icon(
-              onPressed: () => openTest(null),
-              icon: const Icon(Icons.add_rounded, size: AppSizes.iconSm),
-              label: const Text('New Test'),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = MediaQuery.sizeOf(context).width < 500;
+
+                if (isCompact) {
+                  return IconButton.filled(
+                    style: IconButton.styleFrom(backgroundColor: AppColors.primary),
+                    onPressed: () => openTest(null),
+                    icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
+                    tooltip: 'Create Test',
+                  );
+                }
+
+                return FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  ),
+                  onPressed: () => openTest(null),
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text(
+                    'Create Test',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -170,54 +211,91 @@ class SubjectTestsScreen extends StatelessWidget {
             isLoading: controller.isLoading.value,
             error: controller.error.value,
             onRetry: controller.loadTests,
-            emptyTitle: 'No tests yet',
-            emptyMessage:
-                'Tap "New Test" to create the first test for this subject.',
-            minWidth: 500,
+            emptyTitle: 'No tests found',
+            emptyMessage: 'Tap "Create Test" to add the first test for ${subject.name}.',
+            minWidth: 680,
             columns: [
               AdminColumn<TestRow>(
-                label: 'TITLE',
+                label: 'TEST TITLE',
                 flex: 4,
-                cell: (_, row) => Text(
-                  row.title,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+                cell: (_, row) => Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: row.typeColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Icon(
+                        Iconsax.clipboard_text_copy,
+                        size: 14,
+                        color: row.typeColor,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        row.title,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               AdminColumn<TestRow>(
                 label: 'TYPE',
-                width: 90,
-                cell: (_, row) =>
-                    _Chip(label: row.type, color: row.typeColor),
+                width: 95,
+                cell: (_, row) => _TestTypeChip(label: row.type, color: row.typeColor),
               ),
               AdminColumn<TestRow>(
                 label: 'GRADE',
-                width: 60,
+                width: 65,
                 numeric: true,
-                cell: (_, row) => Text(
-                  row.grade != null ? 'G${row.grade}' : '—',
-                  style: const TextStyle(fontSize: 12),
+                cell: (_, row) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    row.grade != null ? 'G${row.grade}' : '—',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
               AdminColumn<TestRow>(
-                label: 'TIME',
-                width: 70,
+                label: 'TIME LIMIT',
+                width: 95,
                 numeric: true,
                 cell: (_, row) => Text(
-                  row.isUntimed ? '∞' : '${row.time}m',
-                  style: const TextStyle(fontSize: 12),
+                  row.isUntimed ? 'Untimed (∞)' : '${row.time}m',
+                  style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
                 ),
               ),
               AdminColumn<TestRow>(
-                label: 'QS',
-                width: 52,
+                label: 'QUESTIONS',
+                width: 90,
                 numeric: true,
-                cell: (_, row) => Text(
-                  '${row.questionCount}',
-                  style: const TextStyle(fontSize: 12),
+                cell: (_, row) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '${row.questionCount} Qs',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -225,15 +303,15 @@ class SubjectTestsScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  tooltip: 'Edit test',
-                  icon: const Icon(Iconsax.edit, size: AppSizes.iconSm),
+                  tooltip: 'Edit Test',
+                  icon: const Icon(Iconsax.edit_2_copy, size: 16),
                   onPressed: () => openTest(row.id),
                 ),
                 IconButton(
-                  tooltip: 'Delete test',
+                  tooltip: 'Delete Test',
                   icon: const Icon(
-                    Iconsax.trash,
-                    size: AppSizes.iconSm,
+                    Iconsax.trash_copy,
+                    size: 16,
                     color: AppColors.error,
                   ),
                   onPressed: () => _confirmDelete(ctx, row, controller),
@@ -253,10 +331,10 @@ class SubjectTestsScreen extends StatelessWidget {
   ) {
     Get.dialog(
       AlertDialog(
-        title: const Text('Delete test?'),
+        title: const Text('Delete Test?'),
         content: Text(
-          '"${row.title}" and all its ${row.questionCount} question(s) '
-          'will be permanently deleted.',
+          'Are you sure you want to delete "${row.title}" and all its ${row.questionCount} question(s)? '
+          'This action cannot be undone.',
         ),
         actions: [
           TextButton(onPressed: Get.back, child: const Text('Cancel')),
@@ -266,7 +344,7 @@ class SubjectTestsScreen extends StatelessWidget {
               Get.back();
               controller.deleteTest(row.id);
             },
-            child: const Text('Delete'),
+            child: const Text('Delete Test'),
           ),
         ],
       ),
@@ -276,24 +354,26 @@ class SubjectTestsScreen extends StatelessWidget {
 
 // ── Badge chip ────────────────────────────────────────────────────────
 
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.color});
+class _TestTypeChip extends StatelessWidget {
+  const _TestTypeChip({required this.label, required this.color});
   final String label;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+        borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        label,
+        label.toUpperCase(),
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
         style: TextStyle(
           fontSize: 10,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
           color: color,
         ),
       ),

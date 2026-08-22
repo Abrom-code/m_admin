@@ -188,197 +188,148 @@ class _CompactRibbonCard extends StatelessWidget {
 
 // ── 2. Modern Filter & Search Bar ──────────────────────────────────────────
 
-class _ModernFilterBar extends StatefulWidget {
+// ── 2. Modern Filter & Search Bar ──────────────────────────────────────────
+
+class _ModernFilterBar extends StatelessWidget {
   const _ModernFilterBar({required this.controller});
   final PaymentsController controller;
 
   @override
-  State<_ModernFilterBar> createState() => _ModernFilterBarState();
-}
-
-class _ModernFilterBarState extends State<_ModernFilterBar> {
-  final _focus = FocusNode();
-  bool _searchExpanded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _focus.addListener(_onFocusChange);
-    if (widget.controller.searchController.text.isNotEmpty) {
-      _searchExpanded = true;
-    }
-  }
-
-  void _onFocusChange() {
-    if (!_focus.hasFocus && widget.controller.searchController.text.isEmpty) {
-      setState(() => _searchExpanded = false);
-    }
-  }
-
-  void _expand() {
-    setState(() => _searchExpanded = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
-  }
-
-  @override
-  void dispose() {
-    _focus.removeListener(_onFocusChange);
-    _focus.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor =
-        Theme.of(context).colorScheme.outline.withValues(alpha: 0.35);
-    final bgColor = dark
-        ? AppColors.darkGrey.withValues(alpha: 0.3)
-        : AppColors.grey.withValues(alpha: 0.1);
+    final dark = AppHelperFunctions.isDark(context);
+    final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
 
-    return AdminCard(
-      padding: const EdgeInsets.all(AppSizes.sm),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSizes.sm, vertical: AppSizes.xs),
+      decoration: BoxDecoration(
+        color: dark ? AppColors.darkSurface : AppColors.white,
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(color: borderColor),
+      ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isNarrow = constraints.maxWidth < 600;
+          final isNarrow = constraints.maxWidth < 650;
+
+          final searchInput = Container(
+            height: 36,
+            decoration: BoxDecoration(
+              color: dark
+                  ? AppColors.darkGrey.withValues(alpha: 0.3)
+                  : AppColors.grey.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+            ),
+            child: TextField(
+              controller: controller.searchController,
+              onChanged: controller.onSearchChanged,
+              onSubmitted: (_) => FocusScope.of(context).unfocus(),
+              onTapOutside: (_) => FocusScope.of(context).unfocus(),
+              style: const TextStyle(fontSize: 12.5),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Search student name, email...',
+                hintStyle: TextStyle(
+                  color: AppColors.textSecondary.withValues(alpha: 0.6),
+                  fontSize: 12.5,
+                ),
+                prefixIcon: const Icon(
+                  Iconsax.search_normal_copy,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                ),
+                suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: controller.searchController,
+                  builder: (_, value, _) {
+                    if (value.text.isEmpty) return const SizedBox.shrink();
+                    return IconButton(
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        size: 15,
+                        color: AppColors.textSecondary,
+                      ),
+                      onPressed: () {
+                        controller.searchController.clear();
+                        controller.onSearchChanged('');
+                      },
+                      visualDensity: VisualDensity.compact,
+                    );
+                  },
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+            ),
+          );
+
+          final filterRow = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Payment Method Dropdown
+              Obx(
+                () => _FilterDropdown<String?>(
+                  borderColor: borderColor,
+                  icon: Iconsax.card_copy,
+                  hint: 'Method',
+                  value: controller.methodFilter.value,
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('All methods', style: TextStyle(fontSize: 12)),
+                    ),
+                    ...PaymentMethodInfo.byKey.entries.map(
+                      (e) => DropdownMenuItem(
+                        value: e.key,
+                        child: Text(e.value.label, style: const TextStyle(fontSize: 12)),
+                      ),
+                    ),
+                  ],
+                  onChanged: controller.setMethodFilter,
+                ),
+              ),
+              const SizedBox(width: AppSizes.xs),
+
+              // Date Range Pill
+              _DatePill(controller: controller),
+              const SizedBox(width: AppSizes.xs),
+
+              // Clear Filters Button
+              Obx(() {
+                final active = controller.methodFilter.value != null ||
+                    controller.dateRange.value != null ||
+                    controller.searchController.text.isNotEmpty;
+                if (!active) return const SizedBox.shrink();
+                return IconButton(
+                  tooltip: 'Reset filters',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: controller.clearFilters,
+                  icon: const Icon(
+                    Icons.filter_alt_off_rounded,
+                    size: AppSizes.iconSm,
+                    color: AppColors.error,
+                  ),
+                );
+              }),
+            ],
+          );
+
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                searchInput,
+                const SizedBox(height: 6),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: filterRow,
+                ),
+              ],
+            );
+          }
 
           return Row(
             children: [
-              // ── Search Field ──
-              GestureDetector(
-                onTap: _searchExpanded ? null : _expand,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  width: isNarrow
-                      ? (_searchExpanded ? 180 : 34)
-                      : (_searchExpanded ? 240 : 34),
-                  height: 34,
-                  clipBehavior: Clip.hardEdge,
-                  decoration: BoxDecoration(
-                    color: _searchExpanded ? bgColor : Colors.transparent,
-                    borderRadius:
-                        BorderRadius.circular(AppSizes.borderRadiusMd),
-                  ),
-                  child: AbsorbPointer(
-                    absorbing: !_searchExpanded,
-                    child: TextField(
-                      controller: widget.controller.searchController,
-                      focusNode: _focus,
-                      onChanged: widget.controller.onSearchChanged,
-                      style: const TextStyle(fontSize: 12.5),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        hintText: 'Search student name, email...',
-                        hintStyle: TextStyle(
-                          color: AppColors.textSecondary.withValues(alpha: 0.6),
-                          fontSize: 12.5,
-                        ),
-                        prefixIcon: const Icon(
-                          Icons.search_rounded,
-                          size: 17,
-                          color: AppColors.textSecondary,
-                        ),
-                        suffixIcon: ValueListenableBuilder<TextEditingValue>(
-                          valueListenable: widget.controller.searchController,
-                          builder: (_, value, _) {
-                            if (value.text.isEmpty) {
-                              return const SizedBox.shrink();
-                            }
-                            return IconButton(
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                size: 15,
-                                color: AppColors.textSecondary,
-                              ),
-                              onPressed: () {
-                                widget.controller.searchController.clear();
-                                widget.controller.onSearchChanged('');
-                              },
-                              visualDensity: VisualDensity.compact,
-                            );
-                          },
-                        ),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 9,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              Expanded(child: searchInput),
               const SizedBox(width: AppSizes.sm),
-
-              // ── Filter Pills ──
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      // Payment Method Dropdown
-                      Obx(
-                        () => _FilterDropdown<String?>(
-                          borderColor: borderColor,
-                          icon: Iconsax.card_copy,
-                          hint: 'Method',
-                          value: widget.controller.methodFilter.value,
-                          items: [
-                            const DropdownMenuItem(
-                              value: null,
-                              child: Text('All methods'),
-                            ),
-                            ...PaymentMethodInfo.byKey.entries.map(
-                              (e) => DropdownMenuItem(
-                                value: e.key,
-                                child: Text(e.value.label),
-                              ),
-                            ),
-                          ],
-                          onChanged: widget.controller.setMethodFilter,
-                        ),
-                      ),
-                      const SizedBox(width: AppSizes.sm),
-
-                      // Date Range Pill
-                      _DatePill(controller: widget.controller),
-                      const SizedBox(width: AppSizes.sm),
-
-                      // Clear Filters Button
-                      Obx(() {
-                        final active =
-                            widget.controller.methodFilter.value != null ||
-                                widget.controller.dateRange.value != null ||
-                                widget.controller.searchController.text.isNotEmpty;
-                        if (!active) return const SizedBox.shrink();
-                        return TextButton.icon(
-                          style: TextButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                          ),
-                          onPressed: widget.controller.clearFilters,
-                          icon: const Icon(
-                            Icons.filter_alt_off_rounded,
-                            size: 14,
-                            color: AppColors.error,
-                          ),
-                          label: const Text(
-                            'Reset',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: AppColors.error,
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-              ),
+              filterRow,
             ],
           );
         },
@@ -590,6 +541,7 @@ class _ModernTable extends StatelessWidget {
   }
 
   void _openDetail(BuildContext context, PaymentReview row) {
+    FocusScope.of(context).unfocus();
     final wide = MediaQuery.sizeOf(context).width >= 1200;
 
     if (wide) {
