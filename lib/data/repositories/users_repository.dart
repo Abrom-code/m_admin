@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -29,7 +29,7 @@ class UsersRepository {
       }
 
       if (streamFilter != null && streamFilter.isNotEmpty) {
-        q = q.eq('stream', streamFilter);
+        q = q.ilike('stream', streamFilter);
       }
 
       if (search != null && search.trim().isNotEmpty) {
@@ -45,12 +45,40 @@ class UsersRepository {
           .order('created_at', ascending: false)
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      return rows
+      final users = rows
           .map(
             (r) =>
                 AdminUserModel.fromJson(Map<String, dynamic>.from(r)),
           )
           .toList();
+
+      // Deduplicate by email so the same student doesn't appear as multiple users
+      final seenEmails = <String, AdminUserModel>{};
+      final deduped = <AdminUserModel>[];
+
+      for (final user in users) {
+        final cleanEmail = user.email.trim().toLowerCase();
+        if (cleanEmail.isEmpty) {
+          deduped.add(user);
+          continue;
+        }
+
+        if (seenEmails.containsKey(cleanEmail)) {
+          final existing = seenEmails[cleanEmail]!;
+          // Merge: prioritize active subscription status and newest update
+          final preferred = (user.isActive && !existing.isActive) ? user : existing;
+          seenEmails[cleanEmail] = preferred;
+          final idx = deduped.indexWhere((u) => u.email.trim().toLowerCase() == cleanEmail);
+          if (idx != -1) {
+            deduped[idx] = preferred;
+          }
+        } else {
+          seenEmails[cleanEmail] = user;
+          deduped.add(user);
+        }
+      }
+
+      return deduped;
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
@@ -90,10 +118,26 @@ class UsersRepository {
         }
       }
 
+      // 1. Update target user record
       await _sb
           .from('users')
           .update(update)
           .eq('id', userId);
+
+      // 2. Fetch email and update any other records sharing this email
+      final userRow = await _sb
+          .from('users')
+          .select('email')
+          .eq('id', userId)
+          .maybeSingle();
+
+      final email = userRow?['email']?.toString();
+      if (email != null && email.trim().isNotEmpty) {
+        await _sb
+            .from('users')
+            .update(update)
+            .ilike('email', email.trim());
+      }
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
@@ -115,6 +159,8 @@ class UsersRepository {
   Future<void> sendSubscriptionPush({
     required String userId,
     required String status,
+    String? title,
+    String? body,
     String? reason,
   }) async {
     try {
@@ -130,6 +176,8 @@ class UsersRepository {
               'event': 'payment_status',
               'user_id': userId,
               'status': status,
+              if (title != null && title.isNotEmpty) 'title': title,
+              if (body != null && body.isNotEmpty) 'body': body,
               if (reason != null && reason.isNotEmpty)
                 'rejection_reason': reason,
             }),

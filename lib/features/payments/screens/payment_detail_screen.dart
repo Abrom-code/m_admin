@@ -1,12 +1,12 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
-import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/data/repositories/admin_payment_repository.dart';
 import 'package:m_admin/features/payments/controllers/payments_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
+import 'package:m_admin/features/payments/screens/widgets/approve_payment_dialog.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/features/payments/screens/widgets/receipt_viewer.dart';
 import 'package:m_admin/features/payments/screens/widgets/reject_dialog.dart';
@@ -148,27 +148,18 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
   Future<void> _approve() async {
     if (_controller.isActing(_review.id)) return;
 
-    final amount = _review.amount ?? 250;
+    final result = await ApprovePaymentDialog.show(context, review: _review);
+    if (result == null) return;
 
-    final confirmed = await AppDialogBoxes.confirm(
-      title: 'Approve payment',
-      message:
-          'Grant ${_review.planLabel} premium access to ${_review.displayName} '
-          '(${_review.userEmail})?',
-      confirmLabel: 'Approve',
-      detail: _ConfirmDetail(
-        rows: {
-          'Plan': _review.planLabel,
-          'Amount': '$amount ${_review.currency}',
-          'Method': PaymentMethodInfo.labelOf(_review.paymentMethod),
-          'Current status': _review.subscriptionStatus,
-        },
-      ),
+    final ok = await _controller.approve(
+      _review,
+      amount: result.amount,
+      planKey: result.planKey == 'custom' ? _review.planKey : result.planKey,
+      planDurationMonths: result.planDurationMonths,
+      expiresAt: result.expiresAt,
+      notificationTitle: result.notificationTitle,
+      notificationBody: result.notificationBody,
     );
-
-    if (!confirmed) return;
-
-    final ok = await _controller.approve(_review, amount: amount);
     if (!mounted) return;
 
     if (ok) _advance();
@@ -378,51 +369,6 @@ class _KeyValue extends StatelessWidget {
               visualDensity: VisualDensity.compact,
               onPressed: () => Clipboard.setData(ClipboardData(text: value)),
               icon: const Icon(Icons.copy_rounded),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ConfirmDetail extends StatelessWidget {
-  const _ConfirmDetail({required this.rows});
-
-  final Map<String, String> rows;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSizes.sm),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final entry in rows.entries)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  Text(
-                    entry.key,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    entry.value,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
             ),
         ],
       ),

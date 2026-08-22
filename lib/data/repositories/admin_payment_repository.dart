@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:http/http.dart' as http;
@@ -105,13 +105,14 @@ class AdminPaymentRepository {
   }
 
   /// Approves a payment: marks the receipt approved, sets expiration, and grants the user premium.
-  Future<void> approve({
+  Future<DateTime> approve({
     required String receiptId,
     required String userId,
     required String adminUid,
     num? amount,
     String? planKey,
     int? planDurationMonths,
+    DateTime? customExpiry,
     String? note,
   }) async {
     try {
@@ -123,29 +124,36 @@ class AdminPaymentRepository {
         'status': 'approved',
         'reviewed_by': adminUid,
         'reviewed_at': nowIso,
-        'amount': amount,
+        'amount': ?amount,
+        'plan_key': ?planKey,
+        'plan_duration_months': ?planDurationMonths,
       }).eq('id', receiptId);
 
       // 2. Calculate subscription expiration
-      final months = planDurationMonths ?? 12;
-      
-      // Fetch current user expiration if active
-      final userRow = await _supabase
-          .from('users')
-          .select('subscription_expires_at, subscription_status')
-          .eq('id', userId)
-          .maybeSingle();
+      DateTime newExpiry;
+      if (customExpiry != null) {
+        newExpiry = customExpiry;
+      } else {
+        final months = planDurationMonths ?? 12;
 
-      final currentExpiryRaw = userRow?['subscription_expires_at'];
-      final currentExpiry = currentExpiryRaw != null
-          ? DateTime.tryParse(currentExpiryRaw.toString())
-          : null;
+        // Fetch current user expiration if active
+        final userRow = await _supabase
+            .from('users')
+            .select('subscription_expires_at, subscription_status')
+            .eq('id', userId)
+            .maybeSingle();
 
-      final baseDate = (currentExpiry != null && currentExpiry.isAfter(DateTime.now()))
-          ? currentExpiry
-          : DateTime.now();
+        final currentExpiryRaw = userRow?['subscription_expires_at'];
+        final currentExpiry = currentExpiryRaw != null
+            ? DateTime.tryParse(currentExpiryRaw.toString())
+            : null;
 
-      final newExpiry = DateTime(baseDate.year, baseDate.month + months, baseDate.day);
+        final baseDate = (currentExpiry != null && currentExpiry.isAfter(DateTime.now()))
+            ? currentExpiry
+            : DateTime.now();
+
+        newExpiry = DateTime(baseDate.year, baseDate.month + months, baseDate.day);
+      }
 
       // 3. Grant active premium with calculated expiration and plan
       await _supabase
@@ -156,6 +164,8 @@ class AdminPaymentRepository {
             'subscription_expires_at': newExpiry.toUtc().toIso8601String(),
           })
           .eq('id', userId);
+
+      return newExpiry;
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
@@ -204,6 +214,8 @@ class AdminPaymentRepository {
   Future<void> sendPaymentPush({
     required String userId,
     required String status,
+    String? title,
+    String? body,
     String? reason,
   }) async {
     try {
@@ -219,6 +231,8 @@ class AdminPaymentRepository {
               'event': 'payment_status',
               'user_id': userId,
               'status': status,
+              if (title != null && title.isNotEmpty) 'title': title,
+              if (body != null && body.isNotEmpty) 'body': body,
               if (reason != null && reason.isNotEmpty)
                 'rejection_reason': reason,
             }),

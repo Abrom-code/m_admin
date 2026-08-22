@@ -69,10 +69,15 @@ class SettingsController extends GetxController {
   final webhookSecret = TextEditingController();
   final showSecret = false.obs;
 
-  // App config
+  // App config & Subscription plan pricing
   final isSavingApp = false.obs;
   final trialCount = TextEditingController(text: '5');
-  final subscriptionPrice = TextEditingController(text: '0');
+  final subscriptionPrice = TextEditingController(text: '250');
+  final planPrice6Months = TextEditingController(text: '150');
+  final planPrice1Year = TextEditingController(text: '250');
+  final planPrice2Years = TextEditingController(text: '400');
+  final planPrice3Years = TextEditingController(text: '550');
+  final planPrice4Years = TextEditingController(text: '650');
   final telegramLink = TextEditingController();
   final shareLink = TextEditingController();
 
@@ -95,6 +100,11 @@ class SettingsController extends GetxController {
     webhookSecret.dispose();
     trialCount.dispose();
     subscriptionPrice.dispose();
+    planPrice6Months.dispose();
+    planPrice1Year.dispose();
+    planPrice2Years.dispose();
+    planPrice3Years.dispose();
+    planPrice4Years.dispose();
     telegramLink.dispose();
     shareLink.dispose();
     super.onClose();
@@ -133,6 +143,18 @@ class SettingsController extends GetxController {
             trialCount.text = value;
           case 'subscription_price':
             subscriptionPrice.text = value;
+            if (planPrice1Year.text == '250') planPrice1Year.text = value;
+          case 'plan_price_6_months':
+            planPrice6Months.text = value;
+          case 'plan_price_1_year':
+            planPrice1Year.text = value;
+            subscriptionPrice.text = value;
+          case 'plan_price_2_years':
+            planPrice2Years.text = value;
+          case 'plan_price_3_years':
+            planPrice3Years.text = value;
+          case 'plan_price_4_years':
+            planPrice4Years.text = value;
           case 'telegram_link':
             telegramLink.text = value;
           case 'share_link':
@@ -207,11 +229,16 @@ class SettingsController extends GetxController {
       isSavingApp.value = true;
       await _upsertMany({
         'trial_count': trialCount.text.trim(),
-        'subscription_price': subscriptionPrice.text.trim(),
+        'plan_price_6_months': planPrice6Months.text.trim(),
+        'plan_price_1_year': planPrice1Year.text.trim(),
+        'plan_price_2_years': planPrice2Years.text.trim(),
+        'plan_price_3_years': planPrice3Years.text.trim(),
+        'plan_price_4_years': planPrice4Years.text.trim(),
+        'subscription_price': planPrice1Year.text.trim(),
         'telegram_link': telegramLink.text.trim(),
         'share_link': shareLink.text.trim(),
       });
-      SnackbarHelper.success('Saved', 'App config updated.');
+      SnackbarHelper.success('Saved', 'App config and subscription prices updated.');
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
     } finally {
@@ -621,6 +648,8 @@ class _WebhookSection extends StatelessWidget {
 
 // ── App config section ────────────────────────────────────────────────
 
+// ── App config section ────────────────────────────────────────────────
+
 class _AppConfigSection extends StatelessWidget {
   const _AppConfigSection(this.c);
   final SettingsController c;
@@ -628,53 +657,133 @@ class _AppConfigSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AdminSection(
-      title: 'App config',
+      title: 'Subscription Pricing & App Config',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Trial count and pricing shown in the student app.',
+            'Dynamic subscription plan prices (in ETB) and general app settings synced with the student app.',
             style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: AppSizes.md),
+
+          Text(
+            'Subscription Plan Prices (ETB)',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: AppSizes.sm),
+
+          // Row 1: 6 Months & 1 Year
           Row(
             children: [
               Expanded(
                 child: TextFormField(
-                  controller: c.trialCount,
+                  controller: c.planPrice6Months,
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(
-                    labelText: 'Trial questions',
-                    hintText: '5',
-                    prefixIcon: Icon(Iconsax.task_square_copy, size: 16),
+                    labelText: '6 Months Plan (ETB)',
+                    hintText: '150',
+                    prefixIcon: Icon(Iconsax.calendar_1_copy, size: 16),
                   ),
                 ),
               ),
               const SizedBox(width: AppSizes.md),
               Expanded(
                 child: TextFormField(
-                  controller: c.subscriptionPrice,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  controller: c.planPrice1Year,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(
-                    labelText: 'Subscription price (ETB)',
-                    hintText: '0',
-                    prefixIcon: Icon(Iconsax.money_copy, size: 16),
+                    labelText: '1 Year Plan (ETB) - Featured',
+                    hintText: '250',
+                    prefixIcon: Icon(Iconsax.star_1_copy, size: 16),
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: AppSizes.md),
+
+          // Row 2: 2 Years & 3 Years
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: c.planPrice2Years,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    labelText: '2 Years Plan (ETB)',
+                    hintText: '400',
+                    prefixIcon: Icon(Iconsax.calendar_copy, size: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSizes.md),
+              Expanded(
+                child: TextFormField(
+                  controller: c.planPrice3Years,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    labelText: '3 Years Plan (ETB)',
+                    hintText: '550',
+                    prefixIcon: Icon(Iconsax.calendar_copy, size: 16),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSizes.md),
+
+          // Row 3: 4 Years & Trial Questions
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: c.planPrice4Years,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    labelText: '4 Years Plan (ETB)',
+                    hintText: '650',
+                    prefixIcon: Icon(Iconsax.calendar_copy, size: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSizes.md),
+              Expanded(
+                child: TextFormField(
+                  controller: c.trialCount,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    labelText: 'Trial questions count',
+                    hintText: '5',
+                    prefixIcon: Icon(Iconsax.task_square_copy, size: 16),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSizes.lg),
+
+          Text(
+            'App Links',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: AppSizes.sm),
+
+          // Row 4: Telegram & Share link
           Row(
             children: [
               Expanded(
                 child: TextFormField(
                   controller: c.telegramLink,
                   decoration: const InputDecoration(
-                    labelText: 'Telegram link',
-                    hintText: 'https://t.me/...',
+                    labelText: 'Telegram support link',
+                    hintText: 'https://t.me/matric_mate',
                     prefixIcon: Icon(Iconsax.send_1_copy, size: 16),
                   ),
                 ),
@@ -684,7 +793,7 @@ class _AppConfigSection extends StatelessWidget {
                 child: TextFormField(
                   controller: c.shareLink,
                   decoration: const InputDecoration(
-                    labelText: 'Share link',
+                    labelText: 'App share link',
                     hintText: 'https://matricmate.com/...',
                     prefixIcon: Icon(Iconsax.share_copy, size: 16),
                   ),
@@ -707,7 +816,7 @@ class _AppConfigSection extends StatelessWidget {
                         ),
                       )
                     : const Icon(Icons.save_rounded, size: 16),
-                label: const Text('Save config'),
+                label: const Text('Save configuration & prices'),
               ),
             ),
           ),

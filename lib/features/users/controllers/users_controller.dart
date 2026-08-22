@@ -1,9 +1,10 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/users_repository.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
 import 'package:m_admin/features/dashboard/controllers/dashboard_controller.dart';
+import 'package:m_admin/features/users/models/admin_subscription_plan.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
@@ -67,6 +68,7 @@ class UsersController extends GetxController {
         page: page.value,
         pageSize: pageSize,
       );
+      _deduplicateRows();
     } catch (e) {
       errorMessage.value = AppExceptionHandler.handle(e).message;
     } finally {
@@ -158,7 +160,7 @@ class UsersController extends GetxController {
 
       SnackbarHelper.success(
         'Updated',
-        ' is now .',
+        '${user.displayName} is now $status.',
       );
       await refreshCounts();
 
@@ -167,10 +169,28 @@ class UsersController extends GetxController {
         DashboardController.instance.load();
       }
 
+      // Build specific push notification with plan and expiration timing.
+      String? notifTitle;
+      String? notifBody;
+      if (status == 'active' && expiresAt != null) {
+        notifTitle = AdminSubscriptionPlan.buildGrantNotificationTitle(plan);
+        notifBody = AdminSubscriptionPlan.buildGrantNotificationBody(
+          planKey: plan,
+          expiresAt: expiresAt,
+        );
+      } else if (status == 'inactive') {
+        notifTitle = 'Subscription Update';
+        notifBody = (reason != null && reason.isNotEmpty)
+            ? 'Your premium access has been deactivated: $reason'
+            : 'Your premium access has been deactivated.';
+      }
+
       // Send push notification (best-effort — must not fail the action).
       await _repo.sendSubscriptionPush(
         userId: user.id,
         status: status,
+        title: notifTitle,
+        body: notifBody,
         reason: reason,
       );
     } catch (e) {
@@ -211,21 +231,56 @@ class UsersController extends GetxController {
     String? plan,
     DateTime? expiresAt,
   }) {
-    final idx = rows.indexWhere((r) => r.id == userId);
-    if (idx == -1) return;
-    rows[idx] = rows[idx].copyWith(
-      subscriptionStatus: status,
-      subscriptionPlan: status == 'inactive' ? null : (plan ?? rows[idx].subscriptionPlan),
-      subscriptionExpiresAt: status == 'inactive' ? null : (expiresAt ?? rows[idx].subscriptionExpiresAt),
-    );
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].id == userId) {
+        rows[i] = rows[i].copyWith(
+          subscriptionStatus: status,
+          subscriptionPlan: status == 'inactive' ? null : (plan ?? rows[i].subscriptionPlan),
+          subscriptionExpiresAt: status == 'inactive' ? null : (expiresAt ?? rows[i].subscriptionExpiresAt),
+        );
+      }
+    }
+    _deduplicateRows();
     rows.refresh();
   }
 
   void applyLocalUploadCountUpdate(String userId, int count) {
-    final idx = rows.indexWhere((r) => r.id == userId);
-    if (idx == -1) return;
-    rows[idx] = rows[idx].copyWith(receiptUploadCount: count);
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].id == userId) {
+        rows[i] = rows[i].copyWith(receiptUploadCount: count);
+      }
+    }
+    _deduplicateRows();
     rows.refresh();
+  }
+
+  void _deduplicateRows() {
+    final seenEmails = <String, AdminUserModel>{};
+    final unique = <AdminUserModel>[];
+
+    for (final user in rows) {
+      final cleanEmail = user.email.trim().toLowerCase();
+      if (cleanEmail.isEmpty) {
+        unique.add(user);
+        continue;
+      }
+
+      if (seenEmails.containsKey(cleanEmail)) {
+        final existing = seenEmails[cleanEmail]!;
+        // Prefer active subscription status or newest record
+        final preferred = (user.isActive && !existing.isActive) ? user : existing;
+        seenEmails[cleanEmail] = preferred;
+        final idx = unique.indexWhere((u) => u.email.trim().toLowerCase() == cleanEmail);
+        if (idx != -1) {
+          unique[idx] = preferred;
+        }
+      } else {
+        seenEmails[cleanEmail] = user;
+        unique.add(user);
+      }
+    }
+
+    rows.assignAll(unique);
   }
 
   // ── Realtime ────────────────────────────────────────────────────────
@@ -235,32 +290,61 @@ class UsersController extends GetxController {
       _channel = Supabase.instance.client
           .channel('admin_users_status')
           .onPostgresChanges(
-            event: PostgresChangeEvent.update,
+            event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'users',
             callback: (payload) {
+              if (payload.eventType == PostgresChangeEvent.delete) {
+                final oldId = payload.oldRecord['id']?.toString();
+                if (oldId != null) {
+                  rows.removeWhere((r) => r.id == oldId);
+                  rows.refresh();
+                  refreshCounts();
+                }
+                return;
+              }
+
               final newRow = payload.newRecord;
               final userId = newRow['id']?.toString();
               if (userId == null) return;
-              final newStatus = newRow['subscription_status']?.toString();
-              final uploadCount =
-                  (newRow['receipt_upload_count'] as num?)?.toInt();
-              final plan = newRow['subscription_plan']?.toString();
-              final expiry = newRow['subscription_expires_at'] != null
-                  ? DateTime.tryParse(newRow['subscription_expires_at'].toString())
-                  : null;
 
-              final idx = rows.indexWhere((r) => r.id == userId);
+              final updatedUser =
+                  AdminUserModel.fromJson(Map<String, dynamic>.from(newRow));
+              final cleanEmail = updatedUser.email.trim().toLowerCase();
+
+              final currentStream = streamFilter.value;
+              final currentStatus = statusFilter.value;
+
+              final matchesStream = currentStream == null ||
+                  currentStream.isEmpty ||
+                  updatedUser.stream.toLowerCase() ==
+                      currentStream.toLowerCase();
+              final matchesStatus = currentStatus == null ||
+                  currentStatus.isEmpty ||
+                  updatedUser.subscriptionStatus == currentStatus;
+
+              // Find by matching user ID or matching email
+              final idx = rows.indexWhere(
+                (r) =>
+                    r.id == userId ||
+                    (cleanEmail.isNotEmpty &&
+                        r.email.trim().toLowerCase() == cleanEmail),
+              );
+
               if (idx != -1) {
-                rows[idx] = rows[idx].copyWith(
-                  subscriptionStatus: newStatus ?? rows[idx].subscriptionStatus,
-                  receiptUploadCount: uploadCount ?? rows[idx].receiptUploadCount,
-                  subscriptionPlan: plan ?? rows[idx].subscriptionPlan,
-                  subscriptionExpiresAt: expiry ?? rows[idx].subscriptionExpiresAt,
-                );
-                rows.refresh();
+                if (matchesStream && matchesStatus) {
+                  rows[idx] = updatedUser;
+                } else {
+                  rows.removeAt(idx);
+                }
+              } else if (matchesStream && matchesStatus && page.value == 0) {
+                rows.insert(0, updatedUser);
               }
+
+              _deduplicateRows();
+              rows.refresh();
               refreshCounts();
+              loadStreams();
             },
           )
           .subscribe();

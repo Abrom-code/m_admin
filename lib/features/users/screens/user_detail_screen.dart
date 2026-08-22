@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +8,7 @@ import 'package:m_admin/data/repositories/users_repository.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/features/users/controllers/users_controller.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
+import 'package:m_admin/features/users/screens/widgets/subscription_plan_dialog.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 
@@ -20,10 +21,13 @@ class UserDetailScreen extends StatefulWidget {
   State<UserDetailScreen> createState() => _UserDetailScreenState();
 }
 
+enum _DetailAction { none, grant, changePlan, revoke, resetUploads }
+
 class _UserDetailScreenState extends State<UserDetailScreen> {
   final _repo = UsersRepository();
   List<Map<String, dynamic>> _receipts = [];
   bool _loadingReceipts = true;
+  _DetailAction _activeAction = _DetailAction.none;
 
   @override
   void initState() {
@@ -48,103 +52,33 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     return idx != -1 ? controller.rows[idx] : widget.user;
   }
 
-  Future<void> _grantPremiumWithPlan(AdminUserModel user) async {
-    const plans = [
-      {'key': '6_months', 'label': '6 Months', 'months': 6},
-      {'key': '1_year', 'label': '1 Year (Default)', 'months': 12},
-      {'key': '2_years', 'label': '2 Years', 'months': 24},
-      {'key': '3_years', 'label': '3 Years', 'months': 36},
-      {'key': '4_years', 'label': '4 Years', 'months': 48},
-    ];
-
-    String selectedPlanKey = '1_year';
-    int selectedMonths = 12;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Grant Premium Access'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Select subscription plan duration for ${user.displayName}:',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  const SizedBox(height: 16),
-                  for (final p in plans)
-                    InkWell(
-                      onTap: () {
-                        setDialogState(() {
-                          selectedPlanKey = p['key'] as String;
-                          selectedMonths = p['months'] as int;
-                        });
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(
-                          children: [
-                            Radio<String>(
-                              value: p['key'] as String,
-                              groupValue: selectedPlanKey,
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setDialogState(() {
-                                    selectedPlanKey = val;
-                                    selectedMonths = p['months'] as int;
-                                  });
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            Text(p['label'] as String),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                  ),
-                  onPressed: () => Navigator.of(ctx).pop(true),
-                  child: const Text('Grant Access'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+  Future<void> _manageSubscription(AdminUserModel user, {bool isGranting = false}) async {
+    final result = await SubscriptionPlanDialog.show(
+      context,
+      user: user,
+      isGranting: isGranting,
     );
 
-    if (confirmed != true) return;
+    if (result == null) return;
 
-    final now = DateTime.now();
-    final expiry = DateTime(now.year, now.month + selectedMonths, now.day);
-
-    await UsersController.instance.setSubscription(
-      user,
-      'active',
-      plan: selectedPlanKey,
-      expiresAt: expiry,
-    );
+    setState(() => _activeAction = isGranting ? _DetailAction.grant : _DetailAction.changePlan);
+    try {
+      await UsersController.instance.setSubscription(
+        user,
+        'active',
+        plan: result.planKey == 'custom' ? (user.subscriptionPlan ?? 'custom') : result.planKey,
+        expiresAt: result.expiresAt,
+      );
+    } finally {
+      if (mounted) setState(() => _activeAction = _DetailAction.none);
+    }
   }
 
   Future<void> _setStatus(String status) async {
     final user = _liveUser;
 
     if (status == 'active') {
-      await _grantPremiumWithPlan(user);
+      await _manageSubscription(user, isGranting: true);
       return;
     }
 
@@ -158,8 +92,13 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
       );
       if (result == null) return;
 
-      await UsersController.instance
-          .setSubscription(user, status, reason: result);
+      setState(() => _activeAction = _DetailAction.revoke);
+      try {
+        await UsersController.instance
+            .setSubscription(user, status, reason: result);
+      } finally {
+        if (mounted) setState(() => _activeAction = _DetailAction.none);
+      }
       return;
     }
 
@@ -184,7 +123,12 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     );
     if (!confirmed) return;
 
-    await UsersController.instance.setReceiptUploadCount(user, 0);
+    setState(() => _activeAction = _DetailAction.resetUploads);
+    try {
+      await UsersController.instance.setReceiptUploadCount(user, 0);
+    } finally {
+      if (mounted) setState(() => _activeAction = _DetailAction.none);
+    }
   }
 
   @override
@@ -338,14 +282,19 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                   ),
                   const SizedBox(height: AppSizes.spaceBtwItems),
                   Obx(() {
-                    final acting = Get.isRegistered<UsersController>() &&
+                    final isActing = Get.isRegistered<UsersController>() &&
                         UsersController.instance.isActing(user.id);
+                    final isGrantLoading = isActing && _activeAction == _DetailAction.grant;
+                    final isChangeLoading = isActing && _activeAction == _DetailAction.changePlan;
+                    final isRevokeLoading = isActing && _activeAction == _DetailAction.revoke;
+                    final isResetLoading = isActing && _activeAction == _DetailAction.resetUploads;
+
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Row(
                           children: [
-                            if (!user.isActive)
+                            if (!user.isActive && !user.isExpired)
                               Expanded(
                                 child: ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
@@ -355,8 +304,8 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                                       vertical: AppSizes.sm,
                                     ),
                                   ),
-                                  onPressed: acting ? null : () => _setStatus('active'),
-                                  icon: acting
+                                  onPressed: isActing ? null : () => _setStatus('active'),
+                                  icon: isGrantLoading
                                       ? const SizedBox(
                                           height: 14,
                                           width: 14,
@@ -365,13 +314,42 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                                             color: AppColors.white,
                                           ),
                                         )
-                                      : const Icon(Icons.check_circle_outline, size: 18),
+                                      : const Icon(Icons.workspace_premium_rounded, size: 18),
                                   label: const Text('Grant premium'),
                                 ),
                               ),
-                            if (!user.isActive && !user.isInactive)
+                            if (user.isActive || user.isExpired)
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: AppSizes.md,
+                                      vertical: AppSizes.sm,
+                                    ),
+                                  ),
+                                  onPressed: isActing
+                                      ? null
+                                      : () => _manageSubscription(user, isGranting: false),
+                                  icon: isChangeLoading
+                                      ? const SizedBox(
+                                          height: 14,
+                                          width: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.white,
+                                          ),
+                                        )
+                                      : const Icon(Icons.edit_calendar_rounded, size: 18),
+                                  label: Text(
+                                    user.isExpired
+                                        ? 'Renew / Extend plan'
+                                        : 'Change / Extend plan',
+                                  ),
+                                ),
+                              ),
+                            if (!user.isInactive) ...[
                               const SizedBox(width: AppSizes.sm),
-                            if (!user.isInactive)
                               Expanded(
                                 child: OutlinedButton.icon(
                                   style: OutlinedButton.styleFrom(
@@ -382,8 +360,8 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                                       vertical: AppSizes.sm,
                                     ),
                                   ),
-                                  onPressed: acting ? null : () => _setStatus('inactive'),
-                                  icon: acting
+                                  onPressed: isActing ? null : () => _setStatus('inactive'),
+                                  icon: isRevokeLoading
                                       ? const SizedBox(
                                           height: 14,
                                           width: 14,
@@ -396,6 +374,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                                   label: const Text('Revoke premium'),
                                 ),
                               ),
+                            ],
                           ],
                         ),
                         if (user.receiptUploadCount > 0) ...[
@@ -409,8 +388,17 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                                 vertical: AppSizes.sm,
                               ),
                             ),
-                            onPressed: acting ? null : () => _resetUploadCount(user),
-                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            onPressed: isActing ? null : () => _resetUploadCount(user),
+                            icon: isResetLoading
+                                ? const SizedBox(
+                                    height: 14,
+                                    width: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primary,
+                                    ),
+                                  )
+                                : const Icon(Icons.refresh_rounded, size: 18),
                             label: const Text('Reset upload limit to 0'),
                           ),
                         ],

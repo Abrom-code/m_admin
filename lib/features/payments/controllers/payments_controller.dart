@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -157,42 +157,68 @@ class PaymentsController extends GetxController {
 
   // ── Actions ──────────────────────────────────────────────────────
 
-  /// Approves a receipt and notifies the student.
-  Future<bool> approve(PaymentReview review, {num? amount}) async {
+  /// Approves a receipt and notifies the student with timing and plan details.
+  Future<bool> approve(
+    PaymentReview review, {
+    num? amount,
+    String? planKey,
+    int? planDurationMonths,
+    DateTime? expiresAt,
+    String? notificationTitle,
+    String? notificationBody,
+  }) async {
     if (isActing(review.id)) return false;
+
+    final resolvedPlanKey = planKey ?? review.planKey;
+    final resolvedDuration = planDurationMonths ?? review.planDurationMonths;
+    final resolvedAmount = amount ?? review.amount;
 
     try {
       actingIds.add(review.id);
       actingIds.refresh();
 
-      await _repo.approve(
+      final calculatedExpiry = await _repo.approve(
         receiptId: review.id,
         userId: review.userId,
         adminUid: _session.adminUid,
-        amount: amount ?? review.amount,
-        planKey: review.planKey,
-        planDurationMonths: review.planDurationMonths,
+        amount: resolvedAmount,
+        planKey: resolvedPlanKey,
+        planDurationMonths: resolvedDuration,
+        customExpiry: expiresAt,
       );
 
       _applyLocal(
         review.copyWith(
           status: 'approved',
-          amount: amount ?? review.amount,
+          amount: resolvedAmount,
           reviewedBy: _session.adminUid,
           reviewedAt: DateTime.now(),
           subscriptionStatus: 'active',
+          planKey: resolvedPlanKey,
+          planDurationMonths: resolvedDuration,
         ),
       );
 
       // Keep the Users screen in sync without requiring a full reload.
-      _syncUsersController(review.userId, 'active', plan: review.planKey);
-
-      SnackbarHelper.success(
-        'Payment approved',
-        '${review.displayName} now has ${review.planLabel} premium access.',
+      _syncUsersController(
+        review.userId,
+        'active',
+        plan: resolvedPlanKey,
+        expiresAt: calculatedExpiry,
       );
 
-      await _notify(review.userId, 'active');
+      final label = review.planLabel;
+      SnackbarHelper.success(
+        'Payment approved',
+        '${review.displayName} now has $label premium access.',
+      );
+
+      await _notify(
+        review.userId,
+        'active',
+        title: notificationTitle,
+        body: notificationBody,
+      );
       await refreshCounts();
       _refreshDashboard();
       return true;
@@ -244,7 +270,14 @@ class PaymentsController extends GetxController {
         '${review.displayName} has been notified.',
       );
 
-      await _notify(review.userId, 'rejected', reason: trimmed);
+      await _notify(
+        review.userId,
+        'rejected',
+        title: 'Payment Rejected',
+        body:
+            'Your payment receipt for ${review.planLabel} could not be approved: $trimmed',
+        reason: trimmed,
+      );
       await refreshCounts();
       _refreshDashboard();
       return true;
@@ -258,11 +291,19 @@ class PaymentsController extends GetxController {
     }
   }
 
-  Future<void> _notify(String userId, String status, {String? reason}) async {
+  Future<void> _notify(
+    String userId,
+    String status, {
+    String? title,
+    String? body,
+    String? reason,
+  }) async {
     try {
       await _repo.sendPaymentPush(
         userId: userId,
         status: status,
+        title: title,
+        body: body,
         reason: reason,
       );
     } catch (_) {
