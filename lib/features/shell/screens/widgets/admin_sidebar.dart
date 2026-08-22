@@ -37,10 +37,12 @@ class AdminSidebar extends StatelessWidget {
           ),
         ],
       ),
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      child: Material(
+        color: Colors.transparent,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             const _SidebarBrand(),
             const Divider(height: 1),
 
@@ -73,6 +75,7 @@ class AdminSidebar extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

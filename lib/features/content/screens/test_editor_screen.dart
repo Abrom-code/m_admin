@@ -197,15 +197,18 @@ class _TestForm extends StatelessWidget {
             }),
             const SizedBox(height: AppSizes.spaceBtwInputFields),
             Obx(
-              () => CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Untimed', style: TextStyle(fontSize: 13)),
-                subtitle: const Text(
-                  'Writes time = -1',
-                  style: TextStyle(fontSize: 11),
+              () => Material(
+                color: Colors.transparent,
+                child: CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Untimed', style: TextStyle(fontSize: 13)),
+                  subtitle: const Text(
+                    'Writes time = -1',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  value: controller.isUntimed.value,
+                  onChanged: (v) => controller.isUntimed.value = v ?? false,
                 ),
-                value: controller.isUntimed.value,
-                onChanged: (v) => controller.isUntimed.value = v ?? false,
               ),
             ),
             Obx(() {
