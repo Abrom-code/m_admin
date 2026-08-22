@@ -373,7 +373,7 @@ class SubjectTestCountCard extends StatelessWidget {
             children: [
               const Expanded(
                 child: Text(
-                  'EXAM COVERAGE BY SUBJECT',
+                  'EXAM & TEST COVERAGE',
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,
@@ -385,9 +385,9 @@ class SubjectTestCountCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               InkWell(
-                onTap: () => AdminNavController.instance.changePage(2),
+                onTap: () => AdminNavController.instance.changePage(4), // 4 = Content Screen
                 child: const Text(
-                  'Manage in Tests ➔',
+                  'Manage in Content ➔',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -397,6 +397,39 @@ class SubjectTestCountCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: AppSizes.xs),
+          // ── Category Aggregates Bar ──
+          Obx(() {
+            final subjects = controller.subjectTestCounts;
+            final totalEntrance = subjects.fold<int>(0, (s, e) => s + e.entranceCount);
+            final totalModel = subjects.fold<int>(0, (s, e) => s + e.modelCount);
+            final totalChapter = subjects.fold<int>(0, (s, e) => s + e.chapterGradeCount);
+
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _CategoryTag(
+                    label: 'Entrance',
+                    count: totalEntrance,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  _CategoryTag(
+                    label: 'Model',
+                    count: totalModel,
+                    color: AppColors.amberAccent,
+                  ),
+                  const SizedBox(width: 6),
+                  _CategoryTag(
+                    label: 'Tests',
+                    count: totalChapter,
+                    color: AppColors.info,
+                  ),
+                ],
+              ),
+            );
+          }),
           const SizedBox(height: AppSizes.sm),
           Obx(() {
             final subjects = controller.subjectTestCounts;
@@ -430,7 +463,7 @@ class SubjectTestCountCard extends StatelessWidget {
                       crossAxisCount: 2,
                       crossAxisSpacing: AppSizes.sm,
                       mainAxisSpacing: 4,
-                      mainAxisExtent: 44,
+                      mainAxisExtent: 56,
                     ),
                     itemCount: subjects.length,
                     itemBuilder: (context, idx) {
@@ -464,48 +497,153 @@ class SubjectTestCountCard extends StatelessWidget {
     final hasZero = subject.testCount == 0;
     final color = hasZero ? AppColors.error : AppColors.primary;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  subject.subjectName,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
+    return InkWell(
+      onTap: () => AdminNavController.instance.changePage(4), // Navigate to Content
+      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    subject.subjectName,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '${subject.testCount} ${subject.testCount == 1 ? 'test' : 'tests'}',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+                const SizedBox(width: 4),
+                // Breakdown chips for Entrance, Model, Tests
+                if (subject.entranceCount > 0) ...[
+                  _MiniTypeChip(
+                    text: '${subject.entranceCount} Ent',
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 3),
+                ],
+                if (subject.modelCount > 0) ...[
+                  _MiniTypeChip(
+                    text: '${subject.modelCount} Mod',
+                    color: AppColors.amberAccent,
+                  ),
+                  const SizedBox(width: 3),
+                ],
+                if (subject.chapterGradeCount > 0) ...[
+                  _MiniTypeChip(
+                    text: '${subject.chapterGradeCount} Test',
+                    color: AppColors.info,
+                  ),
+                  const SizedBox(width: 3),
+                ],
+                Text(
+                  '${subject.testCount}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                minHeight: 4,
+                value: maxCount > 0 ? (subject.testCount / maxCount) : 0,
+                backgroundColor: dark
+                    ? AppColors.darkSurface
+                    : AppColors.grey.withValues(alpha: 0.3),
+                valueColor: AlwaysStoppedAnimation(color),
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryTag extends StatelessWidget {
+  const _CategoryTag({
+    required this.label,
+    required this.count,
+    required this.color,
+  });
+
+  final String label;
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-          const SizedBox(height: 3),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              minHeight: 4,
-              value: maxCount > 0 ? (subject.testCount / maxCount) : 0,
-              backgroundColor: dark
-                  ? AppColors.darkSurface
-                  : AppColors.grey.withValues(alpha: 0.3),
-              valueColor: AlwaysStoppedAnimation(color),
+          const SizedBox(width: 4),
+          Text(
+            '$label: ',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+          Text(
+            '$count',
+            style: const TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MiniTypeChip extends StatelessWidget {
+  const _MiniTypeChip({
+    required this.text,
+    required this.color,
+  });
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
       ),
     );
   }

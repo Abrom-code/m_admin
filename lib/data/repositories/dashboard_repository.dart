@@ -85,16 +85,22 @@ class DailyPoint {
   final double value;
 }
 
-/// Tests available per subject.
+/// Tests available per subject divided by category (Entrance, Model, Chapter/Grade).
 class SubjectTestCount {
   const SubjectTestCount({
     required this.subjectId,
     required this.subjectName,
     required this.testCount,
+    this.entranceCount = 0,
+    this.modelCount = 0,
+    this.chapterGradeCount = 0,
   });
   final int subjectId;
   final String subjectName;
   final int testCount;
+  final int entranceCount;
+  final int modelCount;
+  final int chapterGradeCount;
 }
 
 /// One stage of the conversion funnel.
@@ -252,8 +258,7 @@ class DashboardRepository {
 
   /// Number of published tests per subject (content health, not attempt data).
   ///
-  /// Uses server-side COUNT per subject so no test rows are transferred
-  /// over the wire — just the subject list and one count per subject.
+  /// Number of published tests per subject divided by Entrance, Model, and Tests.
   Future<List<SubjectTestCount>> fetchSubjectTestCounts() async {
     try {
       final subjectRows = await _sb
@@ -263,27 +268,39 @@ class DashboardRepository {
 
       if (subjectRows.isEmpty) return [];
 
-      // Fire one COUNT query per subject in parallel.
-      final counts = await Future.wait(
-        subjectRows.map((s) async {
-          final sid = _toInt(s['id']) ?? 0;
-          final r = await _sb
-              .from('tests')
-              .select('id')
-              .eq('subject_id', sid)
-              .count(CountOption.exact);
-          return MapEntry(sid, r.count);
-        }),
-      );
+      // Fetch test types to calculate Entrance, Model, and Standard test counts
+      final testRows = await _sb
+          .from('tests')
+          .select('subject_id, type');
 
-      final countMap = Map<int, int>.fromEntries(counts);
+      final entranceMap = <int, int>{};
+      final modelMap = <int, int>{};
+      final chapterGradeMap = <int, int>{};
+      final totalMap = <int, int>{};
+
+      for (final row in testRows) {
+        final sid = _toInt(row['subject_id']) ?? 0;
+        final type = row['type']?.toString().toLowerCase() ?? '';
+
+        totalMap[sid] = (totalMap[sid] ?? 0) + 1;
+        if (type == 'entrance') {
+          entranceMap[sid] = (entranceMap[sid] ?? 0) + 1;
+        } else if (type == 'model') {
+          modelMap[sid] = (modelMap[sid] ?? 0) + 1;
+        } else {
+          chapterGradeMap[sid] = (chapterGradeMap[sid] ?? 0) + 1;
+        }
+      }
 
       return subjectRows.map((s) {
         final sid = _toInt(s['id']) ?? 0;
         return SubjectTestCount(
           subjectId: sid,
           subjectName: s['name']?.toString() ?? '',
-          testCount: countMap[sid] ?? 0,
+          testCount: totalMap[sid] ?? 0,
+          entranceCount: entranceMap[sid] ?? 0,
+          modelCount: modelMap[sid] ?? 0,
+          chapterGradeCount: chapterGradeMap[sid] ?? 0,
         );
       }).toList()
         ..sort((a, b) => b.testCount.compareTo(a.testCount));
