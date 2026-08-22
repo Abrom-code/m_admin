@@ -36,7 +36,7 @@ class DashboardScreen extends StatelessWidget {
                   CircularProgressIndicator(strokeWidth: 2.5),
                   SizedBox(height: AppSizes.md),
                   Text(
-                    'Loading executive dashboard...',
+                    'Loading dashboard...',
                     style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 13,
@@ -62,61 +62,89 @@ class DashboardScreen extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── 1. Modern Hero & Welcome Bar ───────────────────────
-            _DashboardHeroHeader(
+            // ── 1. Top Header Bar (Clean, Minimal, No Welcome Box) ──
+            _DashboardTopBar(
               pendingCount: stats.pendingPayments,
               onRefresh: controller.load,
             ),
             const SizedBox(height: AppSizes.spaceBtwItems),
 
-            // ── 2. Pending Priority Notice (if any) ────────────────
-            if (stats.pendingPayments > 0) ...[
-              _PendingAlertBanner(count: stats.pendingPayments),
-              const SizedBox(height: AppSizes.spaceBtwItems),
-            ],
-
-            // ── 3. Executive KPI Metrics Grid ──────────────────────
-            _ExecutiveMetricGrid(stats: stats),
+            // ── 2. Content-Driven KPI Metrics Row ──────────────────
+            _ContentKpiGrid(stats: stats),
             const SizedBox(height: AppSizes.spaceBtwItems),
 
-            // ── 4. Main Growth & Revenue Analytics ─────────────────
-            const SignupChartCard(),
-            const SizedBox(height: AppSizes.spaceBtwItems),
-
-            // ── 5. Visual Distribution Hub ────────────────────────
+            // ── 3. Executive Two-Column Layout for Desktop / Tablet ─
             LayoutBuilder(
               builder: (context, constraints) {
-                if (constraints.maxWidth >= 750) {
-                  return const Row(
+                final isWide = constraints.maxWidth >= 960;
+
+                if (isWide) {
+                  return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: PaidUnpaidDonutCard()),
-                      SizedBox(width: AppSizes.spaceBtwItems),
-                      Expanded(child: StreamSplitCard()),
+                      // ── Left Column (Main Charts & Exam Coverage) ──
+                      const Expanded(
+                        flex: 6,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SignupChartCard(),
+                            SizedBox(height: AppSizes.spaceBtwItems),
+                            SubjectTestCountCard(),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: AppSizes.spaceBtwItems),
+
+                      // ── Right Column (Receipts, Funnel, Distribution) ──
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _RecentReceiptsQueue(rows: stats.recentReceipts),
+                            const SizedBox(height: AppSizes.spaceBtwItems),
+                            const FunnelCard(),
+                            const SizedBox(height: AppSizes.spaceBtwItems),
+                            const Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: PaidUnpaidDonutCard()),
+                                SizedBox(width: AppSizes.spaceBtwItems),
+                                Expanded(child: StreamSplitCard()),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   );
                 }
-                return const Column(
+
+                // ── Single Column for Mobile / Narrow Screens ────────
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    PaidUnpaidDonutCard(),
-                    SizedBox(height: AppSizes.spaceBtwItems),
-                    StreamSplitCard(),
+                    const SignupChartCard(),
+                    const SizedBox(height: AppSizes.spaceBtwItems),
+                    _RecentReceiptsQueue(rows: stats.recentReceipts),
+                    const SizedBox(height: AppSizes.spaceBtwItems),
+                    const FunnelCard(),
+                    const SizedBox(height: AppSizes.spaceBtwItems),
+                    const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: PaidUnpaidDonutCard()),
+                        SizedBox(width: AppSizes.spaceBtwItems),
+                        Expanded(child: StreamSplitCard()),
+                      ],
+                    ),
+                    const SizedBox(height: AppSizes.spaceBtwItems),
+                    const SubjectTestCountCard(),
                   ],
                 );
               },
             ),
-            const SizedBox(height: AppSizes.spaceBtwItems),
-
-            // ── 6. Conversion Funnel ───────────────────────────────
-            const FunnelCard(),
-            const SizedBox(height: AppSizes.spaceBtwItems),
-
-            // ── 7. Subject Exam Matrix ─────────────────────────────
-            const SubjectTestCountCard(),
-            const SizedBox(height: AppSizes.spaceBtwItems),
-
-            // ── 8. Recent Payment Receipts Hub ─────────────────────
-            _ModernRecentReceiptsHub(rows: stats.recentReceipts),
           ],
         );
       }),
@@ -124,10 +152,10 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-// ── 1. Hero Header ─────────────────────────────────────────────────────────
+// ── 1. Minimal Header Bar ──────────────────────────────────────────────────
 
-class _DashboardHeroHeader extends StatelessWidget {
-  const _DashboardHeroHeader({
+class _DashboardTopBar extends StatelessWidget {
+  const _DashboardTopBar({
     required this.pendingCount,
     required this.onRefresh,
   });
@@ -138,263 +166,101 @@ class _DashboardHeroHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
-    final now = DateTime.now();
-    final dateStr = DateFormat('EEEE, d MMMM yyyy').format(now);
 
-    return Container(
-      padding: const EdgeInsets.all(AppSizes.md),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: dark
-              ? [
-                  AppColors.primary.withValues(alpha: 0.15),
-                  AppColors.darkCard,
-                ]
-              : [
-                  AppColors.primary.withValues(alpha: 0.08),
-                  AppColors.white,
-                ],
-        ),
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
-        border: Border.all(
-          color: dark
-              ? AppColors.primary.withValues(alpha: 0.25)
-              : AppColors.primary.withValues(alpha: 0.15),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 650;
-
-          final titleSection = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Dashboard Overview',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: dark ? AppColors.white : AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  Icon(Icons.circle, size: 6, color: AppColors.success),
+                  SizedBox(width: 4),
                   Text(
-                    'Welcome back, Admin 👋',
+                    'Live Sync',
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: dark ? AppColors.white : AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.circle,
-                          size: 7,
-                          color: AppColors.success,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Live Sync',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.success,
-                          ),
-                        ),
-                      ],
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.success,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 3),
-              Text(
-                dateStr,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          );
-
-          final quickActions = Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              if (pendingCount > 0)
-                ActionChip(
-                  avatar: const Icon(
-                    Iconsax.receipt_item_copy,
-                    size: 14,
-                    color: AppColors.warning,
-                  ),
-                  label: Text(
-                    'Review ($pendingCount)',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.warning,
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            if (pendingCount > 0)
+              InkWell(
+                onTap: () => AdminNavController.instance.changePage(1),
+                borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.12),
+                    borderRadius:
+                        BorderRadius.circular(AppSizes.borderRadiusSm),
+                    border: Border.all(
+                      color: AppColors.warning.withValues(alpha: 0.3),
                     ),
                   ),
-                  backgroundColor: AppColors.warning.withValues(alpha: 0.12),
-                  side: BorderSide(
-                    color: AppColors.warning.withValues(alpha: 0.3),
-                  ),
-                  onPressed: () =>
-                      AdminNavController.instance.changePage(1),
-                ),
-              ActionChip(
-                avatar: const Icon(
-                  Iconsax.user_copy,
-                  size: 14,
-                  color: AppColors.primary,
-                ),
-                label: const Text(
-                  'Students',
-                  style: TextStyle(fontSize: 11.5),
-                ),
-                onPressed: () =>
-                    AdminNavController.instance.changePage(3),
-              ),
-              ActionChip(
-                avatar: const Icon(
-                  Iconsax.book_copy,
-                  size: 14,
-                  color: AppColors.info,
-                ),
-                label: const Text(
-                  'Tests',
-                  style: TextStyle(fontSize: 11.5),
-                ),
-                onPressed: () =>
-                    AdminNavController.instance.changePage(2),
-              ),
-              IconButton.outlined(
-                tooltip: 'Refresh dashboard',
-                visualDensity: VisualDensity.compact,
-                onPressed: onRefresh,
-                icon: const Icon(Iconsax.refresh_copy, size: 15),
-              ),
-            ],
-          );
-
-          if (isCompact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                titleSection,
-                const SizedBox(height: AppSizes.sm),
-                quickActions,
-              ],
-            );
-          }
-
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              titleSection,
-              quickActions,
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-// ── 2. Pending Priority Banner ─────────────────────────────────────────────
-
-class _PendingAlertBanner extends StatelessWidget {
-  const _PendingAlertBanner({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSizes.md,
-        vertical: AppSizes.sm + 2,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-        border: Border.all(
-          color: AppColors.warning.withValues(alpha: 0.35),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Iconsax.warning_2_copy,
-              color: AppColors.warning,
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$count Payment Receipt${count == 1 ? '' : 's'} Pending Verification',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.warning,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Iconsax.warning_2_copy,
+                        size: 13,
+                        color: AppColors.warning,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        '$pendingCount Pending Review',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const Text(
-                  'Students are waiting for exam access approval.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.warning,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Refresh data',
               visualDensity: VisualDensity.compact,
+              onPressed: onRefresh,
+              icon: const Icon(Iconsax.refresh_copy, size: 16),
             ),
-            icon: const Icon(Icons.arrow_forward_rounded, size: 14),
-            label: const Text('Review Now', style: TextStyle(fontSize: 11.5)),
-            onPressed: () => AdminNavController.instance.changePage(1),
-          ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-// ── 3. Executive KPI Metrics Grid ──────────────────────────────────────────
+// ── 2. Content-Driven KPI Grid (No Big Icons) ──────────────────────────────
 
-class _ExecutiveMetricGrid extends StatelessWidget {
-  const _ExecutiveMetricGrid({required this.stats});
+class _ContentKpiGrid extends StatelessWidget {
+  const _ContentKpiGrid({required this.stats});
 
   final DashboardStats stats;
 
@@ -406,74 +272,64 @@ class _ExecutiveMetricGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossCount = constraints.maxWidth >= 950
-            ? 3
-            : (constraints.maxWidth >= 580 ? 2 : 1);
+        final count = constraints.maxWidth >= 1050
+            ? 5
+            : (constraints.maxWidth >= 650 ? 3 : 2);
 
         return GridView(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossCount,
-            crossAxisSpacing: AppSizes.spaceBtwItems,
-            mainAxisSpacing: AppSizes.spaceBtwItems,
-            mainAxisExtent: 104,
+            crossAxisCount: count,
+            crossAxisSpacing: AppSizes.sm,
+            mainAxisSpacing: AppSizes.sm,
+            mainAxisExtent: 88,
           ),
           shrinkWrap: true,
           primary: false,
           children: [
-            _ExecutiveStatCard(
-              icon: Iconsax.profile_2user_copy,
-              label: 'Total Registered Students',
+            _ContentKpiCard(
+              title: 'TOTAL STUDENTS',
               value: NumberFormat('#,##0').format(stats.totalUsers),
-              badgeText: 'All Time',
-              color: AppColors.primary,
+              tag: 'All Time',
+              tagColor: AppColors.primary,
+              subtext: '${stats.newUsersThisWeek} new this week',
               onTap: () => AdminNavController.instance.changePage(3),
             ),
-            _ExecutiveStatCard(
-              icon: Iconsax.crown_copy,
-              label: 'Active Premium Subscribers',
+            _ContentKpiCard(
+              title: 'ACTIVE PREMIUM',
               value: NumberFormat('#,##0').format(stats.paidUsers),
-              badgeText: '$conversionRate% of total',
-              color: AppColors.success,
+              tag: '$conversionRate%',
+              tagColor: AppColors.success,
+              subtext: '${stats.unpaidUsers} free / unpaid',
               onTap: () => AdminNavController.instance.changePage(3),
             ),
-            _ExecutiveStatCard(
-              icon: Iconsax.profile_delete_copy,
-              label: 'Free / Unpaid Students',
-              value: NumberFormat('#,##0').format(stats.unpaidUsers),
-              badgeText: 'Upsell target',
-              color: stats.unpaidUsers > 0
-                  ? AppColors.textSecondary
-                  : AppColors.darkGrey,
-              onTap: stats.unpaidUsers > 0
-                  ? () => AdminNavController.instance.changePage(3)
-                  : null,
-            ),
-            _ExecutiveStatCard(
-              icon: Iconsax.receipt_item_copy,
-              label: 'Pending Receipt Review',
+            _ContentKpiCard(
+              title: 'PENDING REVIEWS',
               value: '${stats.pendingPayments}',
-              badgeText: stats.pendingPayments > 0 ? 'Requires Action' : 'Cleared',
-              color: stats.pendingPayments > 0
+              tag: stats.pendingPayments > 0 ? 'Requires Action' : 'Cleared',
+              tagColor: stats.pendingPayments > 0
                   ? AppColors.warning
                   : AppColors.success,
+              subtext: stats.pendingPayments > 0
+                  ? 'Click to review queue'
+                  : 'All verified',
               onTap: stats.pendingPayments > 0
                   ? () => AdminNavController.instance.changePage(1)
                   : null,
             ),
-            _ExecutiveStatCard(
-              icon: Iconsax.user_add_copy,
-              label: 'New Registrations This Week',
+            _ContentKpiCard(
+              title: 'NEW REGISTRATIONS',
               value: '+${NumberFormat('#,##0').format(stats.newUsersThisWeek)}',
-              badgeText: '7-day momentum',
-              color: AppColors.info,
+              tag: 'Last 7 days',
+              tagColor: AppColors.info,
+              subtext: 'Weekly growth pace',
               onTap: () => AdminNavController.instance.changePage(3),
             ),
-            _ExecutiveStatCard(
-              icon: Iconsax.money_recive_copy,
-              label: 'Total Gross Revenue',
+            _ContentKpiCard(
+              title: 'GROSS REVENUE',
               value: _fmtRevenue(stats.totalRevenue),
-              badgeText: 'Detailed breakdown ➔',
-              color: AppColors.success,
+              tag: 'ETB Total',
+              tagColor: AppColors.success,
+              subtext: 'Click for breakdown ➔',
               onTap: () => _showRevenueDialog(Get.context!),
             ),
           ],
@@ -484,12 +340,12 @@ class _ExecutiveMetricGrid extends StatelessWidget {
 
   String _fmtRevenue(double amount) {
     if (amount >= 1000000) {
-      return 'ETB ${(amount / 1000000).toStringAsFixed(2)}M';
+      return '${(amount / 1000000).toStringAsFixed(2)}M';
     }
     if (amount >= 1000) {
-      return 'ETB ${NumberFormat('#,##0').format(amount)}';
+      return NumberFormat('#,##0').format(amount);
     }
-    return 'ETB ${NumberFormat('#,##0.00').format(amount)}';
+    return NumberFormat('#,##0.00').format(amount);
   }
 
   void _showRevenueDialog(BuildContext context) {
@@ -500,21 +356,21 @@ class _ExecutiveMetricGrid extends StatelessWidget {
   }
 }
 
-class _ExecutiveStatCard extends StatelessWidget {
-  const _ExecutiveStatCard({
-    required this.icon,
-    required this.label,
+class _ContentKpiCard extends StatelessWidget {
+  const _ContentKpiCard({
+    required this.title,
     required this.value,
-    required this.badgeText,
-    required this.color,
+    required this.tag,
+    required this.tagColor,
+    required this.subtext,
     this.onTap,
   });
 
-  final IconData icon;
-  final String label;
+  final String title;
   final String value;
-  final String badgeText;
-  final Color color;
+  final String tag;
+  final Color tagColor;
+  final String subtext;
   final VoidCallback? onTap;
 
   @override
@@ -527,222 +383,8 @@ class _ExecutiveStatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSizes.md,
-          vertical: AppSizes.sm + 2,
+          vertical: 10,
         ),
-        decoration: BoxDecoration(
-          color: dark ? AppColors.darkCard : AppColors.white,
-          borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-          border: Border.all(
-            color: dark
-                ? color.withValues(alpha: 0.2)
-                : AppColors.borderPrimary.withValues(alpha: 0.6),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              height: 48,
-              width: 48,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: dark ? 0.15 : 0.1),
-                borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-                border: Border.all(
-                  color: color.withValues(alpha: 0.25),
-                ),
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: AppSizes.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          value,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: dark ? AppColors.white : AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      badgeText,
-                      style: TextStyle(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── 8. Modern Recent Receipts Hub ──────────────────────────────────────────
-
-class _ModernRecentReceiptsHub extends StatelessWidget {
-  const _ModernRecentReceiptsHub({required this.rows});
-
-  final List<RecentReceiptRow> rows;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                  ),
-                  child: const Icon(
-                    Iconsax.receipt_2_copy,
-                    size: 16,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Recent Payment Receipts',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ],
-            ),
-            TextButton.icon(
-              onPressed: () {
-                AdminNavController.instance.changePage(1); // Go to payments
-              },
-              icon: const Icon(Icons.arrow_forward_rounded, size: 14),
-              label: const Text('View All Queue'),
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSizes.sm),
-        rows.isEmpty
-            ? const AdminCard(
-                child: Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: AppSizes.lg),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Iconsax.receipt_item_copy,
-                          size: 32,
-                          color: AppColors.textSecondary,
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'No payment receipts submitted yet.',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              )
-            : SizedBox(
-                height: 154,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: rows.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: AppSizes.sm),
-                  itemBuilder: (context, i) =>
-                      _ModernReceiptCard(row: rows[i]),
-                ),
-              ),
-      ],
-    );
-  }
-}
-
-class _ModernReceiptCard extends StatelessWidget {
-  const _ModernReceiptCard({required this.row});
-
-  final RecentReceiptRow row;
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = AppHelperFunctions.isDark(context);
-
-    return InkWell(
-      onTap: () {
-        // Open review flow for this receipt
-        final review = PaymentReview(
-          id: row.id.toString(),
-          userId: '',
-          userName: row.displayName,
-          userEmail: row.userEmail,
-          userStream: '',
-          subscriptionStatus: row.status == 'approved' ? 'active' : 'inactive',
-          receiptPath: '',
-          receiptUrl: '',
-          verificationUrl: '',
-          paymentMethod: row.paymentMethod,
-          amount: row.amount,
-          currency: 'ETB',
-          status: row.status,
-          createdAt: row.createdAt,
-        );
-        Get.to(() => PaymentDetailScreen(review: review));
-      },
-      borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-      child: Container(
-        width: 250,
-        padding: const EdgeInsets.all(AppSizes.sm + 2),
         decoration: BoxDecoration(
           color: dark ? AppColors.darkCard : AppColors.white,
           borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
@@ -753,8 +395,8 @@ class _ModernReceiptCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
@@ -763,110 +405,221 @@ class _ModernReceiptCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            // Top Row: Category Title & Status Pill
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                  child: Text(
-                    row.displayName.isNotEmpty
-                        ? row.displayName[0].toUpperCase()
-                        : 'S',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        row.displayName,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.bold,
-                          color: dark ? AppColors.white : AppColors.textPrimary,
-                        ),
-                      ),
-                      Text(
-                        row.userEmail,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                        style: const TextStyle(
-                          fontSize: 10.5,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                PaymentStatusPill(status: row.status),
-              ],
-            ),
-            const Divider(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                PaymentMethodChip(method: row.paymentMethod),
-                Text(
-                  '${row.amount.toStringAsFixed(0)} ETB',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: dark ? AppColors.white : AppColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Iconsax.clock_copy,
-                      size: 11,
+                  child: Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
                       color: AppColors.textSecondary,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      row.createdAt == null
-                          ? '—'
-                          : DateFormat('d MMM, HH:mm').format(row.createdAt!),
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-                const Row(
-                  children: [
-                    Text(
-                      'Details',
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: tagColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    tag,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                      color: tagColor,
                     ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 14,
-                      color: AppColors.primary,
-                    ),
-                  ],
+                  ),
                 ),
               ],
+            ),
+            // Middle: Big Clean Metric
+            Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 21,
+                fontWeight: FontWeight.w800,
+                color: dark ? AppColors.white : AppColors.textPrimary,
+              ),
+            ),
+            // Bottom: Subtitle info
+            Text(
+              subtext,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: const TextStyle(
+                fontSize: 10.5,
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── 3. Recent Payment Receipts Queue ───────────────────────────────────────
+
+class _RecentReceiptsQueue extends StatelessWidget {
+  const _RecentReceiptsQueue({required this.rows});
+
+  final List<RecentReceiptRow> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+
+    return AdminCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'RECENT PAYMENT SUBMISSIONS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              InkWell(
+                onTap: () => AdminNavController.instance.changePage(1),
+                child: const Text(
+                  'View All Queue ➔',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSizes.sm),
+          rows.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSizes.md),
+                  child: Center(
+                    child: Text(
+                      'No receipts submitted yet.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: rows.take(4).length,
+                  separatorBuilder: (context, index) => Divider(
+                    height: 12,
+                    color: dark
+                        ? AppColors.darkGrey.withValues(alpha: 0.15)
+                        : AppColors.grey.withValues(alpha: 0.3),
+                  ),
+                  itemBuilder: (context, i) {
+                    final row = rows[i];
+                    return InkWell(
+                      onTap: () {
+                        final review = PaymentReview(
+                          id: row.id.toString(),
+                          userId: '',
+                          userName: row.displayName,
+                          userEmail: row.userEmail,
+                          userStream: '',
+                          subscriptionStatus:
+                              row.status == 'approved' ? 'active' : 'inactive',
+                          receiptPath: '',
+                          receiptUrl: '',
+                          verificationUrl: '',
+                          paymentMethod: row.paymentMethod,
+                          amount: row.amount,
+                          currency: 'ETB',
+                          status: row.status,
+                          createdAt: row.createdAt,
+                        );
+                        Get.to(() => PaymentDetailScreen(review: review));
+                      },
+                      borderRadius:
+                          BorderRadius.circular(AppSizes.borderRadiusSm),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    row.displayName,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: dark
+                                          ? AppColors.white
+                                          : AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    row.userEmail,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 10.5,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '${row.amount.toStringAsFixed(0)} ETB',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: dark
+                                        ? AppColors.white
+                                        : AppColors.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  row.createdAt == null
+                                      ? '—'
+                                      : DateFormat('d MMM, HH:mm')
+                                          .format(row.createdAt!),
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 8),
+                            PaymentStatusPill(status: row.status),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ],
       ),
     );
   }
@@ -953,7 +706,8 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
       final repo = DashboardRepository();
       final days = _selectedRange!.end.difference(_selectedRange!.start).inDays;
       final revenueData = await repo.fetchRevenueDaily(days);
-      final total = revenueData.fold<double>(0, (sum, point) => sum + point.value);
+      final total =
+          revenueData.fold<double>(0, (sum, point) => sum + point.value);
 
       setState(() {
         _rangeRevenue = total;
@@ -986,7 +740,8 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                     onPrimary: Colors.white,
                     surface: AppColors.darkCard,
                     onSurface: AppColors.white,
-                    secondaryContainer: AppColors.primary.withValues(alpha: 0.2),
+                    secondaryContainer:
+                        AppColors.primary.withValues(alpha: 0.2),
                     onSecondaryContainer: AppColors.primary,
                   )
                 : ColorScheme.light(
@@ -994,7 +749,8 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                     onPrimary: Colors.white,
                     surface: Colors.white,
                     onSurface: Colors.black87,
-                    secondaryContainer: AppColors.primary.withValues(alpha: 0.12),
+                    secondaryContainer:
+                        AppColors.primary.withValues(alpha: 0.12),
                     onSecondaryContainer: AppColors.primary,
                   ),
             textButtonTheme: TextButtonThemeData(
@@ -1025,7 +781,7 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
       ),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 500),
+        constraints: const BoxConstraints(maxWidth: 480),
         padding: const EdgeInsets.all(AppSizes.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1033,19 +789,6 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
           children: [
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                  ),
-                  child: const Icon(
-                    Iconsax.money_recive_copy,
-                    color: AppColors.success,
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: AppSizes.sm),
                 Expanded(
                   child: Text(
                     'Revenue Breakdown',
@@ -1067,9 +810,11 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Total Revenue (All Time)',
+                    'TOTAL REVENUE (ALL TIME)',
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.6,
                       color: AppColors.textSecondary,
                     ),
                   ),
@@ -1090,10 +835,12 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
             ),
             const SizedBox(height: AppSizes.spaceBtwItems),
             const Text(
-              'Filter by Date Range',
+              'FILTER BY DATE RANGE',
               style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: AppSizes.xs),
@@ -1134,9 +881,11 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Revenue in Selected Range',
+                              'REVENUE IN SELECTED RANGE',
                               style: TextStyle(
-                                fontSize: 12.5,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
                                 color: AppColors.textSecondary,
                               ),
                             ),
@@ -1146,7 +895,9 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
-                                color: dark ? AppColors.white : AppColors.textPrimary,
+                                color: dark
+                                    ? AppColors.white
+                                    : AppColors.textPrimary,
                               ),
                             ),
                           ],
@@ -1156,7 +907,7 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                AdminNavController.instance.changePage(1); // Go to payments
+                AdminNavController.instance.changePage(1);
               },
               child: const Text('View Payments Queue'),
             ),

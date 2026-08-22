@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/common/widgets/charts/line_chart_painter.dart';
@@ -32,120 +31,76 @@ class _SignupChartCardState extends State<SignupChartCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Header Bar ──────────────────────────────────────────
+          // ── Header Controls ─────────────────────────────────────
           LayoutBuilder(
             builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 550;
-              final headerContent = [
-                // Title and Metric Toggle
-                Row(
+              final isCompact = constraints.maxWidth < 560;
+
+              final switcher = Container(
+                padding: const EdgeInsets.all(2.5),
+                decoration: BoxDecoration(
+                  color: dark
+                      ? AppColors.darkSurface
+                      : AppColors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                ),
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: (_metricMode == ChartMetricMode.signups
-                                ? AppColors.info
-                                : AppColors.success)
-                            .withValues(alpha: 0.12),
-                        borderRadius:
-                            BorderRadius.circular(AppSizes.borderRadiusSm),
-                      ),
-                      child: Icon(
-                        _metricMode == ChartMetricMode.signups
-                            ? Iconsax.user_add_copy
-                            : Iconsax.money_recive_copy,
-                        size: 16,
-                        color: _metricMode == ChartMetricMode.signups
-                            ? AppColors.info
-                            : AppColors.success,
-                      ),
+                    _TabPill(
+                      label: 'Student Signups',
+                      isSelected: _metricMode == ChartMetricMode.signups,
+                      activeColor: AppColors.info,
+                      onTap: () => setState(() => _metricMode = ChartMetricMode.signups),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _metricMode == ChartMetricMode.signups
-                          ? 'Student Signups'
-                          : 'Revenue Trajectory',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Metric Switcher Chips
-                    Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: dark
-                            ? AppColors.darkSurface
-                            : AppColors.grey.withValues(alpha: 0.25),
-                        borderRadius:
-                            BorderRadius.circular(AppSizes.borderRadiusMd),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _MetricToggleChip(
-                            label: 'Signups',
-                            icon: Iconsax.profile_2user_copy,
-                            isSelected:
-                                _metricMode == ChartMetricMode.signups,
-                            color: AppColors.info,
-                            onTap: () {
-                              setState(() =>
-                                  _metricMode = ChartMetricMode.signups);
-                            },
-                          ),
-                          _MetricToggleChip(
-                            label: 'Revenue',
-                            icon: Iconsax.dollar_circle_copy,
-                            isSelected:
-                                _metricMode == ChartMetricMode.revenue,
-                            color: AppColors.success,
-                            onTap: () {
-                              setState(() =>
-                                  _metricMode = ChartMetricMode.revenue);
-                            },
-                          ),
-                        ],
-                      ),
+                    _TabPill(
+                      label: 'Gross Revenue',
+                      isSelected: _metricMode == ChartMetricMode.revenue,
+                      activeColor: AppColors.success,
+                      onTap: () => setState(() => _metricMode = ChartMetricMode.revenue),
                     ),
                   ],
                 ),
+              );
 
-                // Range Selector (7d, 30d, 90d)
-                Obx(
-                  () => SegmentedButton<int>(
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(value: 7, label: Text('7d')),
-                      ButtonSegment(value: 30, label: Text('30d')),
-                      ButtonSegment(value: 90, label: Text('90d')),
-                    ],
-                    selected: {controller.rangeDays.value},
-                    onSelectionChanged: (s) =>
-                        controller.rangeDays.value = s.first,
-                    style: const ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              final rangeSelector = Obx(
+                () => SegmentedButton<int>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: 7, label: Text('7d')),
+                    ButtonSegment(value: 30, label: Text('30d')),
+                    ButtonSegment(value: 90, label: Text('90d')),
+                  ],
+                  selected: {controller.rangeDays.value},
+                  onSelectionChanged: (s) =>
+                      controller.rangeDays.value = s.first,
+                  style: ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: WidgetStateProperty.all(
+                      const EdgeInsets.symmetric(horizontal: 10),
                     ),
                   ),
                 ),
-              ];
+              );
 
-              if (isNarrow) {
+              if (isCompact) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    headerContent[0],
+                    switcher,
                     const SizedBox(height: AppSizes.sm),
-                    headerContent[1],
+                    rangeSelector,
                   ],
                 );
               }
 
               return Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: headerContent,
+                children: [
+                  switcher,
+                  rangeSelector,
+                ],
               );
             },
           ),
@@ -161,25 +116,14 @@ class _SignupChartCardState extends State<SignupChartCard> {
 
             if (series.length < 2) {
               return SizedBox(
-                height: 180,
+                height: 190,
                 child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Iconsax.chart_2_copy,
-                        size: 32,
-                        color: AppColors.textSecondary.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'No ${isSignups ? 'signup' : 'revenue'} data for the selected period',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    'No data recorded for the selected $days-day window',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               );
@@ -197,53 +141,49 @@ class _SignupChartCardState extends State<SignupChartCard> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── KPI Summary Cards ──────────────────────────────
+                // ── Sleek Content Metrics Bar ──────────────────────
                 Wrap(
-                  spacing: AppSizes.sm,
+                  spacing: AppSizes.lg,
                   runSpacing: AppSizes.sm,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    _SummaryChip(
-                      label: 'Total in $days Days',
+                    _MetricStatItem(
+                      label: 'TOTAL IN RANGE',
                       value: isSignups
                           ? NumberFormat('#,##0').format(total.round())
-                          : 'ETB ${NumberFormat.compact().format(total)}',
-                      subtext: isSignups ? 'new students' : 'gross revenue',
+                          : 'ETB ${NumberFormat('#,##0').format(total)}',
+                      unit: isSignups ? 'students' : 'revenue',
                       color: chartColor,
-                      icon: isSignups
-                          ? Iconsax.people_copy
-                          : Iconsax.wallet_3_copy,
                     ),
-                    _SummaryChip(
-                      label: 'Peak Single Day',
+                    _MetricStatItem(
+                      label: 'PEAK DAY',
                       value: isSignups
-                          ? '${peak.round()} users'
+                          ? '${peak.round()}'
                           : 'ETB ${NumberFormat.compact().format(peak)}',
-                      subtext: 'highest activity',
-                      color: AppColors.primary,
-                      icon: Iconsax.trend_up_copy,
+                      unit: isSignups ? 'students / day' : 'highest day',
+                      color: AppColors.textSecondary,
                     ),
-                    _SummaryChip(
-                      label: 'Daily Average',
+                    _MetricStatItem(
+                      label: 'DAILY AVERAGE',
                       value: isSignups
                           ? avg.toStringAsFixed(1)
                           : 'ETB ${avg.toStringAsFixed(0)}',
-                      subtext: 'per day pace',
-                      color: AppColors.amberAccent,
-                      icon: Iconsax.timer_1_copy,
+                      unit: 'per day pace',
+                      color: AppColors.textSecondary,
                     ),
                   ],
                 ),
                 const SizedBox(height: AppSizes.md),
 
-                // ── Smooth Line Chart ──────────────────────────────
+                // ── Line Chart Canvas ──────────────────────────────
                 AdminLineChart(
                   points: points,
                   color: chartColor,
-                  height: 180,
+                  height: 175,
                 ),
-                const SizedBox(height: AppSizes.xs),
+                const SizedBox(height: 6),
 
-                // ── X-Axis Dates ───────────────────────────────────
+                // ── Date Axis Labels ───────────────────────────────
                 _XAxisLabels(series: series),
               ],
             );
@@ -254,21 +194,19 @@ class _SignupChartCardState extends State<SignupChartCard> {
   }
 }
 
-// ── Toggle Chip ─────────────────────────────────────────────────────────────
+// ── Tab Pill Switcher ───────────────────────────────────────────────────────
 
-class _MetricToggleChip extends StatelessWidget {
-  const _MetricToggleChip({
+class _TabPill extends StatelessWidget {
+  const _TabPill({
     required this.label,
-    required this.icon,
     required this.isSelected,
-    required this.color,
+    required this.activeColor,
     required this.onTap,
   });
 
   final String label;
-  final IconData icon;
   final bool isSelected;
-  final Color color;
+  final Color activeColor;
   final VoidCallback onTap;
 
   @override
@@ -277,133 +215,97 @@ class _MetricToggleChip extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm - 1),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
           color: isSelected
               ? (dark ? AppColors.darkCard : AppColors.white)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm - 1),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
+                    color: Colors.black.withValues(alpha: 0.07),
                     blurRadius: 4,
                     offset: const Offset(0, 1),
                   ),
                 ]
               : null,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 13,
-              color: isSelected ? color : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected
-                    ? (dark ? AppColors.white : AppColors.textPrimary)
-                    : AppColors.textSecondary,
-              ),
-            ),
-          ],
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected
+                ? (dark ? AppColors.white : AppColors.textPrimary)
+                : AppColors.textSecondary,
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Summary Chip ───────────────────────────────────────────────────────────
+// ── Metric Stat Item ────────────────────────────────────────────────────────
 
-class _SummaryChip extends StatelessWidget {
-  const _SummaryChip({
+class _MetricStatItem extends StatelessWidget {
+  const _MetricStatItem({
     required this.label,
     required this.value,
-    required this.subtext,
+    required this.unit,
     required this.color,
-    required this.icon,
   });
 
   final String label;
   final String value;
-  final String subtext;
+  final String unit;
   final Color color;
-  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSizes.md,
-        vertical: AppSizes.sm,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: dark ? 0.08 : 0.05),
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-        border: Border.all(
-          color: color.withValues(alpha: dark ? 0.25 : 0.18),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.6,
+            color: AppColors.textSecondary,
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
+        const SizedBox(height: 2),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: dark ? AppColors.white : AppColors.textPrimary,
+              ),
             ),
-            child: Icon(icon, size: 14, color: color),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: dark ? AppColors.white : AppColors.textPrimary,
-                ),
+            const SizedBox(width: 5),
+            Text(
+              unit,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
-                      color: color,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '· $subtext',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
