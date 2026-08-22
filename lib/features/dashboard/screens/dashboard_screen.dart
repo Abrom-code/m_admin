@@ -62,10 +62,9 @@ class DashboardScreen extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── 1. Top Header Bar (Safe & Responsive) ──────────────
+            // ── 1. Top Header Bar (Clean, Minimal, No Welcome Box) ──
             _DashboardTopBar(
               pendingCount: stats.pendingPayments,
-              onRefresh: controller.load,
             ),
             const SizedBox(height: AppSizes.spaceBtwItems),
 
@@ -165,11 +164,9 @@ class DashboardScreen extends StatelessWidget {
 class _DashboardTopBar extends StatelessWidget {
   const _DashboardTopBar({
     required this.pendingCount,
-    required this.onRefresh,
   });
 
   final int pendingCount;
-  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -216,11 +213,8 @@ class _DashboardTopBar extends StatelessWidget {
           ],
         );
 
-        final actionsRow = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (pendingCount > 0)
-              InkWell(
+        final actionsRow = pendingCount > 0
+            ? InkWell(
                 onTap: () => AdminNavController.instance.changePage(1),
                 borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                 child: Container(
@@ -254,26 +248,18 @@ class _DashboardTopBar extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
-            const SizedBox(width: 6),
-            IconButton(
-              tooltip: 'Refresh data',
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              onPressed: onRefresh,
-              icon: const Icon(Iconsax.refresh_copy, size: 16),
-            ),
-          ],
-        );
+              )
+            : const SizedBox.shrink();
 
         if (isNarrow) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               titleRow,
-              const SizedBox(height: 6),
-              actionsRow,
+              if (pendingCount > 0) ...[
+                const SizedBox(height: 6),
+                actionsRow,
+              ],
             ],
           );
         }
