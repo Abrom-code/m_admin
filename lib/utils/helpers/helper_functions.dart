@@ -23,51 +23,18 @@ class AppHelperFunctions {
     String imageUrl, {
     bool isAssetImage = false,
     File? cachedFile,
+    int initialQuarterTurns = 0,
   }) {
     return Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
         barrierDismissible: true,
         pageBuilder: (context, _, _) {
-          return Scaffold(
-            backgroundColor: AppColors.black,
-            body: SizedBox.expand(
-              child: Stack(
-                children: [
-                  // 🔥 FULL SCREEN INTERACTIVE VIEW
-                  Positioned.fill(
-                    child: InteractiveViewer(
-                      panEnabled: true,
-                      minScale: 1.0,
-                      maxScale: 5.0,
-                      child: Center(
-                        child: isAssetImage
-                            ? Image.asset(imageUrl, fit: BoxFit.contain)
-                            : cachedFile != null
-                            ? Image.file(cachedFile, fit: BoxFit.contain)
-                            : Image.network(imageUrl, fit: BoxFit.contain),
-                      ),
-                    ),
-                  ),
-
-                  // CLOSE BUTTON
-                  Positioned(
-                    top: 40,
-                    right: 20,
-                    child: SafeArea(
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.close,
-                          color: AppColors.white,
-                          size: 30,
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          return _FullScreenImageViewer(
+            imageUrl: imageUrl,
+            isAssetImage: isAssetImage,
+            cachedFile: cachedFile,
+            initialQuarterTurns: initialQuarterTurns,
           );
         },
         transitionsBuilder: (context, animation, _, child) {
@@ -291,5 +258,151 @@ class AppHelperFunctions {
     if (v == null) return 0;
     if (v is num) return v.toDouble();
     return double.tryParse(v.toString()) ?? 0;
+  }
+}
+
+class _FullScreenImageViewer extends StatefulWidget {
+  const _FullScreenImageViewer({
+    required this.imageUrl,
+    this.isAssetImage = false,
+    this.cachedFile,
+    this.initialQuarterTurns = 0,
+  });
+
+  final String imageUrl;
+  final bool isAssetImage;
+  final File? cachedFile;
+  final int initialQuarterTurns;
+
+  @override
+  State<_FullScreenImageViewer> createState() => _FullScreenImageViewerState();
+}
+
+class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
+  final _transform = TransformationController();
+  late int _quarterTurns;
+
+  @override
+  void initState() {
+    super.initState();
+    _quarterTurns = widget.initialQuarterTurns;
+  }
+
+  @override
+  void dispose() {
+    _transform.dispose();
+    super.dispose();
+  }
+
+  void _rotate() {
+    setState(() => _quarterTurns = (_quarterTurns + 1) % 4);
+  }
+
+  void _reset() {
+    setState(() {
+      _quarterTurns = 0;
+      _transform.value = Matrix4.identity();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // ── Full Screen Interactive Zoom & Pan ──
+          Positioned.fill(
+            child: InteractiveViewer(
+              transformationController: _transform,
+              panEnabled: true,
+              minScale: 0.5,
+              maxScale: 8.0,
+              child: Center(
+                child: RotatedBox(
+                  quarterTurns: _quarterTurns,
+                  child: widget.isAssetImage
+                      ? Image.asset(widget.imageUrl, fit: BoxFit.contain)
+                      : widget.cachedFile != null
+                          ? Image.file(widget.cachedFile!, fit: BoxFit.contain)
+                          : Image.network(
+                              widget.imageUrl,
+                              fit: BoxFit.contain,
+                              loadingBuilder: (context, child, progress) =>
+                                  progress == null
+                                      ? child
+                                      : const Center(
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                              errorBuilder: (context, _, _) => const Center(
+                                child: Text(
+                                  'Could not load image in full resolution.',
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                              ),
+                            ),
+                ),
+              ),
+            ),
+          ),
+
+          // ── Top Floating Action Controls ──
+          Positioned(
+            top: 24,
+            right: 20,
+            child: SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Rotate (90°)',
+                      icon: const Icon(
+                        Icons.rotate_90_degrees_cw_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: _rotate,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    IconButton(
+                      tooltip: 'Reset Zoom & Rotation',
+                      icon: const Icon(
+                        Icons.center_focus_strong_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: _reset,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    const SizedBox(width: 4),
+                    Container(width: 1, height: 20, color: Colors.white24),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: 'Close',
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
