@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
@@ -9,12 +10,9 @@ import 'package:m_admin/features/payments/screens/payment_detail_screen.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
+import 'package:m_admin/utils/helpers/helper_functions.dart';
 
-/// The payment review queue.
-///
-/// This is the highest-stakes screen in the console: it moves money and flips
-/// premium access, so it favours correctness over polish. Every action is
-/// confirmed, atomic and audited.
+/// The modern payment review queue and audit console.
 class PaymentsScreen extends StatelessWidget {
   const PaymentsScreen({super.key});
 
@@ -29,69 +27,213 @@ class PaymentsScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _StatusTabs(controller: controller),
+          // ── 1. Content-Driven Metric Summary Strip ─────────────
+          _PaymentMetricRibbon(controller: controller),
           const SizedBox(height: AppSizes.spaceBtwItems),
-          _FilterBar(controller: controller),
+
+          // ── 2. Filter & Search Controls ─────────────────────────
+          _ModernFilterBar(controller: controller),
           const SizedBox(height: AppSizes.spaceBtwItems),
-          Expanded(child: _Table(controller: controller)),
+
+          // ── 3. Data Table ───────────────────────────────────────
+          Expanded(child: _ModernTable(controller: controller)),
         ],
       ),
     );
   }
 }
 
-class _StatusTabs extends StatelessWidget {
-  const _StatusTabs({required this.controller});
+// ── 1. Content-Driven Metric Summary Strip ─────────────────────────────────
+
+class _PaymentMetricRibbon extends StatelessWidget {
+  const _PaymentMetricRibbon({required this.controller});
 
   final PaymentsController controller;
-
-  static const _tabs = ['all', 'pending', 'approved', 'rejected'];
 
   @override
   Widget build(BuildContext context) {
-    return Obx(
-      () => Wrap(
-        spacing: AppSizes.xs,
-        runSpacing: AppSizes.xs,
-        children: [
-          for (final tab in _tabs)
-            ChoiceChip(
-              showCheckmark: false,
-              selected: controller.activeTab.value == tab,
-              onSelected: (_) => controller.changeTab(tab),
-              label: Text(
-                () {
-                  final label = _label(tab);
-                  final count = controller.counts[tab];
-                  return count == null ? label : '$label ($count)';
-                }(),
-                style: const TextStyle(fontSize: 11),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              visualDensity: VisualDensity.compact,
+    return Obx(() {
+      final pendingCount = controller.counts['pending'] ?? 0;
+      final approvedCount = controller.counts['approved'] ?? 0;
+      final rejectedCount = controller.counts['rejected'] ?? 0;
+      final allCount = controller.counts['all'] ?? 0;
+      final active = controller.activeTab.value;
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final count = constraints.maxWidth >= 900
+              ? 4
+              : (constraints.maxWidth >= 550 ? 2 : 1);
+
+          return GridView(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: count,
+              crossAxisSpacing: AppSizes.sm,
+              mainAxisSpacing: AppSizes.sm,
+              mainAxisExtent: 78,
             ),
-        ],
+            shrinkWrap: true,
+            primary: false,
+            children: [
+              _RibbonCard(
+                title: 'PENDING VERIFICATION',
+                value: '$pendingCount',
+                tag: pendingCount > 0 ? 'Action Required' : 'Cleared',
+                tagColor: pendingCount > 0
+                    ? AppColors.warning
+                    : AppColors.success,
+                isSelected: active == 'pending',
+                onTap: () => controller.changeTab('pending'),
+              ),
+              _RibbonCard(
+                title: 'APPROVED RECEIPTS',
+                value: NumberFormat('#,##0').format(approvedCount),
+                tag: 'Active Granted',
+                tagColor: AppColors.success,
+                isSelected: active == 'approved',
+                onTap: () => controller.changeTab('approved'),
+              ),
+              _RibbonCard(
+                title: 'REJECTED / INVALID',
+                value: NumberFormat('#,##0').format(rejectedCount),
+                tag: 'Declined',
+                tagColor: AppColors.error,
+                isSelected: active == 'rejected',
+                onTap: () => controller.changeTab('rejected'),
+              ),
+              _RibbonCard(
+                title: 'TOTAL SUBMISSIONS',
+                value: NumberFormat('#,##0').format(allCount),
+                tag: 'All Time',
+                tagColor: AppColors.primary,
+                isSelected: active == 'all',
+                onTap: () => controller.changeTab('all'),
+              ),
+            ],
+          );
+        },
+      );
+    });
+  }
+}
+
+class _RibbonCard extends StatelessWidget {
+  const _RibbonCard({
+    required this.title,
+    required this.value,
+    required this.tag,
+    required this.tagColor,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String title;
+  final String value;
+  final String tag;
+  final Color tagColor;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 8),
+        decoration: BoxDecoration(
+          color: dark ? AppColors.darkCard : AppColors.white,
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+          border: Border.all(
+            color: isSelected
+                ? tagColor
+                : (dark
+                    ? AppColors.darkGrey.withValues(alpha: 0.25)
+                    : AppColors.borderPrimary.withValues(alpha: 0.7)),
+            width: isSelected ? 1.5 : 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isSelected
+                  ? tagColor.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.02),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: tagColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    tag,
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: tagColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                color: isSelected
+                    ? tagColor
+                    : (dark ? AppColors.white : AppColors.textPrimary),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-
-  String _label(String tab) => switch (tab) {
-        'pending' => 'Pending',
-        'approved' => 'Approved',
-        'rejected' => 'Rejected',
-        _ => 'All',
-      };
 }
 
-class _FilterBar extends StatefulWidget {
-  const _FilterBar({required this.controller});
+// ── 2. Modern Filter & Search Bar ──────────────────────────────────────────
+
+class _ModernFilterBar extends StatefulWidget {
+  const _ModernFilterBar({required this.controller});
   final PaymentsController controller;
 
   @override
-  State<_FilterBar> createState() => _FilterBarState();
+  State<_ModernFilterBar> createState() => _ModernFilterBarState();
 }
 
-class _FilterBarState extends State<_FilterBar> {
+class _ModernFilterBarState extends State<_ModernFilterBar> {
   final _focus = FocusNode();
   bool _searchExpanded = false;
 
@@ -133,128 +275,159 @@ class _FilterBarState extends State<_FilterBar> {
 
     return AdminCard(
       padding: const EdgeInsets.all(AppSizes.sm),
-      child: Row(
-        children: [
-          // ── Search field (collapsed = icon only, expanded = full field) ──
-          GestureDetector(
-            onTap: _searchExpanded ? null : _expand,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeInOut,
-              width: _searchExpanded ? 220 : 34,
-              height: 34,
-              clipBehavior: Clip.hardEdge,
-              decoration: BoxDecoration(
-                color: _searchExpanded ? bgColor : Colors.transparent,
-                borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-              ),
-              child: AbsorbPointer(
-                absorbing: !_searchExpanded,
-                child: TextField(
-                  controller: widget.controller.searchController,
-                  focusNode: _focus,
-                  onChanged: widget.controller.onSearchChanged,
-                  style: const TextStyle(fontSize: 13),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: 'Search by name or email...',
-                    hintStyle: TextStyle(
-                      color: AppColors.textSecondary.withValues(alpha: 0.6),
-                      fontSize: 13,
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      size: 18,
-                      color: AppColors.textSecondary,
-                    ),
-                    suffixIcon: ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: widget.controller.searchController,
-                      builder: (_, value, _) {
-                        if (value.text.isEmpty) return const SizedBox.shrink();
-                        return IconButton(
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            size: 16,
-                            color: AppColors.textSecondary,
-                          ),
-                          onPressed: () {
-                            widget.controller.searchController.clear();
-                            widget.controller.onSearchChanged('');
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 600;
+
+          return Row(
+            children: [
+              // ── Search Field ──
+              GestureDetector(
+                onTap: _searchExpanded ? null : _expand,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  width: isNarrow
+                      ? (_searchExpanded ? 180 : 34)
+                      : (_searchExpanded ? 240 : 34),
+                  height: 34,
+                  clipBehavior: Clip.hardEdge,
+                  decoration: BoxDecoration(
+                    color: _searchExpanded ? bgColor : Colors.transparent,
+                    borderRadius:
+                        BorderRadius.circular(AppSizes.borderRadiusMd),
+                  ),
+                  child: AbsorbPointer(
+                    absorbing: !_searchExpanded,
+                    child: TextField(
+                      controller: widget.controller.searchController,
+                      focusNode: _focus,
+                      onChanged: widget.controller.onSearchChanged,
+                      style: const TextStyle(fontSize: 12.5),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: 'Search student name, email...',
+                        hintStyle: TextStyle(
+                          color: AppColors.textSecondary.withValues(alpha: 0.6),
+                          fontSize: 12.5,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          size: 17,
+                          color: AppColors.textSecondary,
+                        ),
+                        suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: widget.controller.searchController,
+                          builder: (_, value, _) {
+                            if (value.text.isEmpty) {
+                              return const SizedBox.shrink();
+                            }
+                            return IconButton(
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                size: 15,
+                                color: AppColors.textSecondary,
+                              ),
+                              onPressed: () {
+                                widget.controller.searchController.clear();
+                                widget.controller.onSearchChanged('');
+                              },
+                              visualDensity: VisualDensity.compact,
+                            );
                           },
-                          visualDensity: VisualDensity.compact,
-                        );
-                      },
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 9,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: AppSizes.sm),
-          // ── Filter pills — scrollable so they never overflow the row ────
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  // Method dropdown pill
-                  Obx(
-                    () => _FilterDropdown<String?>(
-                      borderColor: borderColor,
-                      icon: Icons.credit_card_rounded,
-                      hint: 'Method',
-                      value: widget.controller.methodFilter.value,
-                      items: [
-                        const DropdownMenuItem(
-                            value: null, child: Text('All methods')),
-                        ...PaymentMethodInfo.byKey.entries.map(
-                          (e) => DropdownMenuItem(
-                            value: e.key,
-                            child: Text(e.value.label),
-                          ),
+              const SizedBox(width: AppSizes.sm),
+
+              // ── Filter Pills ──
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      // Payment Method Dropdown
+                      Obx(
+                        () => _FilterDropdown<String?>(
+                          borderColor: borderColor,
+                          icon: Iconsax.card_copy,
+                          hint: 'Method',
+                          value: widget.controller.methodFilter.value,
+                          items: [
+                            const DropdownMenuItem(
+                              value: null,
+                              child: Text('All methods'),
+                            ),
+                            ...PaymentMethodInfo.byKey.entries.map(
+                              (e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value.label),
+                              ),
+                            ),
+                          ],
+                          onChanged: widget.controller.setMethodFilter,
                         ),
-                      ],
-                      onChanged: widget.controller.setMethodFilter,
-                    ),
-                  ),
-                  const SizedBox(width: AppSizes.sm),
-                  // Date range pill
-                  _DatePill(controller: widget.controller),
-                  const SizedBox(width: AppSizes.sm),
-                  // Clear (only when a filter is active)
-                  Obx(() {
-                    final active =
-                        widget.controller.methodFilter.value != null ||
-                            widget.controller.dateRange.value != null ||
-                            widget.controller.searchController.text.isNotEmpty;
-                    if (!active) return const SizedBox.shrink();
-                    return IconButton(
-                      tooltip: 'Clear filters',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: widget.controller.clearFilters,
-                      icon: const Icon(
-                        Icons.filter_alt_off_rounded,
-                        size: AppSizes.iconSm,
                       ),
-                    );
-                  }),
-                ],
+                      const SizedBox(width: AppSizes.sm),
+
+                      // Date Range Pill
+                      _DatePill(controller: widget.controller),
+                      const SizedBox(width: AppSizes.sm),
+
+                      // Clear Filters Button
+                      Obx(() {
+                        final active =
+                            widget.controller.methodFilter.value != null ||
+                                widget.controller.dateRange.value != null ||
+                                widget.controller.searchController.text.isNotEmpty;
+                        if (!active) return const SizedBox.shrink();
+                        return TextButton.icon(
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                          ),
+                          onPressed: widget.controller.clearFilters,
+                          icon: const Icon(
+                            Icons.filter_alt_off_rounded,
+                            size: 14,
+                            color: AppColors.error,
+                          ),
+                          label: const Text(
+                            'Reset',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: AppColors.error,
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-class _Table extends StatelessWidget {
-  const _Table({required this.controller});
+// ── 3. Modern Data Table ───────────────────────────────────────────────────
+
+class _ModernTable extends StatelessWidget {
+  const _ModernTable({required this.controller});
 
   final PaymentsController controller;
 
@@ -267,10 +440,10 @@ class _Table extends StatelessWidget {
         error: controller.errorMessage.value,
         onRetry: controller.loadQueue,
         onRefresh: controller.refreshAll,
-        emptyTitle: 'No receipts here',
+        emptyTitle: 'No payment receipts found',
         emptyMessage: controller.activeTab.value == 'pending'
-            ? 'Nothing is waiting for review.'
-            : 'No receipts match the current filters.',
+            ? 'The review queue is completely cleared! 🎉'
+            : 'No receipts match your selected filter criteria.',
         page: controller.page.value,
         pageSize: PaymentsController.pageSize,
         totalCount: controller.counts[controller.activeTab.value],
@@ -279,24 +452,105 @@ class _Table extends StatelessWidget {
         columns: [
           AdminColumn(
             label: 'STUDENT',
+            flex: 3,
+            cell: (context, row) => Row(
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                  child: Text(
+                    row.displayName.isNotEmpty
+                        ? row.displayName[0].toUpperCase()
+                        : 'S',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              row.displayName,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (row.userStream.isNotEmpty) ...[
+                            const SizedBox(width: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: (row.userStream.toLowerCase() ==
+                                            'natural'
+                                        ? AppColors.primary
+                                        : AppColors.amberAccent)
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                row.userStream,
+                                style: TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: row.userStream.toLowerCase() ==
+                                          'natural'
+                                      ? AppColors.primary
+                                      : AppColors.amberAccent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      Text(
+                        row.userEmail,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AdminColumn(
+            label: 'AMOUNT & PLAN',
             flex: 2,
             cell: (context, row) => Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  row.displayName,
-                  overflow: TextOverflow.ellipsis,
+                  row.amount == null
+                      ? '—'
+                      : '${row.amount!.toStringAsFixed(0)} ${row.currency}',
                   style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
-                  row.userEmail,
-                  overflow: TextOverflow.ellipsis,
+                  row.planLabel,
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     color: AppColors.textSecondary,
                   ),
                 ),
@@ -304,23 +558,39 @@ class _Table extends StatelessWidget {
             ),
           ),
           AdminColumn(
+            label: 'METHOD',
+            flex: 2,
+            cell: (context, row) =>
+                PaymentMethodChip(method: row.paymentMethod),
+          ),
+          AdminColumn(
             label: 'STATUS',
             flex: 1,
             cell: (context, row) => PaymentStatusPill(status: row.status),
           ),
           AdminColumn(
-            label: 'METHOD',
-            flex: 1,
-            cell: (context, row) => PaymentMethodChip(method: row.paymentMethod),
-          ),
-          AdminColumn(
-            label: 'DATE',
-            width: 110,
-            cell: (context, row) => Text(
-              row.createdAt == null
-                  ? '—'
-                  : DateFormat('d MMM yy, HH:mm').format(row.createdAt!),
-              style: const TextStyle(fontSize: 11),
+            label: 'SUBMITTED',
+            width: 120,
+            cell: (context, row) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  row.createdAt == null
+                      ? '—'
+                      : DateFormat('d MMM yy').format(row.createdAt!),
+                  style: const TextStyle(fontSize: 11),
+                ),
+                Text(
+                  row.createdAt == null
+                      ? ''
+                      : DateFormat('HH:mm').format(row.createdAt!),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -333,17 +603,29 @@ class _Table extends StatelessWidget {
             );
           }
 
-          return TextButton(
+          return ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              backgroundColor: row.isPending
+                  ? AppColors.primary
+                  : AppColors.grey.withValues(alpha: 0.2),
+              foregroundColor: row.isPending
+                  ? Colors.white
+                  : AppColors.textPrimary,
+              elevation: 0,
+            ),
             onPressed: () => _openDetail(context, row),
-            child: Text(row.isPending ? 'Review' : 'View'),
+            child: Text(
+              row.isPending ? 'Review' : 'View',
+              style: const TextStyle(fontSize: 11),
+            ),
           );
         }),
       ),
     );
   }
 
-  /// A side sheet on wide screens, a full route below — a reviewer on a
-  /// desktop keeps the queue in view while working an item.
   void _openDetail(BuildContext context, PaymentReview row) {
     final wide = MediaQuery.sizeOf(context).width >= 1200;
 
@@ -378,7 +660,7 @@ class _Table extends StatelessWidget {
   }
 }
 
-// ── Shared filter pill widgets ───────────────────────────────────────────────
+// ── Dropdown & Date Filters ────────────────────────────────────────────────
 
 class _FilterDropdown<T> extends StatelessWidget {
   const _FilterDropdown({
@@ -401,7 +683,7 @@ class _FilterDropdown<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 34,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
         border: Border.all(color: borderColor),
@@ -414,8 +696,8 @@ class _FilterDropdown<T> extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 13),
-              const SizedBox(width: 5),
-              Text(hint, style: const TextStyle(fontSize: 12)),
+              const SizedBox(width: 4),
+              Text(hint, style: const TextStyle(fontSize: 11.5)),
             ],
           ),
           icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 14),
@@ -454,7 +736,7 @@ class _DatePill extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
         child: Container(
           height: 34,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
             border: Border.all(color: borderColor),
@@ -464,18 +746,18 @@ class _DatePill extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                Icons.calendar_today_rounded,
+                Iconsax.calendar_copy,
                 size: 13,
                 color: range != null ? primary : null,
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: 4),
               Text(
                 range == null
-                    ? 'Any date'
+                    ? 'Date'
                     : '${DateFormat('d MMM').format(range.start)} – '
                         '${DateFormat('d MMM').format(range.end)}',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11.5,
                   color: range != null ? primary : null,
                 ),
               ),
