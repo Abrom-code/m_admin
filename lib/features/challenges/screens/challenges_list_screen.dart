@@ -46,115 +46,9 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Top Header Toolbar ──────────────────────────────────
+            // ── Single Ultra-Clean Toolbar (No Redundant Title) ────
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 10),
-              decoration: BoxDecoration(
-                color: dark ? AppColors.darkCard : AppColors.white,
-                borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-                border: Border.all(
-                  color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Title + Live Count Badge
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Iconsax.cup_copy, color: AppColors.primary, size: 20),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'National Challenges',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(width: 8),
-                      Obx(() {
-                        if (_ctrl.liveCount == 0) return const SizedBox.shrink();
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFF10B981)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF10B981),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${_ctrl.liveCount} LIVE',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF10B981),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-
-                  // Actions: Create Challenge & Refresh
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: () async {
-                          FocusManager.instance.primaryFocus?.unfocus();
-                          final ok = await Get.to(() => const ChallengeEditorScreen());
-                          if (ok == true || ok is String) {
-                            _ctrl.loadChallenges();
-                          }
-                        },
-                        icon: const Icon(Iconsax.add_circle_copy, size: 15),
-                        label: const Text('Create Challenge', style: TextStyle(fontSize: 12)),
-                      ),
-                      const SizedBox(width: 4),
-                      IconButton(
-                        tooltip: 'Refresh from Supabase',
-                        visualDensity: VisualDensity.compact,
-                        icon: Obx(
-                          () => _ctrl.isRefreshing.value
-                              ? const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.refresh_rounded, size: 18),
-                        ),
-                        onPressed: () {
-                          FocusManager.instance.primaryFocus?.unfocus();
-                          _ctrl.loadAll(showLoading: false);
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 6),
-
-            // ── Search & Filter Bar ─────────────────────────────────
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 8),
               decoration: BoxDecoration(
                 color: dark ? AppColors.darkCard : AppColors.white,
                 borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
@@ -167,9 +61,29 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Search bar
+                    // Create Challenge Button (Primary Focus)
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () async {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        final ok = await Get.to(() => const ChallengeEditorScreen());
+                        if (ok == true || ok is String) {
+                          _ctrl.loadChallenges();
+                        }
+                      },
+                      icon: const Icon(Iconsax.add_circle_copy, size: 15),
+                      label: const Text('Create Challenge', style: TextStyle(fontSize: 12)),
+                    ),
+
+                    const SizedBox(width: AppSizes.md),
+
+                    // Search input
                     SizedBox(
-                      width: 210,
+                      width: 190,
                       height: 32,
                       child: TextField(
                         controller: _ctrl.searchCtrl,
@@ -177,7 +91,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                         autofocus: false,
                         style: const TextStyle(fontSize: 11.5),
                         decoration: InputDecoration(
-                          hintText: 'Search title, subject, ID...',
+                          hintText: 'Search title, subject...',
                           hintStyle: const TextStyle(fontSize: 11),
                           prefixIcon: const Icon(Iconsax.search_normal_copy, size: 13),
                           suffixIcon: _ctrl.searchQuery.value.isNotEmpty
@@ -198,6 +112,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                         ),
                       ),
                     ),
+
                     const SizedBox(width: AppSizes.md),
 
                     // Subject dropdown
@@ -271,12 +186,33 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                         }).toList(),
                       );
                     }),
+
+                    const SizedBox(width: 8),
+
+                    // Refresh Button
+                    IconButton(
+                      tooltip: 'Refresh from Supabase',
+                      visualDensity: VisualDensity.compact,
+                      icon: Obx(
+                        () => _ctrl.isRefreshing.value
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.refresh_rounded, size: 18),
+                      ),
+                      onPressed: () {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        _ctrl.loadAll(showLoading: false);
+                      },
+                    ),
                   ],
                 ),
               ),
             ),
 
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
 
             // ── Main Challenges List ────────────────────────────────
             Expanded(
@@ -301,7 +237,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                             const Text('No challenges found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                             const SizedBox(height: 4),
                             const Text(
-                              'Create a new challenge or adjust your filters above.',
+                              'Tap "Create Challenge" above to launch your first challenge.',
                               textAlign: TextAlign.center,
                               style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
                             ),
