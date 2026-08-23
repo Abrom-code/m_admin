@@ -190,4 +190,61 @@ BEGIN
 END;
 $$;
 
+-- 4. Get Period Leaderboard (Weekly / Monthly)
+CREATE OR REPLACE FUNCTION public.rpc_get_period_leaderboard(
+  p_stream text DEFAULT NULL,
+  p_period text DEFAULT 'week', -- 'week' or 'month'
+  p_period_start date DEFAULT NULL,
+  p_limit int DEFAULT 100
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_rows jsonb;
+  v_start date := p_period_start;
+BEGIN
+  IF v_start IS NULL THEN
+    IF p_period = 'week' THEN
+      v_start := date_trunc('week', now())::date;
+    ELSE
+      v_start := date_trunc('month', now())::date;
+    END IF;
+  END IF;
+
+  SELECT jsonb_agg(
+    jsonb_build_object(
+      'rank', r.rank,
+      'user_id', r.user_id,
+      'first_name', u.first_name,
+      'last_name', coalesce(u.last_name, ''),
+      'stream', r.stream,
+      'total_score', r.total_score,
+      'total_time_seconds', r.total_time_seconds,
+      'challenges_taken', r.challenges_taken,
+      'period_start', v_start
+    ) ORDER BY r.rank ASC
+  ) INTO v_rows
+  FROM (
+    SELECT
+      a.user_id,
+      a.stream,
+      sum(a.score)::int AS total_score,
+      sum(a.total_time_seconds)::int AS total_time_seconds,
+      count(*)::int AS challenges_taken,
+      ROW_NUMBER() OVER (ORDER BY sum(a.score) DESC, count(*) ASC, sum(a.total_time_seconds) ASC) AS rank
+    FROM public.challenge_attempts a
+    WHERE a.status = 'submitted'
+      AND (p_stream IS NULL OR p_stream = '' OR p_stream = 'all' OR lower(a.stream) = lower(p_stream))
+      AND (a.submitted_at >= v_start OR a.submitted_at IS NULL)
+    GROUP BY a.user_id, a.stream
+    LIMIT coalesce(p_limit, 100)
+  ) r
+  JOIN public.users u ON u.id = r.user_id;
+
+  RETURN coalesce(v_rows, '[]'::jsonb);
+END;
+$$;
+
 COMMIT;

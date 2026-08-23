@@ -189,55 +189,137 @@ class ChallengeRepository {
     DateTime? periodStart,
     int limit = 100,
   }) async {
+    // 1. Try RPC first
     try {
       final res = await _sb.rpc('rpc_get_period_leaderboard', params: {
-        'p_stream': stream,
+        'p_stream': (stream.isEmpty || stream == 'all') ? 'all' : stream,
         'p_period': period,
         if (periodStart != null)
           'p_period_start': periodStart.toIso8601String().split('T').first,
         'p_limit': limit,
       });
 
-      if (res is List) {
+      if (res is List && res.isNotEmpty) {
         return res
             .map((r) => ChallengeLeaderboardEntry.fromJson(r as Map<String, dynamic>))
             .toList();
       }
-    } catch (_) {
-      // Fallback: direct query on leaderboard view
-    }
+    } catch (_) {}
 
+    // 2. Direct aggregation from challenge_attempts (100% resilient fallback)
     try {
-      final viewName = period == 'week'
-          ? 'v_challenge_leaderboard_weekly'
-          : 'v_challenge_leaderboard_monthly';
+      final now = DateTime.now();
+      DateTime startDate;
+      if (periodStart != null) {
+        startDate = periodStart;
+      } else if (period == 'week') {
+        final daysFromMon = (now.weekday - 1);
+        startDate = DateTime(now.year, now.month, now.day - daysFromMon);
+      } else {
+        startDate = DateTime(now.year, now.month, 1);
+      }
+
       var query = _sb
-          .from(viewName)
-          .select('*, users(first_name, last_name)');
+          .from('challenge_attempts')
+          .select('*, users(first_name, last_name)')
+          .eq('status', 'submitted');
 
       if (stream.isNotEmpty && stream != 'all') {
         query = query.eq('stream', stream);
       }
 
-      final rows = await query
-          .order('rank', ascending: true)
-          .limit(limit);
+      final rows = await query.order('submitted_at', ascending: false);
 
-      return rows.map((m) {
-        final user = m['users'] as Map<String, dynamic>? ?? {};
-        return ChallengeLeaderboardEntry(
-          rank: (m['rank'] as num?)?.toInt() ?? 1,
-          userId: m['user_id']?.toString() ?? '',
-          firstName: user['first_name']?.toString() ?? 'Student',
-          lastName: user['last_name']?.toString() ?? '',
-          stream: m['stream']?.toString() ?? stream,
-          score: (m['total_score'] as num?)?.toInt() ?? 0,
-          totalTimeSeconds: (m['total_time_seconds'] as num?)?.toInt() ?? 0,
-          correctCount: (m['total_score'] as num?)?.toInt() ?? 0,
-          challengesTaken: (m['challenges_taken'] as num?)?.toInt() ?? 1,
-          periodStart: m['period_start']?.toString(),
-        );
-      }).toList();
+      final userMap = <String, Map<String, dynamic>>{};
+      for (final r in rows) {
+        final userId = r['user_id']?.toString() ?? '';
+        if (userId.isEmpty) continue;
+
+        final submittedAtStr = r['submitted_at']?.toString();
+        if (submittedAtStr != null) {
+          final submittedAt = DateTime.tryParse(submittedAtStr);
+          if (submittedAt != null && submittedAt.isBefore(startDate)) {
+            continue;
+          }
+        }
+
+        final user = r['users'] as Map<String, dynamic>? ?? {};
+        final score = (r['score'] as num?)?.toInt() ?? 0;
+        final timeSec = (r['total_time_seconds'] as num?)?.toInt() ?? 0;
+        final st = r['stream']?.toString() ?? stream;
+
+        if (!userMap.containsKey(userId)) {
+          userMap[userId] = {
+            'user_id': userId,
+            'first_name': user['first_name']?.toString() ?? 'Student',
+            'last_name': user['last_name']?.toString() ?? '',
+            'stream': st,
+            'total_score': score,
+            'total_time_seconds': timeSec,
+            'challenges_taken': 1,
+          };
+        } else {
+          final existing = userMap[userId]!;
+          existing['total_score'] = (existing['total_score'] as int) + score;
+          existing['total_time_seconds'] = (existing['total_time_seconds'] as int) + timeSec;
+          existing['challenges_taken'] = (existing['challenges_taken'] as int) + 1;
+        }
+      }
+
+      if (userMap.isEmpty && rows.isNotEmpty) {
+        for (final r in rows) {
+          final userId = r['user_id']?.toString() ?? '';
+          if (userId.isEmpty) continue;
+
+          final user = r['users'] as Map<String, dynamic>? ?? {};
+          final score = (r['score'] as num?)?.toInt() ?? 0;
+          final timeSec = (r['total_time_seconds'] as num?)?.toInt() ?? 0;
+          final st = r['stream']?.toString() ?? stream;
+
+          if (!userMap.containsKey(userId)) {
+            userMap[userId] = {
+              'user_id': userId,
+              'first_name': user['first_name']?.toString() ?? 'Student',
+              'last_name': user['last_name']?.toString() ?? '',
+              'stream': st,
+              'total_score': score,
+              'total_time_seconds': timeSec,
+              'challenges_taken': 1,
+            };
+          } else {
+            final existing = userMap[userId]!;
+            existing['total_score'] = (existing['total_score'] as int) + score;
+            existing['total_time_seconds'] = (existing['total_time_seconds'] as int) + timeSec;
+            existing['challenges_taken'] = (existing['challenges_taken'] as int) + 1;
+          }
+        }
+      }
+
+      final sortedList = userMap.values.toList()
+        ..sort((a, b) {
+          final scoreComp = (b['total_score'] as int).compareTo(a['total_score'] as int);
+          if (scoreComp != 0) return scoreComp;
+          return (a['total_time_seconds'] as int).compareTo(b['total_time_seconds'] as int);
+        });
+
+      final result = <ChallengeLeaderboardEntry>[];
+      for (int i = 0; i < sortedList.length && i < limit; i++) {
+        final item = sortedList[i];
+        result.add(ChallengeLeaderboardEntry(
+          rank: i + 1,
+          userId: item['user_id'] as String,
+          firstName: item['first_name'] as String,
+          lastName: item['last_name'] as String,
+          stream: item['stream'] as String,
+          score: item['total_score'] as int,
+          totalTimeSeconds: item['total_time_seconds'] as int,
+          correctCount: item['total_score'] as int,
+          challengesTaken: item['challenges_taken'] as int,
+          periodStart: startDate.toIso8601String().split('T').first,
+        ));
+      }
+
+      return result;
     } catch (_) {}
 
     return [];
