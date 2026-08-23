@@ -32,8 +32,19 @@ class ChallengeRepository {
 
   Future<void> upsertQuestion(Map<String, dynamic> data) async {
     final payload = Map<String, dynamic>.from(data);
-    payload.remove('set_id');
-    await _sb.from('challenge_questions').upsert(payload);
+    try {
+      await _sb.from('challenge_questions').upsert(payload);
+    } on PostgrestException catch (e) {
+      if (e.message.contains('set_id') && payload.containsKey('set_id')) {
+        payload.remove('set_id');
+        await _sb.from('challenge_questions').upsert(payload);
+      } else if (e.message.contains('challenge_id') && payload.containsKey('challenge_id')) {
+        payload.remove('challenge_id');
+        await _sb.from('challenge_questions').upsert(payload);
+      } else {
+        rethrow;
+      }
+    }
   }
 
   Future<void> deleteQuestion(String questionId) async {
@@ -78,17 +89,60 @@ class ChallengeRepository {
 
   Future<LeaderboardChallengeModel> upsertChallenge(Map<String, dynamic> data) async {
     final payload = Map<String, dynamic>.from(data);
-    payload.remove('set_id');
     payload.remove('question_set_id');
     payload.remove('created_by');
 
-    final row = await _sb
-        .from('leaderboard_challenges')
-        .upsert(payload)
-        .select('*, subjects(name), challenge_questions(id)')
-        .single();
+    final subjectId = (payload['subject_id'] as num?)?.toInt() ?? 0;
+    final title = payload['title']?.toString() ?? 'Challenge';
+    String? setId = payload['set_id']?.toString();
 
-    return LeaderboardChallengeModel.fromJson(row);
+    // 1. Try upserting directly
+    try {
+      final row = await _sb
+          .from('leaderboard_challenges')
+          .upsert(payload)
+          .select('*, subjects(name), challenge_questions(id)')
+          .single();
+
+      return LeaderboardChallengeModel.fromJson(row);
+    } on PostgrestException catch (e) {
+      // If DB requires set_id (not-null constraint violation):
+      final msg = e.message.toLowerCase();
+      final details = e.details?.toLowerCase() ?? '';
+      if (msg.contains('set_id') || details.contains('set_id') || e.code == '23502') {
+        try {
+          if (setId == null || setId.isEmpty) {
+            final setRow = await _sb.from('challenge_question_sets').insert({
+              'subject_id': subjectId,
+              'title': title,
+            }).select('id').single();
+            setId = setRow['id']?.toString();
+          }
+          if (setId != null && setId.isNotEmpty) {
+            payload['set_id'] = setId;
+            final row = await _sb
+                .from('leaderboard_challenges')
+                .upsert(payload)
+                .select('*, subjects(name), challenge_questions(id)')
+                .single();
+            return LeaderboardChallengeModel.fromJson(row);
+          }
+        } catch (_) {}
+      }
+
+      // If DB doesn't have set_id column at all:
+      if (payload.containsKey('set_id')) {
+        payload.remove('set_id');
+        final row = await _sb
+            .from('leaderboard_challenges')
+            .upsert(payload)
+            .select('*, subjects(name), challenge_questions(id)')
+            .single();
+        return LeaderboardChallengeModel.fromJson(row);
+      }
+
+      rethrow;
+    }
   }
 
   Future<String> publishChallenge(String challengeId) async {
