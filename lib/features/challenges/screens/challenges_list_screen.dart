@@ -46,7 +46,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Single Ultra-Clean Toolbar (No Redundant Title) ────
+            // ── Single Ultra-Clean Toolbar (AppBar handles refresh) ──
             Container(
               padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 8),
               decoration: BoxDecoration(
@@ -61,7 +61,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Create Challenge Button (Primary Focus)
+                    // Create Challenge Button
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primary,
@@ -70,10 +70,8 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                       ),
                       onPressed: () async {
                         FocusManager.instance.primaryFocus?.unfocus();
-                        final ok = await Get.to(() => const ChallengeEditorScreen());
-                        if (ok == true || ok is String) {
-                          _ctrl.loadChallenges();
-                        }
+                        await Get.to(() => const ChallengeEditorScreen());
+                        _ctrl.loadAll(showLoading: false);
                       },
                       icon: const Icon(Iconsax.add_circle_copy, size: 15),
                       label: const Text('Create Challenge', style: TextStyle(fontSize: 12)),
@@ -186,27 +184,6 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                         }).toList(),
                       );
                     }),
-
-                    const SizedBox(width: 8),
-
-                    // Refresh Button
-                    IconButton(
-                      tooltip: 'Refresh from Supabase',
-                      visualDensity: VisualDensity.compact,
-                      icon: Obx(
-                        () => _ctrl.isRefreshing.value
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.refresh_rounded, size: 18),
-                      ),
-                      onPressed: () {
-                        FocusManager.instance.primaryFocus?.unfocus();
-                        _ctrl.loadAll(showLoading: false);
-                      },
-                    ),
                   ],
                 ),
               ),
@@ -243,7 +220,10 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                             ),
                             const SizedBox(height: AppSizes.md),
                             FilledButton.icon(
-                              onPressed: () => Get.to(() => const ChallengeEditorScreen()),
+                              onPressed: () async {
+                                await Get.to(() => const ChallengeEditorScreen());
+                                _ctrl.loadAll(showLoading: false);
+                              },
                               icon: const Icon(Iconsax.add_circle_copy, size: 15),
                               label: const Text('Create Challenge'),
                             ),
@@ -271,8 +251,8 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                           dateFormat: _dateFormat,
                           dark: dark,
                           onEdit: () async {
-                            final ok = await Get.to(() => ChallengeEditorScreen(challengeId: c.id));
-                            if (ok == true || ok is String) _ctrl.loadChallenges();
+                            await Get.to(() => ChallengeEditorScreen(challengeId: c.id));
+                            _ctrl.loadAll(showLoading: false);
                           },
                           onDelete: () => _confirmDeleteChallenge(c),
                         );
@@ -431,7 +411,7 @@ class _ChallengeRoundCard extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              '${challenge.subjectName ?? 'Subject'} • Duration: ${challenge.durationMinutes} mins',
+              '${challenge.subjectName ?? 'Subject'} • Duration: ${challenge.durationMinutes} mins • ${challenge.questionCount} Questions',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),

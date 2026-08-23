@@ -127,7 +127,9 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                     ),
                     onPressed: () async {
                       final id = await _ctrl.saveChallenge(isPublish: false);
-                      if (id != null && !mounted) return;
+                      if (id != null) {
+                        Get.back(result: true);
+                      }
                     },
                     child: const Text('Save Draft', style: TextStyle(fontSize: 12)),
                   ),
@@ -749,8 +751,6 @@ class _ChallengeQuestionDialogState extends State<_ChallengeQuestionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final dark = AppHelperFunctions.isDark(context);
-
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg)),
       child: ConstrainedBox(

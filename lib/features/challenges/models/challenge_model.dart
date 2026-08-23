@@ -95,6 +95,17 @@ class LeaderboardChallengeModel {
   }
 
   factory LeaderboardChallengeModel.fromJson(Map<String, dynamic> json) {
+    int qCount = (json['question_count'] as num?)?.toInt() ?? 0;
+    if (qCount == 0 && json['challenge_question_sets'] is Map) {
+      final setMap = json['challenge_question_sets'] as Map;
+      if (setMap['challenge_questions'] is List) {
+        qCount = (setMap['challenge_questions'] as List).length;
+      }
+    }
+    if (qCount == 0 && json['challenge_questions'] is List) {
+      qCount = (json['challenge_questions'] as List).length;
+    }
+
     return LeaderboardChallengeModel(
       id: json['id']?.toString() ?? '',
       setId: json['set_id']?.toString() ?? '',
@@ -120,7 +131,7 @@ class LeaderboardChallengeModel {
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
-      questionCount: (json['question_count'] as num?)?.toInt() ?? 0,
+      questionCount: qCount,
       attemptCount: (json['attempt_count'] as num?)?.toInt() ?? 0,
     );
   }
