@@ -16,6 +16,8 @@ class AdminLeaderboardController extends GetxController {
   final isLoading = false.obs;
   final isGranting = false.obs;
 
+  final allChallenges = <LeaderboardChallengeModel>[].obs;
+  final currentChallengeId = RxnString();
   final challenge = Rxn<LeaderboardChallengeModel>();
   final entries = <ChallengeLeaderboardEntry>[].obs;
   final searchQuery = ''.obs;
@@ -26,6 +28,7 @@ class AdminLeaderboardController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    currentChallengeId.value = challengeId;
     if (initialStream != null) {
       selectedStream.value = initialStream!;
     }
@@ -64,8 +67,18 @@ class AdminLeaderboardController extends GetxController {
   Future<void> loadData() async {
     isLoading.value = true;
     try {
-      if (challengeId != null && challengeId!.isNotEmpty) {
-        challenge.value = await _repo.fetchChallengeDetail(challengeId!);
+      allChallenges.value = await _repo.fetchChallenges();
+
+      if (currentChallengeId.value != null && currentChallengeId.value!.isNotEmpty) {
+        try {
+          challenge.value = await _repo.fetchChallengeDetail(currentChallengeId.value!);
+        } catch (_) {
+          final found = allChallenges.firstWhereOrNull((c) => c.id == currentChallengeId.value);
+          if (found != null) challenge.value = found;
+        }
+      } else if (allChallenges.isNotEmpty) {
+        currentChallengeId.value = allChallenges.first.id;
+        challenge.value = allChallenges.first;
       }
 
       await refreshLeaderboard();
@@ -76,27 +89,36 @@ class AdminLeaderboardController extends GetxController {
     }
   }
 
+  void selectChallenge(String id) {
+    currentChallengeId.value = id;
+    challenge.value = allChallenges.firstWhereOrNull((c) => c.id == id);
+    selectedView.value = 'challenge';
+    refreshLeaderboard();
+  }
+
   Future<void> refreshLeaderboard() async {
     try {
       isLoading.value = true;
-      if (selectedView.value == 'challenge' && challengeId != null) {
-        final stream = selectedStream.value == 'all' ? null : selectedStream.value;
-        entries.value = await _repo.fetchLeaderboard(
-          challengeId: challengeId!,
-          stream: stream,
-          limit: 200,
-        );
+      final stream = selectedStream.value == 'all' ? null : selectedStream.value;
+      if (selectedView.value == 'challenge') {
+        if (currentChallengeId.value != null && currentChallengeId.value!.isNotEmpty) {
+          entries.value = await _repo.fetchLeaderboard(
+            challengeId: currentChallengeId.value!,
+            stream: stream,
+            limit: 200,
+          );
+        } else {
+          entries.value = [];
+        }
       } else if (selectedView.value == 'weekly') {
-        final stream = selectedStream.value == 'all' ? 'natural' : selectedStream.value;
         entries.value = await _repo.fetchPeriodLeaderboard(
-          stream: stream,
+          stream: stream ?? 'all',
           period: 'week',
           limit: 200,
         );
       } else if (selectedView.value == 'monthly') {
-        final stream = selectedStream.value == 'all' ? 'natural' : selectedStream.value;
         entries.value = await _repo.fetchPeriodLeaderboard(
-          stream: stream,
+          stream: stream ?? 'all',
           period: 'month',
           limit: 200,
         );
@@ -127,7 +149,7 @@ class AdminLeaderboardController extends GetxController {
     try {
       isGranting.value = true;
       await _repo.grantReward(
-        challengeId: selectedView.value == 'challenge' ? challengeId : null,
+        challengeId: selectedView.value == 'challenge' ? currentChallengeId.value : null,
         userId: userId,
         rank: rank,
         rewardType: rewardType,

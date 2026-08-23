@@ -75,7 +75,23 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                         _ctrl.loadAll(showLoading: false);
                       },
                       icon: const Icon(Iconsax.add_circle_copy, size: 15),
-                      label: const Text('Create Challenge', style: TextStyle(fontSize: 12)),
+                      label: const Text('Create', style: TextStyle(fontSize: 12)),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    // Leaderboards Button
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        Get.to(() => const ChallengeLeaderboardScreen());
+                      },
+                      icon: const Icon(Iconsax.ranking_copy, size: 15, color: Color(0xFF8B5CF6)),
+                      label: const Text('Leaderboard', style: TextStyle(fontSize: 12)),
                     ),
 
                     const SizedBox(width: AppSizes.md),
@@ -464,15 +480,16 @@ class _ChallengeCard extends StatelessWidget {
               runSpacing: 4,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                    visualDensity: VisualDensity.compact,
+                if (!challenge.isClosed && challenge.status.toLowerCase() != 'closed')
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: onNotify,
+                    icon: const Icon(Icons.notifications_active_outlined, size: 12, color: Color(0xFF8B5CF6)),
+                    label: const Text('Notify', style: TextStyle(fontSize: 10.5, color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold)),
                   ),
-                  onPressed: onNotify,
-                  icon: const Icon(Icons.notifications_active_outlined, size: 12, color: Color(0xFF8B5CF6)),
-                  label: const Text('Notify', style: TextStyle(fontSize: 10.5, color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold)),
-                ),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),

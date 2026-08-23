@@ -211,10 +211,15 @@ class ChallengeRepository {
       final viewName = period == 'week'
           ? 'v_challenge_leaderboard_weekly'
           : 'v_challenge_leaderboard_monthly';
-      final rows = await _sb
+      var query = _sb
           .from(viewName)
-          .select('*, users(first_name, last_name)')
-          .eq('stream', stream)
+          .select('*, users(first_name, last_name)');
+
+      if (stream.isNotEmpty && stream != 'all') {
+        query = query.eq('stream', stream);
+      }
+
+      final rows = await query
           .order('rank', ascending: true)
           .limit(limit);
 

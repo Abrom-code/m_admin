@@ -54,7 +54,14 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.challengeTitle ?? 'Challenge Leaderboard'),
+          title: Obx(() {
+            if (_ctrl.selectedView.value == 'weekly') {
+              return const Text('Weekly Leaderboard');
+            } else if (_ctrl.selectedView.value == 'monthly') {
+              return const Text('Monthly Leaderboard');
+            }
+            return Text(_ctrl.challenge.value?.title ?? widget.challengeTitle ?? 'Challenge Leaderboard');
+          }),
           actions: [
             IconButton(
               tooltip: 'Refresh Standings',
@@ -105,16 +112,15 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (widget.challengeId != null)
-                                _CleanPill(
-                                  selected: _ctrl.selectedView.value == 'challenge',
-                                  icon: Iconsax.cup_copy,
-                                  label: 'This Round',
-                                  onTap: () {
-                                    FocusManager.instance.primaryFocus?.unfocus();
-                                    _ctrl.setView('challenge');
-                                  },
-                                ),
+                              _CleanPill(
+                                selected: _ctrl.selectedView.value == 'challenge',
+                                icon: Iconsax.cup_copy,
+                                label: 'Challenges',
+                                onTap: () {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  _ctrl.setView('challenge');
+                                },
+                              ),
                               _CleanPill(
                                 selected: _ctrl.selectedView.value == 'weekly',
                                 icon: Iconsax.calendar_1_copy,
@@ -171,6 +177,56 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                         ),
                       ],
                     ),
+
+                    if (isChallengeView && _ctrl.allChallenges.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: dark ? AppColors.darkContainer : AppColors.white,
+                          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                          border: Border.all(color: dark ? AppColors.darkBorder : AppColors.borderPrimary),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Iconsax.cup_copy, size: 14, color: Color(0xFF8B5CF6)),
+                            const SizedBox(width: 8),
+                            const Text('Challenge: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _ctrl.currentChallengeId.value,
+                                  isExpanded: true,
+                                  isDense: true,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: dark ? Colors.white : Colors.black87,
+                                  ),
+                                  dropdownColor: dark ? AppColors.darkCard : AppColors.white,
+                                  items: _ctrl.allChallenges.map((ch) {
+                                    return DropdownMenuItem<String>(
+                                      value: ch.id,
+                                      child: Text(
+                                        '${ch.title} (${ch.status.toUpperCase()} • ${ch.audience.toUpperCase()})',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      FocusManager.instance.primaryFocus?.unfocus();
+                                      _ctrl.selectChallenge(val);
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 10),
 
