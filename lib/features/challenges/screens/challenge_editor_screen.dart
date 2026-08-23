@@ -122,7 +122,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                 children: [
                   OutlinedButton(
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       visualDensity: VisualDensity.compact,
                     ),
                     onPressed: () async {
@@ -137,7 +137,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                   FilledButton.icon(
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       visualDensity: VisualDensity.compact,
                     ),
                     onPressed: () async {
@@ -149,7 +149,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                     icon: const Icon(Iconsax.send_1_copy, size: 14),
                     label: const Text('Publish / Schedule', style: TextStyle(fontSize: 12)),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                 ],
               );
             }),
@@ -164,82 +164,138 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
             controller: _scrollCtrl,
             child: SingleChildScrollView(
               controller: _scrollCtrl,
-              padding: const EdgeInsets.all(AppSizes.md),
+              padding: const EdgeInsets.all(AppSizes.lg),
               child: Form(
                 key: _ctrl.formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // ── SECTION 1: CHALLENGE DETAILS ────────────────────────
-                    Container(
-                      padding: const EdgeInsets.all(AppSizes.md),
-                      decoration: BoxDecoration(
-                        color: dark ? AppColors.darkCard : AppColors.white,
-                        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-                        border: Border.all(
-                          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Iconsax.cup_copy, color: AppColors.primary, size: 18),
-                              const SizedBox(width: 6),
-                              const Text(
-                                'Challenge Details & Schedule',
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                              ),
-                              const Spacer(),
-                              if (_ctrl.isEditingExisting)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    _ctrl.status.value.toUpperCase(),
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const Divider(height: 20),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= 680;
 
-                          // Challenge Title
-                          TextFormField(
-                            controller: _ctrl.titleCtrl,
-                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter a title' : null,
-                            decoration: InputDecoration(
-                              labelText: 'Challenge Title *',
-                              hintText: 'e.g. National Physics Round #4',
-                              prefixIcon: const Icon(Iconsax.edit_copy, size: 16),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                              ),
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // ── SECTION 1: CHALLENGE DETAILS & SCHEDULE ─────────────
+                        Container(
+                          padding: const EdgeInsets.all(AppSizes.lg),
+                          decoration: BoxDecoration(
+                            color: dark ? AppColors.darkCard : AppColors.white,
+                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                            border: Border.all(
+                              color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
                             ),
                           ),
-                          const SizedBox(height: AppSizes.spaceBtwInputFields),
-
-                          // Subject & Stream Row
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Subject Selector
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(minWidth: 220, maxWidth: 350),
-                                child: DropdownButtonFormField<int?>(
+                              // Section Header
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(Iconsax.cup_copy, color: AppColors.primary, size: 18),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Challenge Details & Schedule',
+                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Set title, subject, target stream, duration, and competition timeline',
+                                        style: TextStyle(fontSize: 11.5, color: dark ? Colors.white60 : AppColors.textSecondary),
+                                      ),
+                                    ],
+                                  ),
+                                  const Spacer(),
+                                  if (_ctrl.isEditingExisting)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        _ctrl.status.value.toUpperCase(),
+                                        style: const TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const Divider(height: 28),
+
+                              // 1. Challenge Title Field
+                              TextFormField(
+                                controller: _ctrl.titleCtrl,
+                                validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter a challenge title' : null,
+                                decoration: InputDecoration(
+                                  labelText: 'Challenge Title *',
+                                  hintText: 'e.g. National Physics Challenge Round #4',
+                                  prefixIcon: const Icon(Iconsax.edit_copy, size: 17),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: AppSizes.md + 4),
+
+                              // 2. Subject & Stream Row
+                              if (isWide)
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Subject Selector
+                                    Expanded(
+                                      flex: 5,
+                                      child: DropdownButtonFormField<int?>(
+                                        initialValue: _ctrl.selectedSubjectId.value,
+                                        decoration: InputDecoration(
+                                          labelText: 'Subject *',
+                                          prefixIcon: const Icon(Iconsax.book_copy, size: 17),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                                          ),
+                                        ),
+                                        items: [
+                                          const DropdownMenuItem<int?>(
+                                            value: null,
+                                            child: Text('Select Subject'),
+                                          ),
+                                          ..._ctrl.subjects.map(
+                                            (s) => DropdownMenuItem<int?>(
+                                              value: s['id'] as int,
+                                              child: Text(s['name']?.toString() ?? ''),
+                                            ),
+                                          ),
+                                        ],
+                                        onChanged: (v) => _ctrl.selectedSubjectId.value = v,
+                                      ),
+                                    ),
+                                    const SizedBox(width: AppSizes.md),
+
+                                    // Stream Selector
+                                    Expanded(
+                                      flex: 6,
+                                      child: _StreamSelectorBox(ctrl: _ctrl),
+                                    ),
+                                  ],
+                                )
+                              else ...[
+                                DropdownButtonFormField<int?>(
                                   initialValue: _ctrl.selectedSubjectId.value,
                                   decoration: InputDecoration(
                                     labelText: 'Subject *',
-                                    prefixIcon: const Icon(Iconsax.book_copy, size: 16),
+                                    prefixIcon: const Icon(Iconsax.book_copy, size: 17),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                                     ),
@@ -258,56 +314,99 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                   ],
                                   onChanged: (v) => _ctrl.selectedSubjectId.value = v,
                                 ),
-                              ),
+                                const SizedBox(height: AppSizes.md),
+                                _StreamSelectorBox(ctrl: _ctrl),
+                              ],
 
-                              // Audience Stream Chips
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Target Audience Stream:',
-                                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Obx(
-                                    () => Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        _StreamChip(
-                                          label: 'Both Streams',
-                                          selected: _ctrl.audience.value == 'both',
-                                          onTap: () => _ctrl.audience.value = 'both',
+                              const SizedBox(height: AppSizes.md + 4),
+
+                              // 3. Duration & Dates Row
+                              if (isWide)
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Duration
+                                    Expanded(
+                                      flex: 3,
+                                      child: TextFormField(
+                                        controller: _ctrl.durationCtrl,
+                                        keyboardType: TextInputType.number,
+                                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                                        decoration: InputDecoration(
+                                          labelText: 'Duration (Mins) *',
+                                          hintText: '40',
+                                          prefixIcon: const Icon(Iconsax.timer_1_copy, size: 17),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                                          ),
                                         ),
-                                        const SizedBox(width: 6),
-                                        _StreamChip(
-                                          label: 'Natural Only',
-                                          selected: _ctrl.audience.value == 'natural',
-                                          onTap: () => _ctrl.audience.value = 'natural',
-                                        ),
-                                        const SizedBox(width: 6),
-                                        _StreamChip(
-                                          label: 'Social Only',
-                                          selected: _ctrl.audience.value == 'social',
-                                          onTap: () => _ctrl.audience.value = 'social',
-                                        ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSizes.spaceBtwInputFields),
+                                    const SizedBox(width: AppSizes.md),
 
-                          // Duration, Start and End Time
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: [
-                              // Test Duration
-                              SizedBox(
-                                width: 160,
-                                child: TextFormField(
+                                    // Start Time Picker
+                                    Expanded(
+                                      flex: 4,
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                                        onTap: () async {
+                                          final dt = await _pickDateTime(_ctrl.startsAt.value);
+                                          if (dt != null) _ctrl.startsAt.value = dt;
+                                        },
+                                        child: InputDecorator(
+                                          decoration: InputDecoration(
+                                            labelText: 'Start Date & Time *',
+                                            prefixIcon: const Icon(Iconsax.calendar_1_copy, size: 17),
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                                            ),
+                                          ),
+                                          child: Obx(
+                                            () => Text(
+                                              _ctrl.startsAt.value != null
+                                                  ? _dateFormat.format(_ctrl.startsAt.value!)
+                                                  : 'Tap to select start time',
+                                              style: const TextStyle(fontSize: 12),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: AppSizes.md),
+
+                                    // End Time Picker
+                                    Expanded(
+                                      flex: 4,
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                                        onTap: () async {
+                                          final dt = await _pickDateTime(_ctrl.endsAt.value);
+                                          if (dt != null) _ctrl.endsAt.value = dt;
+                                        },
+                                        child: InputDecorator(
+                                          decoration: InputDecoration(
+                                            labelText: 'End Date & Time *',
+                                            prefixIcon: const Icon(Iconsax.calendar_2_copy, size: 17),
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                                            ),
+                                          ),
+                                          child: Obx(
+                                            () => Text(
+                                              _ctrl.endsAt.value != null
+                                                  ? _dateFormat.format(_ctrl.endsAt.value!)
+                                                  : 'Tap to select end time',
+                                              style: const TextStyle(fontSize: 12),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else ...[
+                                TextFormField(
                                   controller: _ctrl.durationCtrl,
                                   keyboardType: TextInputType.number,
                                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -315,18 +414,14 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                   decoration: InputDecoration(
                                     labelText: 'Duration (Mins) *',
                                     hintText: '40',
-                                    prefixIcon: const Icon(Iconsax.timer_1_copy, size: 16),
+                                    prefixIcon: const Icon(Iconsax.timer_1_copy, size: 17),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                                     ),
                                   ),
                                 ),
-                              ),
-
-                              // Start Time Picker
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(minWidth: 200, maxWidth: 280),
-                                child: InkWell(
+                                const SizedBox(height: AppSizes.md),
+                                InkWell(
                                   borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                                   onTap: () async {
                                     final dt = await _pickDateTime(_ctrl.startsAt.value);
@@ -335,7 +430,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                   child: InputDecorator(
                                     decoration: InputDecoration(
                                       labelText: 'Start Date & Time *',
-                                      prefixIcon: const Icon(Iconsax.calendar_1_copy, size: 16),
+                                      prefixIcon: const Icon(Iconsax.calendar_1_copy, size: 17),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                                       ),
@@ -350,12 +445,8 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                     ),
                                   ),
                                 ),
-                              ),
-
-                              // End Time Picker
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(minWidth: 200, maxWidth: 280),
-                                child: InkWell(
+                                const SizedBox(height: AppSizes.md),
+                                InkWell(
                                   borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                                   onTap: () async {
                                     final dt = await _pickDateTime(_ctrl.endsAt.value);
@@ -364,7 +455,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                   child: InputDecorator(
                                     decoration: InputDecoration(
                                       labelText: 'End Date & Time *',
-                                      prefixIcon: const Icon(Iconsax.calendar_2_copy, size: 16),
+                                      prefixIcon: const Icon(Iconsax.calendar_2_copy, size: 17),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                                       ),
@@ -379,105 +470,111 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                     ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: AppSizes.spaceBtwSections),
-
-                    // ── SECTION 2: QUESTIONS LIST ───────────────────────────
-                    Container(
-                      padding: const EdgeInsets.all(AppSizes.md),
-                      decoration: BoxDecoration(
-                        color: dark ? AppColors.darkCard : AppColors.white,
-                        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-                        border: Border.all(
-                          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
                         ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+                        const SizedBox(height: AppSizes.spaceBtwSections),
+
+                        // ── SECTION 2: QUESTIONS LIST ───────────────────────────
+                        Container(
+                          padding: const EdgeInsets.all(AppSizes.lg),
+                          decoration: BoxDecoration(
+                            color: dark ? AppColors.darkCard : AppColors.white,
+                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                            border: Border.all(
+                              color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Icon(Iconsax.document_copy, color: AppColors.primary, size: 18),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Questions (${_ctrl.questions.length})',
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(Iconsax.document_copy, color: AppColors.primary, size: 18),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        'Questions (${_ctrl.questions.length})',
+                                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                  FilledButton.icon(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    onPressed: () async {
+                                      if (!_ctrl.isEditingExisting && _ctrl.currentSetId.value == null) {
+                                        final id = await _ctrl.saveChallenge(isPublish: false);
+                                        if (id != null) _openQuestionDialog();
+                                      } else {
+                                        _openQuestionDialog();
+                                      }
+                                    },
+                                    icon: const Icon(Iconsax.add_circle_copy, size: 15),
+                                    label: const Text('Add Question', style: TextStyle(fontSize: 12)),
                                   ),
                                 ],
                               ),
-                              FilledButton.icon(
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  visualDensity: VisualDensity.compact,
+                              const Divider(height: 28),
+
+                              if (_ctrl.questions.isEmpty) ...[
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 32),
+                                  child: Column(
+                                    children: [
+                                      Icon(Iconsax.document_copy, size: 44, color: dark ? Colors.white24 : AppColors.textSecondary),
+                                      const SizedBox(height: 12),
+                                      const Text(
+                                        'No questions added to this challenge yet.',
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      const Text(
+                                        'Tap "Add Question" above or insert questions directly via Supabase SQL command.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                onPressed: () async {
-                                  // Save challenge first if not yet created so set_id exists
-                                  if (!_ctrl.isEditingExisting && _ctrl.currentSetId.value == null) {
-                                    final id = await _ctrl.saveChallenge(isPublish: false);
-                                    if (id != null) _openQuestionDialog();
-                                  } else {
-                                    _openQuestionDialog();
-                                  }
-                                },
-                                icon: const Icon(Iconsax.add_circle_copy, size: 14),
-                                label: const Text('Add Question', style: TextStyle(fontSize: 12)),
-                              ),
+                              ] else ...[
+                                ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: _ctrl.questions.length,
+                                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                                  itemBuilder: (context, idx) {
+                                    final q = _ctrl.questions[idx];
+                                    return _QuestionTile(
+                                      question: q,
+                                      index: idx + 1,
+                                      dark: dark,
+                                      onEdit: () => _openQuestionDialog(question: q),
+                                      onDelete: () => _confirmDeleteQuestion(context, q),
+                                    );
+                                  },
+                                ),
+                              ],
                             ],
                           ),
-                          const Divider(height: 20),
-
-                          if (_ctrl.questions.isEmpty) ...[
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 24),
-                              child: Column(
-                                children: [
-                                  Icon(Iconsax.document_copy, size: 40, color: dark ? Colors.white24 : AppColors.textSecondary),
-                                  const SizedBox(height: 10),
-                                  const Text(
-                                    'No questions added to this challenge yet.',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  const Text(
-                                    'Tap "Add Question" above or insert questions directly via Supabase SQL command.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ] else ...[
-                            ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: _ctrl.questions.length,
-                              separatorBuilder: (_, _) => const SizedBox(height: 8),
-                              itemBuilder: (context, idx) {
-                                final q = _ctrl.questions[idx];
-                                return _QuestionTile(
-                                  question: q,
-                                  index: idx + 1,
-                                  dark: dark,
-                                  onEdit: () => _openQuestionDialog(question: q),
-                                  onDelete: () => _confirmDeleteQuestion(context, q),
-                                );
-                              },
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -501,10 +598,59 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
   }
 }
 
-// ── Stream Chip ──────────────────────────────────────────────────────────────
+// ── Stream Selector Box ──────────────────────────────────────────────────────
 
-class _StreamChip extends StatelessWidget {
-  const _StreamChip({
+class _StreamSelectorBox extends StatelessWidget {
+  const _StreamSelectorBox({required this.ctrl});
+
+  final ChallengeEditorController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Target Stream *',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Obx(
+          () => Row(
+            children: [
+              Expanded(
+                child: _StreamTab(
+                  label: 'Both Streams',
+                  selected: ctrl.audience.value == 'both',
+                  onTap: () => ctrl.audience.value = 'both',
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _StreamTab(
+                  label: 'Natural Only',
+                  selected: ctrl.audience.value == 'natural',
+                  onTap: () => ctrl.audience.value = 'natural',
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _StreamTab(
+                  label: 'Social Only',
+                  selected: ctrl.audience.value == 'social',
+                  onTap: () => ctrl.audience.value = 'social',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StreamTab extends StatelessWidget {
+  const _StreamTab({
     required this.label,
     required this.selected,
     required this.onTap,
@@ -517,24 +663,26 @@ class _StreamChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(8),
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: selected ? AppColors.primary.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: selected ? AppColors.primary : AppColors.borderPrimary,
-            width: selected ? 1.4 : 1.0,
+            width: selected ? 1.5 : 1.0,
           ),
         ),
         child: Text(
           label,
+          textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 11,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            fontSize: 11.5,
+            fontWeight: selected ? FontWeight.bold : FontWeight.w500,
             color: selected ? AppColors.primary : AppColors.textSecondary,
           ),
         ),
@@ -571,7 +719,7 @@ class _QuestionTile extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(AppSizes.sm + 4),
+      padding: const EdgeInsets.all(AppSizes.md),
       decoration: BoxDecoration(
         color: dark ? AppColors.darkContainer : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
@@ -584,8 +732,8 @@ class _QuestionTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 22,
-                height: 22,
+                width: 24,
+                height: 24,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.15),
@@ -593,10 +741,10 @@ class _QuestionTile extends StatelessWidget {
                 ),
                 child: Text(
                   '$index',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.primary),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   question.questionText,
@@ -606,30 +754,30 @@ class _QuestionTile extends StatelessWidget {
                 ),
               ),
               IconButton(
-                icon: const Icon(Iconsax.edit_2_copy, size: 14),
+                icon: const Icon(Iconsax.edit_2_copy, size: 15),
                 visualDensity: VisualDensity.compact,
                 onPressed: onEdit,
               ),
               IconButton(
-                icon: const Icon(Iconsax.trash_copy, size: 14, color: AppColors.error),
+                icon: const Icon(Iconsax.trash_copy, size: 15, color: AppColors.error),
                 visualDensity: VisualDensity.compact,
                 onPressed: onDelete,
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           // Choices preview
           Wrap(
-            spacing: 6,
-            runSpacing: 4,
+            spacing: 8,
+            runSpacing: 6,
             children: List.generate(question.choices.length, (idx) {
               final isCorrect = idx == correctIdx || question.choices[idx] == question.correctChoice;
               final letter = String.fromCharCode(65 + idx);
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: isCorrect ? const Color(0xFF10B981).withValues(alpha: 0.15) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(
                     color: isCorrect ? const Color(0xFF10B981) : AppColors.borderPrimary,
                   ),
@@ -637,7 +785,7 @@ class _QuestionTile extends StatelessWidget {
                 child: Text(
                   '$letter: ${question.choices[idx]}',
                   style: TextStyle(
-                    fontSize: 10.5,
+                    fontSize: 11,
                     fontWeight: isCorrect ? FontWeight.bold : FontWeight.normal,
                     color: isCorrect ? const Color(0xFF10B981) : AppColors.textSecondary,
                   ),
