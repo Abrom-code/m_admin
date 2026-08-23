@@ -601,7 +601,7 @@ class _StreamSelectorBox extends StatelessWidget {
                   onTap: () => ctrl.audience.value = 'both',
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               Expanded(
                 child: _StreamTab(
                   label: 'Natural',
@@ -609,7 +609,7 @@ class _StreamSelectorBox extends StatelessWidget {
                   onTap: () => ctrl.audience.value = 'natural',
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               Expanded(
                 child: _StreamTab(
                   label: 'Social',
@@ -638,26 +638,32 @@ class _StreamTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+
     return InkWell(
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(8),
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? AppColors.primary.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: selected ? AppColors.primary : AppColors.borderPrimary,
-            width: selected ? 1.4 : 1.0,
-          ),
+          color: selected
+              ? AppColors.primary.withValues(alpha: 0.15)
+              : (dark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF1F5F9)),
+          borderRadius: BorderRadius.circular(8),
+          border: selected
+              ? Border.all(
+                  color: AppColors.primary,
+                  width: 1.2,
+                )
+              : null,
         ),
         child: Text(
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 11.5,
             fontWeight: selected ? FontWeight.bold : FontWeight.w500,
             color: selected ? AppColors.primary : AppColors.textSecondary,
           ),
