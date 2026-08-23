@@ -12,12 +12,10 @@ class ChallengesListController extends GetxController {
   final _repo = ChallengeRepository();
   final _sb = Supabase.instance.client;
 
-  final selectedTab = 0.obs; // 0 = Rounds / Challenges, 1 = Question Sets
   final isLoading = false.obs;
   final isRefreshing = false.obs;
 
   final challenges = <LeaderboardChallengeModel>[].obs;
-  final questionSets = <ChallengeQuestionSetModel>[].obs;
   final subjects = <Map<String, dynamic>>[].obs;
 
   // Filter states
@@ -33,28 +31,30 @@ class ChallengesListController extends GetxController {
   int get liveCount => challenges.where((c) => c.isLive).length;
   int get scheduledCount => challenges.where((c) => c.isScheduled).length;
   int get closedCount => challenges.where((c) => c.isClosed || c.isArchived).length;
-  int get totalSetsCount => questionSets.length;
+  int get draftCount => challenges.where((c) => c.isDraft).length;
 
   List<LeaderboardChallengeModel> get filteredChallenges {
     final query = searchQuery.value.trim().toLowerCase();
-    if (query.isEmpty) return challenges;
-    return challenges.where((c) {
-      final matchTitle = c.title.toLowerCase().contains(query);
-      final matchSub = c.subjectName?.toLowerCase().contains(query) ?? false;
-      final matchId = c.id.toLowerCase().contains(query);
-      return matchTitle || matchSub || matchId;
-    }).toList();
-  }
+    var list = challenges.toList();
 
-  List<ChallengeQuestionSetModel> get filteredQuestionSets {
-    final query = searchQuery.value.trim().toLowerCase();
-    if (query.isEmpty) return questionSets;
-    return questionSets.where((s) {
-      final matchTitle = s.title.toLowerCase().contains(query);
-      final matchSub = s.subjectName?.toLowerCase().contains(query) ?? false;
-      final matchId = s.id.toLowerCase().contains(query);
-      return matchTitle || matchSub || matchId;
-    }).toList();
+    if (query.isNotEmpty) {
+      list = list.where((c) {
+        final matchTitle = c.title.toLowerCase().contains(query);
+        final matchSub = c.subjectName?.toLowerCase().contains(query) ?? false;
+        final matchId = c.id.toLowerCase().contains(query);
+        return matchTitle || matchSub || matchId;
+      }).toList();
+    }
+
+    if (statusFilter.value != 'all') {
+      list = list.where((c) => c.status.toLowerCase() == statusFilter.value.toLowerCase()).toList();
+    }
+
+    if (selectedSubjectId.value != null) {
+      list = list.where((c) => c.subjectId == selectedSubjectId.value).toList();
+    }
+
+    return list;
   }
 
   @override
@@ -76,7 +76,7 @@ class ChallengesListController extends GetxController {
   void _subscribeRealtime() {
     try {
       _realtimeChannel = _sb
-          .channel('admin_challenge_realtime')
+          .channel('admin_challenge_realtime_sync')
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
             schema: 'public',
@@ -86,14 +86,8 @@ class ChallengesListController extends GetxController {
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
             schema: 'public',
-            table: 'challenge_question_sets',
-            callback: (_) => loadQuestionSets(),
-          )
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
             table: 'challenge_questions',
-            callback: (_) => loadQuestionSets(),
+            callback: (_) => loadChallenges(),
           )
           .subscribe();
     } catch (_) {}
@@ -106,7 +100,6 @@ class ChallengesListController extends GetxController {
       await Future.wait([
         loadSubjects(),
         loadChallenges(),
-        loadQuestionSets(),
       ]);
     } catch (e) {
       SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
@@ -124,30 +117,11 @@ class ChallengesListController extends GetxController {
 
   Future<void> loadChallenges() async {
     try {
-      final rows = await _repo.fetchChallenges(
-        status: statusFilter.value == 'all' ? null : statusFilter.value,
-        audience: audienceFilter.value == 'all' ? null : audienceFilter.value,
-        subjectId: selectedSubjectId.value,
-      );
+      final rows = await _repo.fetchChallenges();
       challenges.value = rows;
     } catch (e) {
       SnackbarHelper.error('Error loading challenges', AppExceptionHandler.handle(e).message);
     }
-  }
-
-  Future<void> loadQuestionSets() async {
-    try {
-      final rows = await _repo.fetchQuestionSets(
-        subjectId: selectedSubjectId.value,
-      );
-      questionSets.value = rows;
-    } catch (e) {
-      SnackbarHelper.error('Error loading question sets', AppExceptionHandler.handle(e).message);
-    }
-  }
-
-  void setTab(int index) {
-    selectedTab.value = index;
   }
 
   void onSearch(String q) {
@@ -156,35 +130,17 @@ class ChallengesListController extends GetxController {
 
   void setStatusFilter(String status) {
     statusFilter.value = status;
-    loadChallenges();
-  }
-
-  void setAudienceFilter(String audience) {
-    audienceFilter.value = audience;
-    loadChallenges();
   }
 
   void setSubjectFilter(int? subjectId) {
     selectedSubjectId.value = subjectId;
-    loadChallenges();
-    loadQuestionSets();
   }
 
   Future<void> deleteChallenge(String id) async {
     try {
       await _repo.deleteChallenge(id);
       challenges.removeWhere((c) => c.id == id);
-      SnackbarHelper.success('Deleted', 'Challenge round deleted successfully');
-    } catch (e) {
-      SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
-    }
-  }
-
-  Future<void> deleteQuestionSet(String id) async {
-    try {
-      await _repo.deleteQuestionSet(id);
-      questionSets.removeWhere((s) => s.id == id);
-      SnackbarHelper.success('Deleted', 'Question set deleted successfully');
+      SnackbarHelper.success('Deleted', 'Challenge deleted successfully');
     } catch (e) {
       SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
     }
@@ -194,7 +150,7 @@ class ChallengesListController extends GetxController {
     try {
       await _repo.updateChallengeStatus(id, newStatus);
       await loadChallenges();
-      SnackbarHelper.success('Updated', 'Challenge status updated to $newStatus');
+      SnackbarHelper.success('Updated', 'Challenge status set to $newStatus');
     } catch (e) {
       SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
     }

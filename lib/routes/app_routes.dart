@@ -172,9 +172,8 @@ class AdminAppRoutes {
       page: () {
         final args = Get.arguments as Map<String, dynamic>? ?? {};
         return ChallengeEditorScreen(
-          setId: args['set_id']?.toString(),
-          subjectId: (args['subject_id'] as num?)?.toInt() ?? 0,
-          subjectName: args['subject_name']?.toString() ?? '',
+          challengeId: args['challenge_id']?.toString(),
+          initialSubjectId: (args['subject_id'] as num?)?.toInt(),
         );
       },
       middlewares: [AdminAuthMiddleware()],
