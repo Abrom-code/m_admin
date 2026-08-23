@@ -157,163 +157,164 @@ class _NotifyChallengeDialogState extends State<NotifyChallengeDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.notifications_active_rounded,
-                      color: AppColors.primary,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Notify Students',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                        ),
-                        Text(
-                          'Send push notification with challenge time and details',
-                          style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 20),
-                    onPressed: _isSending ? null : () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: AppSizes.md),
-
-              // Target Audience Selector
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: audColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: audColor.withValues(alpha: 0.25)),
-                ),
-                child: Row(
+              children: [
+                // Header
+                Row(
                   children: [
-                    Icon(Icons.track_changes_rounded, size: 16, color: audColor),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Target Audience:',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: audColor),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedAudience,
-                          isDense: true,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: dark ? Colors.white : Colors.black87,
-                          ),
-                          dropdownColor: dark ? AppColors.darkCard : AppColors.white,
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'all',
-                              child: Text('All Students (Natural & Social)'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'stream:natural',
-                              child: Text('Natural Stream Only'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'stream:social',
-                              child: Text('Social Stream Only'),
-                            ),
-                          ],
-                          onChanged: _isSending
-                              ? null
-                              : (val) {
-                                  if (val != null) setState(() => _selectedAudience = val);
-                                },
-                        ),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
+                      child: const Icon(
+                        Icons.notifications_active_rounded,
+                        color: AppColors.primary,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Notify Students',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            'Send push notification with challenge time and details',
+                            style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: _isSending ? null : () => Navigator.of(context).pop(),
                     ),
                   ],
                 ),
-              ),
 
-              const SizedBox(height: AppSizes.md),
+                const SizedBox(height: AppSizes.md),
 
-              // Title input
-              TextField(
-                controller: _titleCtrl,
-                enabled: !_isSending,
-                decoration: InputDecoration(
-                  labelText: 'Notification Title',
-                  labelStyle: const TextStyle(fontSize: 12),
-                  prefixIcon: const Icon(Icons.title_rounded, size: 18),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-              ),
-
-              const SizedBox(height: AppSizes.sm),
-
-              // Body input (multiline for basic details)
-              TextField(
-                controller: _bodyCtrl,
-                enabled: !_isSending,
-                maxLines: 5,
-                decoration: InputDecoration(
-                  labelText: 'Basic Details (Subject, Date, Time, Duration)',
-                  alignLabelWithHint: true,
-                  labelStyle: const TextStyle(fontSize: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  contentPadding: const EdgeInsets.all(12),
-                ),
-                style: const TextStyle(fontSize: 12.5, height: 1.4),
-              ),
-
-              const SizedBox(height: AppSizes.lg),
-
-              // Action Buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: _isSending ? null : () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
+                // Target Audience Selector
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: audColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: audColor.withValues(alpha: 0.25)),
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: _isSending ? null : _sendNotification,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.track_changes_rounded, size: 16, color: audColor),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Target Audience:',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: audColor),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _selectedAudience,
+                            isDense: true,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: dark ? Colors.white : Colors.black87,
+                            ),
+                            dropdownColor: dark ? AppColors.darkCard : AppColors.white,
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'all',
+                                child: Text('All Students (Natural & Social)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'stream:natural',
+                                child: Text('Natural Stream Only'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'stream:social',
+                                child: Text('Social Stream Only'),
+                              ),
+                            ],
+                            onChanged: _isSending
+                                ? null
+                                : (val) {
+                                    if (val != null) setState(() => _selectedAudience = val);
+                                  },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: AppSizes.md),
+
+                // Title input
+                TextField(
+                  controller: _titleCtrl,
+                  enabled: !_isSending,
+                  decoration: InputDecoration(
+                    labelText: 'Notification Title',
+                    labelStyle: const TextStyle(fontSize: 12),
+                    prefixIcon: const Icon(Icons.title_rounded, size: 18),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                ),
+
+                const SizedBox(height: AppSizes.sm),
+
+                // Body input (multiline for basic details)
+                TextField(
+                  controller: _bodyCtrl,
+                  enabled: !_isSending,
+                  maxLines: 5,
+                  decoration: InputDecoration(
+                    labelText: 'Basic Details (Subject, Date, Time, Duration)',
+                    alignLabelWithHint: true,
+                    labelStyle: const TextStyle(fontSize: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                  style: const TextStyle(fontSize: 12.5, height: 1.4),
+                ),
+
+                const SizedBox(height: AppSizes.lg),
+
+                // Action Buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: _isSending ? null : () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
                     ),
-                    icon: _isSending
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Icon(Icons.send_rounded, size: 16),
-                    label: Text(_isSending ? 'Sending...' : 'Send Push Notification'),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: _isSending ? null : _sendNotification,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                      icon: _isSending
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.send_rounded, size: 16),
+                      label: Text(_isSending ? 'Sending...' : 'Send Push Notification'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
