@@ -124,18 +124,62 @@ class ChallengeRepository {
     String? stream,
     int limit = 100,
   }) async {
-    final res = await _sb.rpc('rpc_get_leaderboard', params: {
-      'p_challenge_id': challengeId,
-      if (stream != null && stream.isNotEmpty && stream != 'all')
-        'p_stream': stream,
-      'p_limit': limit,
-    });
+    try {
+      final res = await _sb.rpc('rpc_get_leaderboard', params: {
+        'p_challenge_id': challengeId,
+        if (stream != null && stream.isNotEmpty && stream != 'all')
+          'p_stream': stream,
+        'p_limit': limit,
+      });
 
-    if (res is List) {
-      return res
-          .map((r) => ChallengeLeaderboardEntry.fromJson(r as Map<String, dynamic>))
-          .toList();
+      if (res is List) {
+        return res
+            .map((r) => ChallengeLeaderboardEntry.fromJson(r as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {
+      // Fallback: direct query on challenge_attempts with users relation if RPC throws legacy schema error
     }
+
+    try {
+      var query = _sb
+          .from('challenge_attempts')
+          .select('*, users(first_name, last_name)')
+          .eq('challenge_id', challengeId)
+          .eq('status', 'submitted');
+
+      if (stream != null && stream.isNotEmpty && stream != 'all') {
+        query = query.eq('stream', stream);
+      }
+
+      final rows = await query
+          .order('score', ascending: false)
+          .order('total_time_seconds', ascending: true)
+          .order('submitted_at', ascending: true)
+          .limit(limit);
+
+      final list = <ChallengeLeaderboardEntry>[];
+      for (int i = 0; i < rows.length; i++) {
+        final r = rows[i];
+        final user = r['users'] as Map<String, dynamic>? ?? {};
+        final sc = (r['score'] as num?)?.toInt() ?? 0;
+        list.add(ChallengeLeaderboardEntry(
+          rank: i + 1,
+          userId: r['user_id']?.toString() ?? '',
+          firstName: user['first_name']?.toString() ?? 'Student',
+          lastName: user['last_name']?.toString() ?? '',
+          stream: r['stream']?.toString() ?? '',
+          score: sc,
+          totalTimeSeconds: (r['total_time_seconds'] as num?)?.toInt() ?? 0,
+          correctCount: sc,
+          incorrectCount: (r['incorrect_count'] as num?)?.toInt() ?? 0,
+          notDoneCount: (r['not_done_count'] as num?)?.toInt() ?? 0,
+          challengesTaken: 1,
+        ));
+      }
+      return list;
+    } catch (_) {}
+
     return [];
   }
 
@@ -145,19 +189,52 @@ class ChallengeRepository {
     DateTime? periodStart,
     int limit = 100,
   }) async {
-    final res = await _sb.rpc('rpc_get_period_leaderboard', params: {
-      'p_stream': stream,
-      'p_period': period,
-      if (periodStart != null)
-        'p_period_start': periodStart.toIso8601String().split('T').first,
-      'p_limit': limit,
-    });
+    try {
+      final res = await _sb.rpc('rpc_get_period_leaderboard', params: {
+        'p_stream': stream,
+        'p_period': period,
+        if (periodStart != null)
+          'p_period_start': periodStart.toIso8601String().split('T').first,
+        'p_limit': limit,
+      });
 
-    if (res is List) {
-      return res
-          .map((r) => ChallengeLeaderboardEntry.fromJson(r as Map<String, dynamic>))
-          .toList();
+      if (res is List) {
+        return res
+            .map((r) => ChallengeLeaderboardEntry.fromJson(r as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {
+      // Fallback: direct query on leaderboard view
     }
+
+    try {
+      final viewName = period == 'week'
+          ? 'v_challenge_leaderboard_weekly'
+          : 'v_challenge_leaderboard_monthly';
+      final rows = await _sb
+          .from(viewName)
+          .select('*, users(first_name, last_name)')
+          .eq('stream', stream)
+          .order('rank', ascending: true)
+          .limit(limit);
+
+      return rows.map((m) {
+        final user = m['users'] as Map<String, dynamic>? ?? {};
+        return ChallengeLeaderboardEntry(
+          rank: (m['rank'] as num?)?.toInt() ?? 1,
+          userId: m['user_id']?.toString() ?? '',
+          firstName: user['first_name']?.toString() ?? 'Student',
+          lastName: user['last_name']?.toString() ?? '',
+          stream: m['stream']?.toString() ?? stream,
+          score: (m['total_score'] as num?)?.toInt() ?? 0,
+          totalTimeSeconds: (m['total_time_seconds'] as num?)?.toInt() ?? 0,
+          correctCount: (m['total_score'] as num?)?.toInt() ?? 0,
+          challengesTaken: (m['challenges_taken'] as num?)?.toInt() ?? 1,
+          periodStart: m['period_start']?.toString(),
+        );
+      }).toList();
+    } catch (_) {}
+
     return [];
   }
 
