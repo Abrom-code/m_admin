@@ -66,7 +66,7 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
             IconButton(
               tooltip: 'Refresh Standings',
               icon: Obx(
-                () => _ctrl.isLoading.value
+                () => _ctrl.isManualRefreshing.value
                     ? const SizedBox(
                         width: 16,
                         height: 16,
@@ -76,7 +76,7 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
               ),
               onPressed: () {
                 FocusManager.instance.primaryFocus?.unfocus();
-                _ctrl.refreshLeaderboard();
+                _ctrl.refreshLeaderboard(isManual: true);
               },
             ),
             const SizedBox(width: AppSizes.sm),

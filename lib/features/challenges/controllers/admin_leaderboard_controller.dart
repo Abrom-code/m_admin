@@ -14,6 +14,7 @@ class AdminLeaderboardController extends GetxController {
   final _repo = ChallengeRepository();
 
   final isLoading = false.obs;
+  final isManualRefreshing = false.obs;
   final isGranting = false.obs;
 
   final allChallenges = <LeaderboardChallengeModel>[].obs;
@@ -96,9 +97,13 @@ class AdminLeaderboardController extends GetxController {
     refreshLeaderboard();
   }
 
-  Future<void> refreshLeaderboard() async {
+  Future<void> refreshLeaderboard({bool isManual = false}) async {
     try {
-      isLoading.value = true;
+      if (isManual) {
+        isManualRefreshing.value = true;
+      } else {
+        isLoading.value = true;
+      }
       final stream = selectedStream.value == 'all' ? null : selectedStream.value;
       if (selectedView.value == 'challenge') {
         if (currentChallengeId.value != null && currentChallengeId.value!.isNotEmpty) {
@@ -127,6 +132,7 @@ class AdminLeaderboardController extends GetxController {
       SnackbarHelper.error('Leaderboard error', AppExceptionHandler.handle(e).message);
     } finally {
       isLoading.value = false;
+      isManualRefreshing.value = false;
     }
   }
 
