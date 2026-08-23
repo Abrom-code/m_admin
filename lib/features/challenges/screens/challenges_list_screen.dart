@@ -9,6 +9,7 @@ import 'package:m_admin/features/challenges/controllers/challenges_list_controll
 import 'package:m_admin/features/challenges/models/challenge_model.dart';
 import 'package:m_admin/features/challenges/screens/challenge_editor_screen.dart';
 import 'package:m_admin/features/challenges/screens/challenge_leaderboard_screen.dart';
+import 'package:m_admin/features/challenges/screens/widgets/notify_challenge_dialog.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
@@ -198,67 +199,54 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final list = _ctrl.filteredChallenges;
-
-                if (list.isEmpty) {
-                  return RefreshIndicator(
-                    onRefresh: () => _ctrl.loadAll(showLoading: false),
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSizes.xl),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Iconsax.cup_copy, size: 44, color: dark ? Colors.white24 : AppColors.textSecondary),
-                            const SizedBox(height: AppSizes.md),
-                            const Text('No challenges found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Tap "Create Challenge" above to launch your first challenge.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                            ),
-                            const SizedBox(height: AppSizes.md),
-                            FilledButton.icon(
-                              onPressed: () async {
-                                await Get.to(() => const ChallengeEditorScreen());
-                                _ctrl.loadAll(showLoading: false);
-                              },
-                              icon: const Icon(Iconsax.add_circle_copy, size: 15),
-                              label: const Text('Create Challenge'),
-                            ),
-                          ],
+                if (_ctrl.filteredChallenges.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Iconsax.cup_copy, size: 48, color: dark ? Colors.white24 : AppColors.textSecondary),
+                        const SizedBox(height: AppSizes.md),
+                        const Text(
+                          'No challenges found',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                         ),
-                      ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Try clearing filters or create a new challenge round.',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
                     ),
                   );
                 }
 
-                return RefreshIndicator(
-                  onRefresh: () => _ctrl.loadAll(showLoading: false),
-                  child: Scrollbar(
-                    controller: _scrollCtrl,
-                    child: ListView.separated(
-                      controller: _scrollCtrl,
-                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.only(bottom: 80),
-                      itemCount: list.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, idx) {
-                        final c = list[idx];
-                        return _ChallengeRoundCard(
-                          challenge: c,
-                          dateFormat: _dateFormat,
-                          dark: dark,
-                          onEdit: () async {
-                            await Get.to(() => ChallengeEditorScreen(challengeId: c.id));
-                            _ctrl.loadAll(showLoading: false);
-                          },
-                          onDelete: () => _confirmDeleteChallenge(c),
-                        );
-                      },
-                    ),
+                return GridView.builder(
+                  controller: _scrollCtrl,
+                  padding: const EdgeInsets.only(bottom: 24, top: 4),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 440,
+                    mainAxisExtent: 185,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
                   ),
+                  itemCount: _ctrl.filteredChallenges.length,
+                  itemBuilder: (context, index) {
+                    final challenge = _ctrl.filteredChallenges[index];
+                    return _ChallengeCard(
+                      challenge: challenge,
+                      dateFormat: _dateFormat,
+                      onEdit: () async {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        await Get.to(() => ChallengeEditorScreen(challengeId: challenge.id));
+                        _ctrl.loadAll(showLoading: false);
+                      },
+                      onNotify: () {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        NotifyChallengeDialog.show(context, challenge);
+                      },
+                      onDelete: () => _confirmDelete(context, challenge),
+                    );
+                  },
                 );
               }),
             ),
@@ -268,115 +256,147 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
     );
   }
 
-  Future<void> _confirmDeleteChallenge(LeaderboardChallengeModel c) async {
-    final confirmed = await AppDialogBoxes.confirm(
-      title: 'Delete Challenge',
-      message: 'Are you sure you want to delete "${c.title}"? All student attempts, leaderboard rankings, and questions will also be removed.',
-      isDestructive: true,
-      confirmLabel: 'Delete',
+  void _confirmDelete(BuildContext context, LeaderboardChallengeModel challenge) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    AppDialogBoxes.showOkCancelDialog(
+      context: context,
+      title: 'Delete Challenge?',
+      subtitle: 'Are you sure you want to delete "${challenge.title}"? This cannot be undone.',
+      onPressed: () {
+        Navigator.pop(context);
+        _ctrl.deleteChallenge(challenge.id);
+      },
     );
-    if (confirmed) {
-      _ctrl.deleteChallenge(c.id);
+  }
+
+  static Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'live':
+        return AppColors.success;
+      case 'scheduled':
+        return AppColors.secondary;
+      case 'closed':
+        return AppColors.grey;
+      case 'draft':
+        return AppColors.warning;
+      default:
+        return AppColors.primary;
     }
   }
 }
 
-// ── Helpers & Components ─────────────────────────────────────────────────────
-
-Color _statusColor(String status) {
-  switch (status.toLowerCase()) {
-    case 'live':
-      return const Color(0xFF10B981);
-    case 'scheduled':
-      return const Color(0xFF3B82F6);
-    case 'closed':
-    case 'archived':
-      return const Color(0xFF8B5CF6);
-    case 'draft':
-    default:
-      return const Color(0xFF6B7280);
-  }
-}
-
-// ── Challenge Round Card ─────────────────────────────────────────────────────
-
-class _ChallengeRoundCard extends StatelessWidget {
-  const _ChallengeRoundCard({
+class _ChallengeCard extends StatelessWidget {
+  const _ChallengeCard({
     required this.challenge,
     required this.dateFormat,
-    required this.dark,
     required this.onEdit,
+    required this.onNotify,
     required this.onDelete,
   });
 
   final LeaderboardChallengeModel challenge;
   final DateFormat dateFormat;
-  final bool dark;
   final VoidCallback onEdit;
+  final VoidCallback onNotify;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final statusCol = _statusColor(challenge.status);
+    final dark = AppHelperFunctions.isDark(context);
+
+    Color statusBadgeColor;
+    switch (challenge.status.toLowerCase()) {
+      case 'live':
+        statusBadgeColor = AppColors.success;
+        break;
+      case 'scheduled':
+        statusBadgeColor = AppColors.secondary;
+        break;
+      case 'closed':
+        statusBadgeColor = AppColors.grey;
+        break;
+      default:
+        statusBadgeColor = AppColors.warning;
+    }
+
+    Color audienceBadgeColor;
+    String audienceLabel;
+    switch (challenge.audience.toLowerCase()) {
+      case 'natural':
+        audienceBadgeColor = AppColors.primary;
+        audienceLabel = 'Natural Stream';
+        break;
+      case 'social':
+        audienceBadgeColor = AppColors.secondary;
+        audienceLabel = 'Social Stream';
+        break;
+      default:
+        audienceBadgeColor = const Color(0xFF8B5CF6);
+        audienceLabel = 'Both Streams';
+    }
 
     return Card(
-      elevation: challenge.isLive ? 2 : 0,
+      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
         side: BorderSide(
-          color: challenge.isLive ? statusCol : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
-          width: challenge.isLive ? 1.5 : 1.0,
+          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+          width: 1,
         ),
       ),
+      color: dark ? AppColors.darkCard : AppColors.white,
       child: Padding(
-        padding: const EdgeInsets.all(AppSizes.md),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Top Row: Status Badge + Audience Badge + Copy ID
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            // Header Row: Status, Stream, ID
+            Row(
               children: [
+                // Status Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: statusCol.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: statusCol.withValues(alpha: 0.5)),
+                    color: statusBadgeColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     challenge.status.toUpperCase(),
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 9.5,
                       fontWeight: FontWeight.w800,
-                      color: statusCol,
+                      color: statusBadgeColor,
                     ),
                   ),
                 ),
+                const SizedBox(width: 5),
+
+                // Audience Stream Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: (challenge.audience == 'social' ? AppColors.secondary : AppColors.primary)
-                        .withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
+                    color: audienceBadgeColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    '${challenge.audience.toUpperCase()} STREAM',
+                    audienceLabel,
                     style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: challenge.audience == 'social' ? AppColors.secondary : AppColors.primary,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: audienceBadgeColor,
                     ),
                   ),
                 ),
-                // One-tap copy ID
+
+                const Spacer(),
+
+                // Copy ID pill
                 InkWell(
                   borderRadius: BorderRadius.circular(4),
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: challenge.id));
-                    SnackbarHelper.info('Copied!', 'Challenge ID copied to clipboard');
+                    SnackbarHelper.success('Copied', 'Challenge ID copied to clipboard');
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
@@ -444,6 +464,15 @@ class _ChallengeRoundCard extends StatelessWidget {
               runSpacing: 4,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: onNotify,
+                  icon: const Icon(Icons.notifications_active_outlined, size: 12, color: Color(0xFF8B5CF6)),
+                  label: const Text('Notify', style: TextStyle(fontSize: 10.5, color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold)),
+                ),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
