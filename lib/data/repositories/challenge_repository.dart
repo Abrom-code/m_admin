@@ -188,6 +188,10 @@ class ChallengeRepository {
         .eq('id', challengeId);
   }
 
+  Future<void> deleteChallenge(String challengeId) async {
+    await _sb.from('leaderboard_challenges').delete().eq('id', challengeId);
+  }
+
   Future<void> archiveChallenge(String challengeId) async {
     await updateChallengeStatus(challengeId, 'archived');
   }

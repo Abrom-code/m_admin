@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/features/challenges/controllers/challenges_list_controller.dart';
+import 'package:m_admin/features/challenges/models/challenge_model.dart';
 import 'package:m_admin/features/challenges/screens/challenge_editor_screen.dart';
 import 'package:m_admin/features/challenges/screens/challenge_leaderboard_screen.dart';
 import 'package:m_admin/features/challenges/screens/challenge_scheduler_screen.dart';
@@ -24,851 +25,468 @@ class ChallengesListScreen extends StatefulWidget {
 class _ChallengesListScreenState extends State<ChallengesListScreen> {
   final _ctrl = Get.put(ChallengesListController());
   final _dateFormat = DateFormat('MMM dd, HH:mm');
+  final _scrollCtrl = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
 
-    return Scaffold(
-      body: AdminScaffold(
-        pageIndex: 5,
-        scrollable: false,
-        onRefresh: _ctrl.loadAll,
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Modern KPI Dashboard Metrics ──────────────────────
-            Obx(
-              () => Container(
-                padding: const EdgeInsets.all(AppSizes.md),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: Scaffold(
+        body: AdminScaffold(
+          pageIndex: 5,
+          scrollable: false,
+          onRefresh: _ctrl.loadAll,
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Unified Compact Top Bar (Single Row / Slim Header) ─
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 10),
                 decoration: BoxDecoration(
                   color: dark ? AppColors.darkCard : AppColors.white,
-                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
+                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
                   border: Border.all(
                     color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: dark ? 0.25 : 0.04),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
                 ),
                 child: Wrap(
-                  spacing: 16,
-                  runSpacing: 12,
-                  alignment: WrapAlignment.spaceAround,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 10,
                   children: [
-                    _ModernKpiStat(
-                      icon: Iconsax.play_circle_copy,
-                      gradientColors: const [Color(0xFF10B981), Color(0xFF059669)],
-                      label: 'Live Now',
-                      value: '${_ctrl.liveCount}',
-                      isLive: _ctrl.liveCount > 0,
+                    // Left: Tab Switcher Pills & Live Badge
+                    Obx(
+                      () => Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: dark ? AppColors.darkContainer : AppColors.grey.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                            ),
+                            padding: const EdgeInsets.all(3),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _TabPill(
+                                  selected: _ctrl.selectedTab.value == 0,
+                                  icon: Iconsax.cup_copy,
+                                  label: 'Challenges (${_ctrl.challenges.length})',
+                                  onTap: () {
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                    _ctrl.setTab(0);
+                                  },
+                                ),
+                                _TabPill(
+                                  selected: _ctrl.selectedTab.value == 1,
+                                  icon: Iconsax.document_copy,
+                                  label: 'Question Sets (${_ctrl.questionSets.length})',
+                                  onTap: () {
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                    _ctrl.setTab(1);
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_ctrl.liveCount > 0) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF10B981)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF10B981),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${_ctrl.liveCount} LIVE',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF10B981),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
-                    _ModernKpiStat(
-                      icon: Iconsax.clock_copy,
-                      gradientColors: const [Color(0xFF3B82F6), Color(0xFF2563EB)],
-                      label: 'Scheduled',
-                      value: '${_ctrl.scheduledCount}',
-                    ),
-                    _ModernKpiStat(
-                      icon: Iconsax.cup_copy,
-                      gradientColors: const [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
-                      label: 'Closed / Standings',
-                      value: '${_ctrl.closedCount}',
-                    ),
-                    _ModernKpiStat(
-                      icon: Iconsax.document_text_copy,
-                      gradientColors: const [Color(0xFFF59E0B), Color(0xFFD97706)],
-                      label: 'Question Sets',
-                      value: '${_ctrl.totalSetsCount}',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSizes.spaceBtwItems),
 
-            // ── Top Header & Tab Switcher ──────────────────────────
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 10,
-              children: [
-                Obx(
-                  () => Container(
-                    decoration: BoxDecoration(
-                      color: dark ? AppColors.darkContainer : AppColors.grey.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    // Right: Quick Action Buttons & Refresh Button
+                    Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        _TabPill(
-                          selected: _ctrl.selectedTab.value == 0,
-                          icon: Iconsax.cup_copy,
-                          label: 'Challenge Rounds (${_ctrl.challenges.length})',
-                          onTap: () => _ctrl.setTab(0),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () async {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            final ok = await Get.to(() => const ChallengeEditorScreen());
+                            if (ok == true || ok is String) {
+                              _ctrl.loadQuestionSets();
+                            }
+                          },
+                          icon: const Icon(Iconsax.add_circle_copy, size: 14),
+                          label: const Text('New Set', style: TextStyle(fontSize: 11.5)),
                         ),
-                        _TabPill(
-                          selected: _ctrl.selectedTab.value == 1,
-                          icon: Iconsax.document_copy,
-                          label: 'Question Sets (${_ctrl.questionSets.length})',
-                          onTap: () => _ctrl.setTab(1),
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () async {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            final ok = await Get.to(() => const ChallengeSchedulerScreen());
+                            if (ok == true) _ctrl.loadChallenges();
+                          },
+                          icon: const Icon(Iconsax.calendar_add_copy, size: 14),
+                          label: const Text('Schedule', style: TextStyle(fontSize: 11.5)),
+                        ),
+                        IconButton(
+                          tooltip: 'Refresh from Supabase (Cmd+R)',
+                          icon: Obx(
+                            () => _ctrl.isRefreshing.value
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.refresh_rounded, size: 19),
+                          ),
+                          onPressed: () {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            _ctrl.loadAll(showLoading: false);
+                          },
                         ),
                       ],
                     ),
-                  ),
-                ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      ),
-                      onPressed: () async {
-                        final ok = await Get.to(() => const ChallengeEditorScreen());
-                        if (ok == true || ok is String) {
-                          _ctrl.loadQuestionSets();
-                        }
-                      },
-                      icon: const Icon(Iconsax.add_circle_copy, size: 16),
-                      label: const Text('New Question Set'),
-                    ),
-                    FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      ),
-                      onPressed: () async {
-                        final ok = await Get.to(() => const ChallengeSchedulerScreen());
-                        if (ok == true) _ctrl.loadChallenges();
-                      },
-                      icon: const Icon(Iconsax.calendar_add_copy, size: 16),
-                      label: const Text('Schedule Round'),
-                    ),
                   ],
                 ),
-              ],
-            ),
-            const SizedBox(height: AppSizes.spaceBtwItems),
-
-            // ── Modern Search & Filter Bar ──────────────────────────
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 8),
-              decoration: BoxDecoration(
-                color: dark ? AppColors.darkCard : AppColors.white,
-                borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-                border: Border.all(
-                  color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                ),
               ),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    // Search bar
-                    SizedBox(
-                      width: 210,
-                      height: 38,
-                      child: TextField(
-                        controller: _ctrl.searchCtrl,
-                        onChanged: _ctrl.onSearch,
-                        style: const TextStyle(fontSize: 12.5),
-                        decoration: InputDecoration(
-                          hintText: 'Search title or subject...',
-                          hintStyle: const TextStyle(fontSize: 12),
-                          prefixIcon: const Icon(Iconsax.search_normal_copy, size: 16),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 10),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                            borderSide: BorderSide(color: dark ? AppColors.darkBorder : AppColors.borderPrimary),
+
+              const SizedBox(height: 8),
+
+              // ── Slim Search & Filter Bar ────────────────────────────
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 6),
+                decoration: BoxDecoration(
+                  color: dark ? AppColors.darkCard : AppColors.white,
+                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                  border: Border.all(
+                    color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      // Search bar
+                      SizedBox(
+                        width: 220,
+                        height: 34,
+                        child: TextField(
+                          controller: _ctrl.searchCtrl,
+                          onChanged: _ctrl.onSearch,
+                          autofocus: false,
+                          style: const TextStyle(fontSize: 12),
+                          decoration: InputDecoration(
+                            hintText: 'Search title, subject, ID...',
+                            hintStyle: const TextStyle(fontSize: 11.5),
+                            prefixIcon: const Icon(Iconsax.search_normal_copy, size: 14),
+                            suffixIcon: _ctrl.searchQuery.value.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, size: 14),
+                                    onPressed: () {
+                                      _ctrl.searchCtrl.clear();
+                                      _ctrl.onSearch('');
+                                      FocusManager.instance.primaryFocus?.unfocus();
+                                    },
+                                  )
+                                : null,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                              borderSide: BorderSide(color: dark ? AppColors.darkBorder : AppColors.borderPrimary),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: AppSizes.md),
+                      const SizedBox(width: AppSizes.md),
 
-                    // Subject dropdown
-                    const Icon(Iconsax.filter_copy, size: 16, color: AppColors.primary),
-                    const SizedBox(width: 4),
-                    const Text('Subject: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                    Obx(
-                      () => DropdownButton<int?>(
-                        value: _ctrl.selectedSubjectId.value,
-                        underline: const SizedBox.shrink(),
-                        hint: const Text('All Subjects', style: TextStyle(fontSize: 12)),
-                        items: [
-                          const DropdownMenuItem<int?>(
-                            value: null,
-                            child: Text('All Subjects', style: TextStyle(fontSize: 12)),
-                          ),
-                          ..._ctrl.subjects.map(
-                            (s) => DropdownMenuItem<int?>(
-                              value: s['id'] as int,
-                              child: Text(s['name']?.toString() ?? '', style: const TextStyle(fontSize: 12)),
+                      // Subject dropdown
+                      const Icon(Iconsax.filter_copy, size: 14, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      const Text('Subject: ', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                      Obx(
+                        () => DropdownButton<int?>(
+                          value: _ctrl.selectedSubjectId.value,
+                          underline: const SizedBox.shrink(),
+                          hint: const Text('All Subjects', style: TextStyle(fontSize: 11.5)),
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('All Subjects', style: TextStyle(fontSize: 11.5)),
                             ),
-                          ),
-                        ],
-                        onChanged: _ctrl.setSubjectFilter,
+                            ..._ctrl.subjects.map(
+                              (s) => DropdownMenuItem<int?>(
+                                value: s['id'] as int,
+                                child: Text(s['name']?.toString() ?? '', style: const TextStyle(fontSize: 11.5)),
+                              ),
+                            ),
+                          ],
+                          onChanged: (v) {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            _ctrl.setSubjectFilter(v);
+                          },
+                        ),
                       ),
-                    ),
 
-                    // If Rounds tab: status and audience filter chips
-                    Obx(() {
-                      if (_ctrl.selectedTab.value != 0) return const SizedBox.shrink();
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(width: AppSizes.md),
-                          const Text('Status: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          const SizedBox(width: 4),
-                          ...['all', 'live', 'scheduled', 'closed', 'draft'].map((st) {
-                            final isSel = _ctrl.statusFilter.value == st;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: FilterChip(
-                                label: Text(st == 'all' ? 'All' : st.toUpperCase()),
-                                selected: isSel,
-                                showCheckmark: false,
-                                labelStyle: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                  color: isSel ? Colors.white : AppColors.textSecondary,
+                      // Status filter chips for Rounds tab
+                      Obx(() {
+                        if (_ctrl.selectedTab.value != 0) return const SizedBox.shrink();
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(width: AppSizes.md),
+                            const Text('Status: ', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                            const SizedBox(width: 4),
+                            ...['all', 'live', 'scheduled', 'closed', 'draft'].map((st) {
+                              final isSel = _ctrl.statusFilter.value == st;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: FilterChip(
+                                  label: Text(st == 'all' ? 'All' : st.toUpperCase()),
+                                  selected: isSel,
+                                  showCheckmark: false,
+                                  labelStyle: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                    color: isSel ? Colors.white : AppColors.textSecondary,
+                                  ),
+                                  selectedColor: _statusColor(st),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                                  onSelected: (_) {
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                    _ctrl.setStatusFilter(st);
+                                  },
                                 ),
-                                selectedColor: _statusColor(st),
-                                visualDensity: VisualDensity.compact,
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                                onSelected: (_) => _ctrl.setStatusFilter(st),
-                              ),
-                            );
-                          }),
-
-                          const SizedBox(width: AppSizes.sm),
-                          const Text('Stream: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          const SizedBox(width: 4),
-                          ...['all', 'both', 'natural', 'social'].map((aud) {
-                            final isSel = _ctrl.audienceFilter.value == aud;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: FilterChip(
-                                label: Text(aud == 'all' ? 'All' : aud.toUpperCase()),
-                                selected: isSel,
-                                showCheckmark: false,
-                                labelStyle: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                  color: isSel ? Colors.white : AppColors.textSecondary,
-                                ),
-                                selectedColor: AppColors.primary,
-                                visualDensity: VisualDensity.compact,
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                                onSelected: (_) => _ctrl.setAudienceFilter(aud),
-                              ),
-                            );
-                          }),
-                        ],
-                      );
-                    }),
-                  ],
+                              );
+                            }),
+                          ],
+                        );
+                      }),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: AppSizes.spaceBtwItems),
 
-            // ── Main List Content ──────────────────────────────────
-            Expanded(
-              child: Obx(() {
-                if (_ctrl.isLoading.value) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+              const SizedBox(height: 8),
 
-                if (_ctrl.selectedTab.value == 0) {
-                  return _buildRoundsList(dark);
-                } else {
-                  return _buildQuestionSetsList(dark);
-                }
-              }),
-            ),
-          ],
+              // ── Main List Content (Maximized Vertical Area) ─────────
+              Expanded(
+                child: Obx(() {
+                  if (_ctrl.isLoading.value && _ctrl.challenges.isEmpty && _ctrl.questionSets.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  return RefreshIndicator(
+                    onRefresh: () => _ctrl.loadAll(showLoading: false),
+                    child: _ctrl.selectedTab.value == 0
+                        ? _buildChallengesList(dark)
+                        : _buildQuestionSetsList(dark),
+                  );
+                }),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildRoundsList(bool dark) {
+  // ── Tab 0: Challenges List ──────────────────────────────────────────────────
+
+  Widget _buildChallengesList(bool dark) {
     final list = _ctrl.filteredChallenges;
 
     if (list.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSizes.xl),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Iconsax.cup_copy, size: 48, color: dark ? Colors.white24 : AppColors.textSecondary),
+              const SizedBox(height: AppSizes.md),
+              const Text('No challenge rounds found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 6),
+              const Text(
+                'Create a question set and schedule a national challenge round to see it here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
-              child: const Icon(Iconsax.cup_copy, size: 48, color: AppColors.primary),
-            ),
-            const SizedBox(height: AppSizes.md),
-            const Text('No challenge rounds found', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-            const SizedBox(height: 4),
-            const Text(
-              'Schedule a live challenge round for students nationwide.',
-              style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: AppSizes.md),
-            FilledButton.icon(
-              onPressed: () async {
-                final ok = await Get.to(() => const ChallengeSchedulerScreen());
-                if (ok == true) _ctrl.loadChallenges();
-              },
-              icon: const Icon(Iconsax.calendar_add_copy, size: 16),
-              label: const Text('Schedule First Round'),
-            ),
-          ],
+              const SizedBox(height: AppSizes.md),
+              FilledButton.icon(
+                onPressed: () => Get.to(() => const ChallengeSchedulerScreen()),
+                icon: const Icon(Iconsax.calendar_add_copy, size: 16),
+                label: const Text('Schedule Challenge Round'),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return ListView.separated(
-      itemCount: list.length,
-      separatorBuilder: (_, _) => const SizedBox(height: AppSizes.sm),
-      itemBuilder: (context, idx) {
-        final ch = list[idx];
-        final isLive = ch.isLive;
-
-        return Card(
-          elevation: isLive ? 2 : 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-            side: BorderSide(
-              color: isLive ? AppColors.success : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
-              width: isLive ? 1.8 : 1.0,
-            ),
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-              gradient: isLive
-                  ? LinearGradient(
-                      colors: [
-                        AppColors.success.withValues(alpha: 0.06),
-                        Colors.transparent,
-                      ],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    )
-                  : null,
-            ),
-            padding: const EdgeInsets.all(AppSizes.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Top Row: Avatar + Title + Badges
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: _statusColor(ch.status).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-                      ),
-                      child: Icon(_statusIcon(ch.status), color: _statusColor(ch.status), size: 22),
-                    ),
-                    const SizedBox(width: AppSizes.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            ch.title,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 4,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              _BadgeChip(
-                                label: isLive ? '● LIVE NOW' : ch.status.toUpperCase(),
-                                color: _statusColor(ch.status),
-                              ),
-                              _BadgeChip(
-                                label: '${ch.audience.toUpperCase()} STREAM',
-                                color: ch.audience == 'both' ? AppColors.secondary : AppColors.primary,
-                              ),
-                              _BadgeChip(
-                                label: ch.subjectName?.toUpperCase() ?? 'SUBJECT',
-                                color: AppColors.primary,
-                              ),
-                              // Copy Set ID badge
-                              InkWell(
-                                borderRadius: BorderRadius.circular(4),
-                                onTap: () {
-                                  Clipboard.setData(ClipboardData(text: ch.setId));
-                                  SnackbarHelper.info('Copied!', 'Set ID: ${ch.setId}');
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: (dark ? Colors.white : Colors.black).withValues(alpha: 0.08),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.copy_rounded, size: 10, color: AppColors.textSecondary),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        'Set: ${ch.setId.length > 8 ? ch.setId.substring(0, 8) : ch.setId}...',
-                                        style: const TextStyle(fontFamily: 'monospace', fontSize: 9.5, color: AppColors.textSecondary),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-                const Divider(height: 1),
-                const SizedBox(height: 8),
-
-                // Timing & Meta Row
-                Row(
-                  children: [
-                    Icon(Iconsax.clock_copy, size: 13, color: isLive ? AppColors.success : AppColors.textSecondary),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        ch.startsAt != null && ch.endsAt != null
-                            ? '${_dateFormat.format(ch.startsAt!)} → ${_dateFormat.format(ch.endsAt!)}  •  ${ch.durationSeconds ~/ 60}m attempt'
-                            : '${ch.durationSeconds ~/ 60} mins attempt limit',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: isLive ? FontWeight.bold : FontWeight.w500,
-                          color: isLive ? AppColors.success : AppColors.textSecondary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                // Action Buttons Row (Responsive Wrap)
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  alignment: WrapAlignment.end,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    FilledButton.tonalIcon(
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      onPressed: () => Get.to(
-                        () => ChallengeLeaderboardScreen(
-                          challengeId: ch.id,
-                          challengeTitle: ch.title,
-                        ),
-                      ),
-                      icon: const Icon(Iconsax.ranking_copy, size: 14),
-                      label: const Text('Leaderboard', style: TextStyle(fontSize: 11.5)),
-                    ),
-                    if (ch.isScheduled || ch.isDraft)
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.success,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: () => _ctrl.makeLiveNow(ch.id),
-                        icon: const Icon(Icons.bolt, size: 14),
-                        label: const Text('Go Live Now', style: TextStyle(fontSize: 11.5)),
-                      ),
-                    if (ch.isLive)
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.error,
-                          side: const BorderSide(color: AppColors.error),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: () async {
-                          final ok = await AppDialogBoxes.confirm(
-                            title: 'End Live Round',
-                            message: 'Close this challenge round now and finalize leaderboards for all students?',
-                            confirmLabel: 'End Round',
-                            isDestructive: true,
-                          );
-                          if (ok) _ctrl.closeRoundNow(ch.id);
-                        },
-                        icon: const Icon(Icons.stop_circle_outlined, size: 14),
-                        label: const Text('End Round', style: TextStyle(fontSize: 11.5)),
-                      ),
-                    if (ch.isDraft || ch.isScheduled)
-                      IconButton(
-                        tooltip: 'Edit Schedule',
-                        icon: const Icon(Iconsax.edit_copy, size: 18),
-                        onPressed: () async {
-                          final ok = await Get.to(
-                            () => ChallengeSchedulerScreen(challengeId: ch.id),
-                          );
-                          if (ok == true) _ctrl.loadChallenges();
-                        },
-                      ),
-                    if (ch.isClosed)
-                      IconButton(
-                        tooltip: 'Archive challenge',
-                        icon: const Icon(Iconsax.archive_copy, size: 18),
-                        onPressed: () => _ctrl.archiveChallenge(ch.id),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    return Scrollbar(
+      controller: _scrollCtrl,
+      child: ListView.separated(
+        controller: _scrollCtrl,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.only(bottom: 80),
+        itemCount: list.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, idx) {
+          final c = list[idx];
+          return _ChallengeRoundCard(
+            challenge: c,
+            dateFormat: _dateFormat,
+            dark: dark,
+            onRefresh: _ctrl.loadChallenges,
+            onDelete: () => _confirmDeleteChallenge(c),
+            onStatusChange: (status) => _ctrl.updateChallengeStatus(c.id, status),
+          );
+        },
+      ),
     );
   }
+
+  // ── Tab 1: Question Sets List ───────────────────────────────────────────────
 
   Widget _buildQuestionSetsList(bool dark) {
     final list = _ctrl.filteredQuestionSets;
 
     if (list.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSizes.xl),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Iconsax.document_copy, size: 48, color: dark ? Colors.white24 : AppColors.textSecondary),
+              const SizedBox(height: AppSizes.md),
+              const Text('No question sets found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 6),
+              const Text(
+                'Create question sets or insert them directly via Supabase SQL command to use in challenges.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
-              child: const Icon(Iconsax.document_copy, size: 48, color: AppColors.primary),
-            ),
-            const SizedBox(height: AppSizes.md),
-            const Text('No question sets found', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-            const SizedBox(height: 4),
-            const Text(
-              'Create a question set with 30-50 questions for challenges.',
-              style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: AppSizes.md),
-            FilledButton.icon(
-              onPressed: () async {
-                final ok = await Get.to(() => const ChallengeEditorScreen());
-                if (ok == true || ok is String) {
-                  _ctrl.loadQuestionSets();
-                }
-              },
-              icon: const Icon(Iconsax.add_copy, size: 16),
-              label: const Text('Create First Question Set'),
-            ),
-          ],
+              const SizedBox(height: AppSizes.md),
+              FilledButton.icon(
+                onPressed: () => Get.to(() => const ChallengeEditorScreen()),
+                icon: const Icon(Iconsax.add_circle_copy, size: 16),
+                label: const Text('Create Question Set'),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return ListView.separated(
-      itemCount: list.length,
-      separatorBuilder: (_, _) => const SizedBox(height: AppSizes.sm),
-      itemBuilder: (context, idx) {
-        final set = list[idx];
-        final isReady = set.questionCount >= 30;
-
-        return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-            side: BorderSide(color: dark ? AppColors.darkBorder : AppColors.borderPrimary),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSizes.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-                      ),
-                      child: const Icon(Iconsax.note_2_copy, color: AppColors.primary, size: 22),
-                    ),
-                    const SizedBox(width: AppSizes.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            set.title,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 4,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              _BadgeChip(
-                                label: set.subjectName?.toUpperCase() ?? 'SUBJECT',
-                                color: AppColors.primary,
-                              ),
-                              _BadgeChip(
-                                label: isReady ? '${set.questionCount} QUESTIONS (READY)' : '${set.questionCount} QUESTIONS',
-                                color: isReady ? AppColors.success : AppColors.warning,
-                              ),
-                              // Copy Set ID badge for SQL
-                              InkWell(
-                                borderRadius: BorderRadius.circular(4),
-                                onTap: () {
-                                  Clipboard.setData(ClipboardData(text: set.id));
-                                  SnackbarHelper.success('Copied!', 'Set ID: ${set.id} (Ready for SQL)');
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.copy_rounded, size: 10, color: AppColors.primary),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        'ID: ${set.id.length > 8 ? set.id.substring(0, 8) : set.id}...',
-                                        style: const TextStyle(
-                                          fontFamily: 'monospace',
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.primary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Created: ${_dateFormat.format(set.createdAt)}',
-                            style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-                const Divider(height: 1),
-                const SizedBox(height: 8),
-
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  alignment: WrapAlignment.end,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    FilledButton.tonalIcon(
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      onPressed: () async {
-                        final ok = await Get.to(
-                          () => ChallengeSchedulerScreen(
-                            preselectedSetId: set.id,
-                            preselectedSubjectId: set.subjectId,
-                          ),
-                        );
-                        if (ok == true) {
-                          _ctrl.selectedTab.value = 0;
-                          _ctrl.loadChallenges();
-                        }
-                      },
-                      icon: const Icon(Iconsax.calendar_tick_copy, size: 14),
-                      label: const Text('Schedule Round', style: TextStyle(fontSize: 11.5)),
-                    ),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      onPressed: () async {
-                        final ok = await Get.to(
-                          () => ChallengeEditorScreen(
-                            setId: set.id,
-                            subjectId: set.subjectId,
-                            subjectName: set.subjectName ?? '',
-                          ),
-                        );
-                        if (ok == true || ok is String) {
-                          _ctrl.loadQuestionSets();
-                        }
-                      },
-                      icon: const Icon(Iconsax.edit_copy, size: 14),
-                      label: const Text('Edit Questions', style: TextStyle(fontSize: 11.5)),
-                    ),
-                    IconButton(
-                      tooltip: 'Delete set',
-                      icon: const Icon(Iconsax.trash_copy, size: 18, color: AppColors.error),
-                      onPressed: () async {
-                        final ok = await AppDialogBoxes.confirm(
-                          title: 'Delete Question Set',
-                          message: 'Are you sure you want to delete "${set.title}" and its ${set.questionCount} questions?',
-                          confirmLabel: 'Delete',
-                          isDestructive: true,
-                        );
-                        if (ok) _ctrl.deleteQuestionSet(set.id);
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    return Scrollbar(
+      controller: _scrollCtrl,
+      child: ListView.separated(
+        controller: _scrollCtrl,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.only(bottom: 80),
+        itemCount: list.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, idx) {
+          final s = list[idx];
+          return _QuestionSetCard(
+            set: s,
+            dateFormat: _dateFormat,
+            dark: dark,
+            onEdit: () async {
+              final ok = await Get.to(() => ChallengeEditorScreen(setId: s.id));
+              if (ok == true || ok is String) _ctrl.loadQuestionSets();
+            },
+            onSchedule: () => Get.to(() => ChallengeSchedulerScreen(preselectedSetId: s.id)),
+            onDelete: () => _confirmDeleteSet(s),
+          );
+        },
+      ),
     );
   }
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'live':
-        return AppColors.success;
-      case 'scheduled':
-        return const Color(0xFF2563EB);
-      case 'closed':
-        return const Color(0xFF7C3AED);
-      case 'archived':
-        return AppColors.textSecondary;
-      case 'draft':
-      default:
-        return AppColors.warning;
+  Future<void> _confirmDeleteChallenge(LeaderboardChallengeModel c) async {
+    final confirmed = await AppDialogBoxes.confirm(
+      title: 'Delete Challenge Round',
+      message: 'Are you sure you want to delete "${c.title}"? All student attempts and leaderboards for this round will also be deleted.',
+      isDestructive: true,
+      confirmLabel: 'Delete',
+    );
+    if (confirmed) {
+      _ctrl.deleteChallenge(c.id);
     }
   }
 
-  IconData _statusIcon(String status) {
-    switch (status) {
-      case 'live':
-        return Iconsax.play_circle_copy;
-      case 'scheduled':
-        return Iconsax.clock_copy;
-      case 'closed':
-        return Iconsax.tick_circle_copy;
-      case 'archived':
-        return Iconsax.archive_copy;
-      case 'draft':
-      default:
-        return Iconsax.edit_2_copy;
+  Future<void> _confirmDeleteSet(ChallengeQuestionSetModel s) async {
+    final confirmed = await AppDialogBoxes.confirm(
+      title: 'Delete Question Set',
+      message: 'Are you sure you want to delete "${s.title}"? All associated questions will be deleted.',
+      isDestructive: true,
+      confirmLabel: 'Delete',
+    );
+    if (confirmed) {
+      _ctrl.deleteQuestionSet(s.id);
     }
   }
 }
 
-class _ModernKpiStat extends StatelessWidget {
-  const _ModernKpiStat({
-    required this.icon,
-    required this.gradientColors,
-    required this.label,
-    required this.value,
-    this.isLive = false,
-  });
+// ── Helpers & Components ─────────────────────────────────────────────────────
 
-  final IconData icon;
-  final List<Color> gradientColors;
-  final String label;
-  final String value;
-  final bool isLive;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: gradientColors),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: gradientColors.first.withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Icon(icon, size: 18, color: Colors.white),
-        ),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: gradientColors.first,
-                  ),
-                ),
-                if (isLive) ...[
-                  const SizedBox(width: 4),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      color: AppColors.success,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
-            ),
-          ],
-        ),
-      ],
-    );
+Color _statusColor(String status) {
+  switch (status.toLowerCase()) {
+    case 'live':
+      return const Color(0xFF10B981);
+    case 'scheduled':
+      return const Color(0xFF3B82F6);
+    case 'closed':
+    case 'archived':
+      return const Color(0xFF8B5CF6);
+    case 'draft':
+    default:
+      return const Color(0xFF6B7280);
   }
 }
 
@@ -890,20 +508,18 @@ class _TabPill extends StatelessWidget {
     final dark = AppHelperFunctions.isDark(context);
 
     return InkWell(
-      borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: selected
-              ? (dark ? AppColors.darkCard : AppColors.white)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+          color: selected ? (dark ? AppColors.darkCard : AppColors.white) : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: dark ? 0.2 : 0.06),
+                    color: Colors.black.withValues(alpha: dark ? 0.2 : 0.05),
                     blurRadius: 4,
                     offset: const Offset(0, 1),
                   ),
@@ -915,15 +531,15 @@ class _TabPill extends StatelessWidget {
           children: [
             Icon(
               icon,
-              size: 15,
+              size: 13,
               color: selected ? AppColors.primary : AppColors.textSecondary,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 11.5,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
                 color: selected ? (dark ? Colors.white : Colors.black87) : AppColors.textSecondary,
               ),
             ),
@@ -934,27 +550,319 @@ class _TabPill extends StatelessWidget {
   }
 }
 
-class _BadgeChip extends StatelessWidget {
-  const _BadgeChip({required this.label, required this.color});
+// ── Challenge Round Card ─────────────────────────────────────────────────────
 
-  final String label;
-  final Color color;
+class _ChallengeRoundCard extends StatelessWidget {
+  const _ChallengeRoundCard({
+    required this.challenge,
+    required this.dateFormat,
+    required this.dark,
+    required this.onRefresh,
+    required this.onDelete,
+    required this.onStatusChange,
+  });
+
+  final LeaderboardChallengeModel challenge;
+  final DateFormat dateFormat;
+  final bool dark;
+  final VoidCallback onRefresh;
+  final VoidCallback onDelete;
+  final ValueChanged<String> onStatusChange;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
+    final statusCol = _statusColor(challenge.status);
+
+    return Card(
+      elevation: challenge.isLive ? 2 : 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        side: BorderSide(
+          color: challenge.isLive ? statusCol : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+          width: challenge.isLive ? 1.5 : 1.0,
+        ),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 9.5,
-          fontWeight: FontWeight.w700,
-          color: color,
-          letterSpacing: 0.3,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSizes.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Top Row: Status Badge + Audience Badge + Copy ID
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: statusCol.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: statusCol.withValues(alpha: 0.5)),
+                  ),
+                  child: Text(
+                    challenge.status.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: statusCol,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: (challenge.audience == 'social' ? AppColors.secondary : AppColors.primary)
+                        .withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${challenge.audience.toUpperCase()} STREAM',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: challenge.audience == 'social' ? AppColors.secondary : AppColors.primary,
+                    ),
+                  ),
+                ),
+                // One-tap copy ID
+                InkWell(
+                  borderRadius: BorderRadius.circular(4),
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: challenge.id));
+                    SnackbarHelper.info('Copied!', 'Challenge ID copied to clipboard');
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: (dark ? Colors.white : Colors.black).withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.copy_rounded, size: 10, color: AppColors.textSecondary),
+                        const SizedBox(width: 3),
+                        Text(
+                          'ID: ${challenge.id.substring(0, challenge.id.length > 8 ? 8 : challenge.id.length)}...',
+                          style: const TextStyle(fontFamily: 'monospace', fontSize: 10, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 6),
+
+            // Title & Subject
+            Text(
+              challenge.title,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${challenge.subjectName ?? 'Subject'} • Duration: ${challenge.durationMinutes} mins',
+              style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+            ),
+
+            const SizedBox(height: 6),
+
+            // Time Window
+            Row(
+              children: [
+                const Icon(Iconsax.calendar_1_copy, size: 13, color: AppColors.textSecondary),
+                const SizedBox(width: 4),
+                Text(
+                  '${challenge.startsAt != null ? dateFormat.format(challenge.startsAt!) : '--'} → ${challenge.endsAt != null ? dateFormat.format(challenge.endsAt!) : '--'}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // Action Buttons Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: () => Get.to(
+                    () => ChallengeLeaderboardScreen(
+                      challengeId: challenge.id,
+                      challengeTitle: challenge.title,
+                    ),
+                  ),
+                  icon: const Icon(Iconsax.ranking_copy, size: 13),
+                  label: const Text('Leaderboard', style: TextStyle(fontSize: 11)),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: 'Delete Round',
+                  icon: const Icon(Iconsax.trash_copy, size: 16, color: AppColors.error),
+                  onPressed: onDelete,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Question Set Card ────────────────────────────────────────────────────────
+
+class _QuestionSetCard extends StatelessWidget {
+  const _QuestionSetCard({
+    required this.set,
+    required this.dateFormat,
+    required this.dark,
+    required this.onEdit,
+    required this.onSchedule,
+    required this.onDelete,
+  });
+
+  final ChallengeQuestionSetModel set;
+  final DateFormat dateFormat;
+  final bool dark;
+  final VoidCallback onEdit;
+  final VoidCallback onSchedule;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        side: BorderSide(
+          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSizes.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Top: Subject + Question Count + Copy Set ID
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    set.subjectName ?? 'Subject',
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${set.questionCount} Questions',
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFD97706),
+                    ),
+                  ),
+                ),
+                // One-tap copy Set ID for SQL commands
+                InkWell(
+                  borderRadius: BorderRadius.circular(4),
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: set.id));
+                    SnackbarHelper.info('Copied!', 'Set ID copied for SQL: ${set.id}');
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: (dark ? Colors.white : Colors.black).withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.copy_rounded, size: 10, color: AppColors.textSecondary),
+                        const SizedBox(width: 3),
+                        Text(
+                          'Set ID: ${set.id.substring(0, set.id.length > 8 ? 8 : set.id.length)}...',
+                          style: const TextStyle(fontFamily: 'monospace', fontSize: 10, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 6),
+
+            // Title
+            Text(
+              set.title,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Created ${dateFormat.format(set.createdAt)}',
+              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Actions
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: onEdit,
+                  icon: const Icon(Iconsax.edit_2_copy, size: 13),
+                  label: const Text('Edit Questions', style: TextStyle(fontSize: 11)),
+                ),
+                const SizedBox(width: 6),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: onSchedule,
+                  icon: const Icon(Iconsax.calendar_add_copy, size: 13),
+                  label: const Text('Schedule', style: TextStyle(fontSize: 11)),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: 'Delete Set',
+                  icon: const Icon(Iconsax.trash_copy, size: 16, color: AppColors.error),
+                  onPressed: onDelete,
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

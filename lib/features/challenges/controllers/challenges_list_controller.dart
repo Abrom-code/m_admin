@@ -4,14 +4,17 @@ import 'package:m_admin/data/repositories/challenge_repository.dart';
 import 'package:m_admin/features/challenges/models/challenge_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ChallengesListController extends GetxController {
   static ChallengesListController get instance => Get.find();
 
   final _repo = ChallengeRepository();
+  final _sb = Supabase.instance.client;
 
   final selectedTab = 0.obs; // 0 = Rounds / Challenges, 1 = Question Sets
   final isLoading = false.obs;
+  final isRefreshing = false.obs;
 
   final challenges = <LeaderboardChallengeModel>[].obs;
   final questionSets = <ChallengeQuestionSetModel>[].obs;
@@ -23,6 +26,8 @@ class ChallengesListController extends GetxController {
   final selectedSubjectId = RxnInt();
   final searchCtrl = TextEditingController();
   final searchQuery = ''.obs;
+
+  RealtimeChannel? _realtimeChannel;
 
   // KPI Getters
   int get liveCount => challenges.where((c) => c.isLive).length;
@@ -36,7 +41,8 @@ class ChallengesListController extends GetxController {
     return challenges.where((c) {
       final matchTitle = c.title.toLowerCase().contains(query);
       final matchSub = c.subjectName?.toLowerCase().contains(query) ?? false;
-      return matchTitle || matchSub;
+      final matchId = c.id.toLowerCase().contains(query);
+      return matchTitle || matchSub || matchId;
     }).toList();
   }
 
@@ -46,7 +52,8 @@ class ChallengesListController extends GetxController {
     return questionSets.where((s) {
       final matchTitle = s.title.toLowerCase().contains(query);
       final matchSub = s.subjectName?.toLowerCase().contains(query) ?? false;
-      return matchTitle || matchSub;
+      final matchId = s.id.toLowerCase().contains(query);
+      return matchTitle || matchSub || matchId;
     }).toList();
   }
 
@@ -54,16 +61,47 @@ class ChallengesListController extends GetxController {
   void onInit() {
     super.onInit();
     loadAll();
+    _subscribeRealtime();
   }
 
   @override
   void onClose() {
     searchCtrl.dispose();
+    if (_realtimeChannel != null) {
+      _sb.removeChannel(_realtimeChannel!);
+    }
     super.onClose();
   }
 
-  Future<void> loadAll() async {
-    isLoading.value = true;
+  void _subscribeRealtime() {
+    try {
+      _realtimeChannel = _sb
+          .channel('admin_challenge_realtime')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'leaderboard_challenges',
+            callback: (_) => loadChallenges(),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'challenge_question_sets',
+            callback: (_) => loadQuestionSets(),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'challenge_questions',
+            callback: (_) => loadQuestionSets(),
+          )
+          .subscribe();
+    } catch (_) {}
+  }
+
+  Future<void> loadAll({bool showLoading = true}) async {
+    if (showLoading) isLoading.value = true;
+    isRefreshing.value = true;
     try {
       await Future.wait([
         loadSubjects(),
@@ -73,7 +111,8 @@ class ChallengesListController extends GetxController {
     } catch (e) {
       SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
     } finally {
-      isLoading.value = false;
+      if (showLoading) isLoading.value = false;
+      isRefreshing.value = false;
     }
   }
 
@@ -131,43 +170,33 @@ class ChallengesListController extends GetxController {
     loadQuestionSets();
   }
 
-  Future<void> makeLiveNow(String challengeId) async {
+  Future<void> deleteChallenge(String id) async {
     try {
-      await _repo.updateChallengeStatus(challengeId, 'live');
-      SnackbarHelper.success('Live Now', 'Challenge has been set to LIVE status.');
+      await _repo.deleteChallenge(id);
+      challenges.removeWhere((c) => c.id == id);
+      SnackbarHelper.success('Deleted', 'Challenge round deleted successfully');
+    } catch (e) {
+      SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
+    }
+  }
+
+  Future<void> deleteQuestionSet(String id) async {
+    try {
+      await _repo.deleteQuestionSet(id);
+      questionSets.removeWhere((s) => s.id == id);
+      SnackbarHelper.success('Deleted', 'Question set deleted successfully');
+    } catch (e) {
+      SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
+    }
+  }
+
+  Future<void> updateChallengeStatus(String id, String newStatus) async {
+    try {
+      await _repo.updateChallengeStatus(id, newStatus);
       await loadChallenges();
+      SnackbarHelper.success('Updated', 'Challenge status updated to $newStatus');
     } catch (e) {
-      AppExceptionHandler.handleResponse(e);
-    }
-  }
-
-  Future<void> closeRoundNow(String challengeId) async {
-    try {
-      await _repo.updateChallengeStatus(challengeId, 'closed');
-      SnackbarHelper.success('Closed', 'Challenge round has ended and final rankings are computed.');
-      await loadChallenges();
-    } catch (e) {
-      AppExceptionHandler.handleResponse(e);
-    }
-  }
-
-  Future<void> archiveChallenge(String challengeId) async {
-    try {
-      await _repo.archiveChallenge(challengeId);
-      SnackbarHelper.success('Archived', 'Challenge moved to archive');
-      loadChallenges();
-    } catch (e) {
-      AppExceptionHandler.handleResponse(e);
-    }
-  }
-
-  Future<void> deleteQuestionSet(String setId) async {
-    try {
-      await _repo.deleteQuestionSet(setId);
-      SnackbarHelper.success('Deleted', 'Question set removed');
-      loadQuestionSets();
-    } catch (e) {
-      AppExceptionHandler.handleResponse(e);
+      SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
     }
   }
 }

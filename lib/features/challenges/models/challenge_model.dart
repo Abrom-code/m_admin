@@ -84,6 +84,7 @@ class LeaderboardChallengeModel {
   bool get isLive => status == 'live';
   bool get isClosed => status == 'closed';
   bool get isArchived => status == 'archived';
+  int get durationMinutes => durationSeconds ~/ 60;
 
   /// Pre-visibility window: scheduled & starts_at is within 12 hours
   bool get isUpcomingVisible {
