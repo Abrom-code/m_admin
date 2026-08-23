@@ -18,6 +18,7 @@ class AdminLeaderboardController extends GetxController {
 
   final challenge = Rxn<LeaderboardChallengeModel>();
   final entries = <ChallengeLeaderboardEntry>[].obs;
+  final searchQuery = ''.obs;
 
   final selectedView = 'challenge'.obs; // 'challenge', 'weekly', 'monthly'
   final selectedStream = 'all'.obs; // 'all', 'natural', 'social'
@@ -29,6 +30,35 @@ class AdminLeaderboardController extends GetxController {
       selectedStream.value = initialStream!;
     }
     loadData();
+  }
+
+  List<ChallengeLeaderboardEntry> get filteredEntries {
+    final query = searchQuery.value.trim().toLowerCase();
+    if (query.isEmpty) return entries;
+    return entries.where((e) {
+      final nameMatches = e.fullName.toLowerCase().contains(query);
+      final idMatches = e.userId.toLowerCase().contains(query);
+      final rankMatches = '#${e.rank}'.contains(query) || '${e.rank}'.contains(query);
+      return nameMatches || idMatches || rankMatches;
+    }).toList();
+  }
+
+  int get totalParticipants => filteredEntries.length;
+  int get topScore => filteredEntries.isNotEmpty ? filteredEntries.first.score : 0;
+  double get averageScore => filteredEntries.isNotEmpty
+      ? (filteredEntries.map((e) => e.score).reduce((a, b) => a + b) / filteredEntries.length)
+      : 0.0;
+  int get fastestTimeSeconds {
+    final nonZero = filteredEntries.map((e) => e.totalTimeSeconds).where((t) => t > 0).toList();
+    if (nonZero.isEmpty) return 0;
+    return nonZero.reduce((a, b) => a < b ? a : b);
+  }
+
+  String get formattedFastestTime {
+    if (fastestTimeSeconds <= 0) return '--';
+    final m = fastestTimeSeconds ~/ 60;
+    final s = fastestTimeSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   Future<void> loadData() async {
@@ -48,6 +78,7 @@ class AdminLeaderboardController extends GetxController {
 
   Future<void> refreshLeaderboard() async {
     try {
+      isLoading.value = true;
       if (selectedView.value == 'challenge' && challengeId != null) {
         final stream = selectedStream.value == 'all' ? null : selectedStream.value;
         entries.value = await _repo.fetchLeaderboard(
@@ -72,6 +103,8 @@ class AdminLeaderboardController extends GetxController {
       }
     } catch (e) {
       SnackbarHelper.error('Leaderboard error', AppExceptionHandler.handle(e).message);
+    } finally {
+      isLoading.value = false;
     }
   }
 
