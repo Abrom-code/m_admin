@@ -200,55 +200,43 @@ class _NotifyChallengeDialogState extends State<NotifyChallengeDialog> {
 
                 // Target Audience Selector
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                   decoration: BoxDecoration(
                     color: audColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: audColor.withValues(alpha: 0.25)),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.track_changes_rounded, size: 16, color: audColor),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Target Audience:',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: audColor),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedAudience,
+                      isExpanded: true,
+                      icon: Icon(Icons.keyboard_arrow_down_rounded, color: audColor),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: dark ? Colors.white : Colors.black87,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedAudience,
-                            isDense: true,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: dark ? Colors.white : Colors.black87,
-                            ),
-                            dropdownColor: dark ? AppColors.darkCard : AppColors.white,
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'all',
-                                child: Text('All Students (Natural & Social)'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'stream:natural',
-                                child: Text('Natural Stream Only'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'stream:social',
-                                child: Text('Social Stream Only'),
-                              ),
-                            ],
-                            onChanged: _isSending
-                                ? null
-                                : (val) {
-                                    if (val != null) setState(() => _selectedAudience = val);
-                                  },
-                          ),
+                      dropdownColor: dark ? AppColors.darkCard : AppColors.white,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'all',
+                          child: Text('All Students (Natural & Social)'),
                         ),
-                      ),
-                    ],
+                        DropdownMenuItem(
+                          value: 'stream:natural',
+                          child: Text('Natural Stream Only'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'stream:social',
+                          child: Text('Social Stream Only'),
+                        ),
+                      ],
+                      onChanged: _isSending
+                          ? null
+                          : (val) {
+                              if (val != null) setState(() => _selectedAudience = val);
+                            },
+                    ),
                   ),
                 ),
 
@@ -309,7 +297,7 @@ class _NotifyChallengeDialogState extends State<NotifyChallengeDialog> {
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
                           : const Icon(Icons.send_rounded, size: 16),
-                      label: Text(_isSending ? 'Sending...' : 'Send Push Notification'),
+                      label: Text(_isSending ? 'Sending...' : 'Send'),
                     ),
                   ],
                 ),
