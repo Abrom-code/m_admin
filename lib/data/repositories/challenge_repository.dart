@@ -62,6 +62,22 @@ class ChallengeRepository {
 
   // ── Questions ──────────────────────────────────────────────────────────────
 
+  Future<List<ChallengeQuestionModel>> fetchQuestionsForChallenge(String challengeId, {String? setId}) async {
+    var query = _sb.from('challenge_questions').select('*');
+    if (challengeId.isNotEmpty && setId != null && setId.isNotEmpty) {
+      query = query.or('challenge_id.eq.$challengeId,set_id.eq.$setId');
+    } else if (challengeId.isNotEmpty) {
+      query = query.eq('challenge_id', challengeId);
+    } else if (setId != null && setId.isNotEmpty) {
+      query = query.eq('set_id', setId);
+    }
+
+    final rows = await query.order('order_index', ascending: true);
+    return (rows as List)
+        .map((r) => ChallengeQuestionModel.fromJson(r as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<List<ChallengeQuestionModel>> fetchQuestionsForSet(String setId) async {
     final rows = await _sb
         .from('challenge_questions')
@@ -91,7 +107,7 @@ class ChallengeRepository {
   }) async {
     var query = _sb
         .from('leaderboard_challenges')
-        .select('*, subjects(name), challenge_question_sets(title, challenge_questions(id))');
+        .select('*, subjects(name), challenge_question_sets(title, challenge_questions(id)), challenge_questions(id)');
 
     if (status != null && status.isNotEmpty && status != 'all') {
       query = query.eq('status', status);
@@ -112,7 +128,7 @@ class ChallengeRepository {
   Future<LeaderboardChallengeModel> fetchChallengeDetail(String challengeId) async {
     final row = await _sb
         .from('leaderboard_challenges')
-        .select('*, subjects(name), challenge_question_sets(title, challenge_questions(id))')
+        .select('*, subjects(name), challenge_question_sets(title, challenge_questions(id)), challenge_questions(id)')
         .eq('id', challengeId)
         .single();
     return LeaderboardChallengeModel.fromJson(row);
@@ -128,32 +144,7 @@ class ChallengeRepository {
     final row = await _sb
         .from('leaderboard_challenges')
         .upsert(payload)
-        .select('*, subjects(name), challenge_question_sets(title, challenge_questions(id))')
-        .single();
-
-    return LeaderboardChallengeModel.fromJson(row);
-  }
-
-  Future<LeaderboardChallengeModel> createDraftChallenge({
-    required String setId,
-    required int subjectId,
-    required String title,
-    String audience = 'both',
-    int durationSeconds = 3600,
-  }) async {
-    final data = <String, dynamic>{
-      'set_id': setId,
-      'subject_id': subjectId,
-      'title': title,
-      'audience': audience,
-      'duration_seconds': durationSeconds,
-      'status': 'draft',
-    };
-
-    final row = await _sb
-        .from('leaderboard_challenges')
-        .insert(data)
-        .select('*, subjects(name), challenge_question_sets(title)')
+        .select('*, subjects(name), challenge_question_sets(title, challenge_questions(id)), challenge_questions(id)')
         .single();
 
     return LeaderboardChallengeModel.fromJson(row);
@@ -161,23 +152,13 @@ class ChallengeRepository {
 
   Future<String> publishChallenge(String challengeId) async {
     final ch = await fetchChallengeDetail(challengeId);
-    final starts = ch.startsAt ?? DateTime.now();
+    final now = DateTime.now();
+    final starts = ch.startsAt ?? now;
     final ends = ch.endsAt ?? starts.add(const Duration(hours: 12));
 
-    await _sb.rpc('rpc_publish_challenge', params: {
-      'p_challenge_id': challengeId,
-      'p_starts_at': starts.toUtc().toIso8601String(),
-      'p_ends_at': ends.toUtc().toIso8601String(),
-      'p_audience': ch.audience,
-      'p_duration_seconds': ch.durationSeconds,
-    });
-
-    final now = DateTime.now();
-    if (now.isAfter(starts) && now.isBefore(ends)) {
-      await updateChallengeStatus(challengeId, 'live');
-      return 'live';
-    }
-    return 'scheduled';
+    final newStatus = (now.isAfter(starts) && now.isBefore(ends)) ? 'live' : 'scheduled';
+    await updateChallengeStatus(challengeId, newStatus);
+    return newStatus;
   }
 
   Future<void> updateChallengeStatus(String challengeId, String newStatus) async {

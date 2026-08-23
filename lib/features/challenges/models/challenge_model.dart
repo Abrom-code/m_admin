@@ -27,7 +27,7 @@ class ChallengeQuestionSetModel {
           : json['subject_name']?.toString(),
       createdBy: json['created_by']?.toString(),
       createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+          ? (DateTime.tryParse(json['created_at'].toString())?.toLocal() ?? DateTime.now())
           : DateTime.now(),
       questionCount: (json['question_count'] as num?)?.toInt() ??
           ((json['challenge_questions'] as List?)?.length ?? 0),
@@ -120,16 +120,16 @@ class LeaderboardChallengeModel {
       audience: json['audience']?.toString() ?? 'both',
       title: json['title']?.toString() ?? '',
       startsAt: json['starts_at'] != null
-          ? DateTime.tryParse(json['starts_at'].toString())
+          ? DateTime.tryParse(json['starts_at'].toString())?.toLocal()
           : null,
       endsAt: json['ends_at'] != null
-          ? DateTime.tryParse(json['ends_at'].toString())
+          ? DateTime.tryParse(json['ends_at'].toString())?.toLocal()
           : null,
       durationSeconds: (json['duration_seconds'] as num?)?.toInt() ?? 3600,
       status: json['status']?.toString() ?? 'draft',
       createdBy: json['created_by']?.toString(),
       createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+          ? (DateTime.tryParse(json['created_at'].toString())?.toLocal() ?? DateTime.now())
           : DateTime.now(),
       questionCount: qCount,
       attemptCount: (json['attempt_count'] as num?)?.toInt() ?? 0,
@@ -143,8 +143,8 @@ class LeaderboardChallengeModel {
       'subject_id': subjectId,
       'audience': audience,
       'title': title,
-      'starts_at': startsAt?.toIso8601String(),
-      'ends_at': endsAt?.toIso8601String(),
+      'starts_at': startsAt?.toUtc().toIso8601String(),
+      'ends_at': endsAt?.toUtc().toIso8601String(),
       'duration_seconds': durationSeconds,
       'status': status,
       if (createdBy != null) 'created_by': createdBy,

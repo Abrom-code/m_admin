@@ -40,7 +40,7 @@ class ChallengeEditorController extends GetxController {
     currentChallengeId.value = challengeId;
     selectedSubjectId.value = initialSubjectId;
 
-    // Default dates: starts in 1 hour, ends in 13 hours
+    // Default dates: starts now + 1h, ends now + 13h (local time)
     final now = DateTime.now();
     startsAt.value = now.add(const Duration(hours: 1));
     endsAt.value = now.add(const Duration(hours: 13));
@@ -72,9 +72,7 @@ class ChallengeEditorController extends GetxController {
         startsAt.value = c.startsAt;
         endsAt.value = c.endsAt;
 
-        if (c.setId.isNotEmpty) {
-          questions.value = await _repo.fetchQuestionsForSet(c.setId);
-        }
+        questions.value = await _repo.fetchQuestionsForChallenge(c.id, setId: c.setId);
       }
     } catch (e) {
       SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
@@ -84,9 +82,12 @@ class ChallengeEditorController extends GetxController {
   }
 
   Future<void> reloadQuestions() async {
-    if (currentSetId.value == null) return;
+    if (currentChallengeId.value == null && currentSetId.value == null) return;
     try {
-      questions.value = await _repo.fetchQuestionsForSet(currentSetId.value!);
+      questions.value = await _repo.fetchQuestionsForChallenge(
+        currentChallengeId.value ?? '',
+        setId: currentSetId.value,
+      );
     } catch (_) {}
   }
 
@@ -120,39 +121,50 @@ class ChallengeEditorController extends GetxController {
 
     isSaving.value = true;
     try {
-      // 1. Ensure question set exists
       final setTitle = titleCtrl.text.trim();
-      final savedSet = await _repo.upsertQuestionSet(
-        id: currentSetId.value,
-        subjectId: selectedSubjectId.value!,
-        title: setTitle,
-      );
-      currentSetId.value = savedSet.id;
 
-      // 2. Upsert challenge record
+      // Determine target status
+      String targetStatus = 'draft';
+      if (isPublish) {
+        final now = DateTime.now();
+        final starts = startsAt.value ?? now;
+        final ends = endsAt.value ?? now.add(const Duration(hours: 12));
+        if (now.isAfter(starts) && now.isBefore(ends)) {
+          targetStatus = 'live';
+        } else {
+          targetStatus = 'scheduled';
+        }
+      } else {
+        targetStatus = status.value.isEmpty ? 'draft' : status.value;
+      }
+
+      // Upsert challenge record
       final payload = <String, dynamic>{
         if (currentChallengeId.value != null && currentChallengeId.value!.isNotEmpty)
           'id': currentChallengeId.value,
-        'set_id': savedSet.id,
+        if (currentSetId.value != null && currentSetId.value!.isNotEmpty)
+          'set_id': currentSetId.value,
         'subject_id': selectedSubjectId.value!,
         'title': setTitle,
         'audience': audience.value,
         'duration_seconds': durationMins * 60,
-        'status': isPublish ? 'scheduled' : (status.value.isEmpty ? 'draft' : status.value),
+        'status': targetStatus,
         if (startsAt.value != null) 'starts_at': startsAt.value!.toUtc().toIso8601String(),
         if (endsAt.value != null) 'ends_at': endsAt.value!.toUtc().toIso8601String(),
       };
 
       final savedChallenge = await _repo.upsertChallenge(payload);
       currentChallengeId.value = savedChallenge.id;
+      currentSetId.value = savedChallenge.setId;
       status.value = savedChallenge.status;
 
       if (isPublish) {
-        final publishState = await _repo.publishChallenge(savedChallenge.id);
-        status.value = publishState;
-        SnackbarHelper.success('Published!', 'Challenge has been successfully ${publishState == 'live' ? 'launched LIVE' : 'scheduled'}!');
+        SnackbarHelper.success(
+          'Published!',
+          'Challenge has been successfully ${targetStatus == 'live' ? 'launched LIVE' : 'scheduled'}!',
+        );
       } else {
-        SnackbarHelper.success('Saved', 'Challenge saved as draft. You can add more questions or publish when ready.');
+        SnackbarHelper.success('Saved', 'Challenge saved as draft.');
       }
 
       return savedChallenge.id;
