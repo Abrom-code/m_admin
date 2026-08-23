@@ -10,79 +10,19 @@ class ChallengeRepository {
 
   String? get _adminUid => AdminSessionService.instance.adminUid;
 
-  // ── Question Sets ──────────────────────────────────────────────────────────
+  // ── Legacy Question Sets Compatibility Stub ──────────────────────────────
 
   Future<List<ChallengeQuestionSetModel>> fetchQuestionSets({int? subjectId}) async {
-    var query = _sb
-        .from('challenge_question_sets')
-        .select('*, subjects(name), challenge_questions(id)');
-
-    if (subjectId != null) {
-      query = query.eq('subject_id', subjectId);
-    }
-
-    final rows = await query.order('created_at', ascending: false);
-    return (rows as List)
-        .map((r) => ChallengeQuestionSetModel.fromJson(r as Map<String, dynamic>))
-        .toList();
-  }
-
-  Future<ChallengeQuestionSetModel> fetchQuestionSetDetail(String setId) async {
-    final row = await _sb
-        .from('challenge_question_sets')
-        .select('*, subjects(name), challenge_questions(id)')
-        .eq('id', setId)
-        .single();
-    return ChallengeQuestionSetModel.fromJson(row);
-  }
-
-  Future<ChallengeQuestionSetModel> upsertQuestionSet({
-    String? id,
-    required int subjectId,
-    required String title,
-  }) async {
-    final data = <String, dynamic>{
-      if (id != null && id.isNotEmpty) 'id': id,
-      'subject_id': subjectId,
-      'title': title,
-    };
-
-    final row = await _sb
-        .from('challenge_question_sets')
-        .upsert(data)
-        .select('*, subjects(name)')
-        .single();
-
-    return ChallengeQuestionSetModel.fromJson(row);
-  }
-
-  Future<void> deleteQuestionSet(String setId) async {
-    await _sb.from('challenge_question_sets').delete().eq('id', setId);
+    return [];
   }
 
   // ── Questions ──────────────────────────────────────────────────────────────
 
   Future<List<ChallengeQuestionModel>> fetchQuestionsForChallenge(String challengeId, {String? setId}) async {
-    var query = _sb.from('challenge_questions').select('*');
-    if (challengeId.isNotEmpty && setId != null && setId.isNotEmpty) {
-      query = query.or('challenge_id.eq.$challengeId,set_id.eq.$setId');
-    } else if (challengeId.isNotEmpty) {
-      query = query.eq('challenge_id', challengeId);
-    } else if (setId != null && setId.isNotEmpty) {
-      query = query.eq('set_id', setId);
-    }
-
-    final rows = await query.order('order_index', ascending: true);
-    return (rows as List)
-        .map((r) => ChallengeQuestionModel.fromJson(r as Map<String, dynamic>))
-        .toList();
-  }
-
-  Future<List<ChallengeQuestionModel>> fetchQuestionsForSet(String setId) async {
     final rows = await _sb
         .from('challenge_questions')
         .select('*')
-        .eq('set_id', setId)
+        .eq('challenge_id', challengeId)
         .order('order_index', ascending: true);
 
     return (rows as List)
@@ -91,7 +31,9 @@ class ChallengeRepository {
   }
 
   Future<void> upsertQuestion(Map<String, dynamic> data) async {
-    await _sb.from('challenge_questions').upsert(data);
+    final payload = Map<String, dynamic>.from(data);
+    payload.remove('set_id');
+    await _sb.from('challenge_questions').upsert(payload);
   }
 
   Future<void> deleteQuestion(String questionId) async {
@@ -107,7 +49,7 @@ class ChallengeRepository {
   }) async {
     var query = _sb
         .from('leaderboard_challenges')
-        .select('*, subjects(name), challenge_question_sets(title, challenge_questions(id)), challenge_questions(id)');
+        .select('*, subjects(name), challenge_questions(id)');
 
     if (status != null && status.isNotEmpty && status != 'all') {
       query = query.eq('status', status);
@@ -128,7 +70,7 @@ class ChallengeRepository {
   Future<LeaderboardChallengeModel> fetchChallengeDetail(String challengeId) async {
     final row = await _sb
         .from('leaderboard_challenges')
-        .select('*, subjects(name), challenge_question_sets(title, challenge_questions(id)), challenge_questions(id)')
+        .select('*, subjects(name), challenge_questions(id)')
         .eq('id', challengeId)
         .single();
     return LeaderboardChallengeModel.fromJson(row);
@@ -136,15 +78,14 @@ class ChallengeRepository {
 
   Future<LeaderboardChallengeModel> upsertChallenge(Map<String, dynamic> data) async {
     final payload = Map<String, dynamic>.from(data);
-    if (payload.containsKey('question_set_id') && !payload.containsKey('set_id')) {
-      payload['set_id'] = payload.remove('question_set_id');
-    }
+    payload.remove('set_id');
+    payload.remove('question_set_id');
     payload.remove('created_by');
 
     final row = await _sb
         .from('leaderboard_challenges')
         .upsert(payload)
-        .select('*, subjects(name), challenge_question_sets(title, challenge_questions(id)), challenge_questions(id)')
+        .select('*, subjects(name), challenge_questions(id)')
         .single();
 
     return LeaderboardChallengeModel.fromJson(row);
