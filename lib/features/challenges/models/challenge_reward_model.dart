@@ -35,7 +35,7 @@ class ChallengeRewardModel {
       periodStart: json['period_start']?.toString(),
       grantedBy: json['granted_by']?.toString(),
       grantedAt: json['granted_at'] != null
-          ? DateTime.tryParse(json['granted_at'].toString()) ?? DateTime.now()
+          ? (DateTime.tryParse(json['granted_at'].toString())?.toLocal() ?? DateTime.now())
           : DateTime.now(),
     );
   }
