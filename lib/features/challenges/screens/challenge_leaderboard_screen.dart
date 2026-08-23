@@ -110,88 +110,99 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                       spacing: 12,
                       runSpacing: 10,
                       children: [
-                        // Clean View Tabs
+                        // Clean View Tabs (Scrollable)
                         Container(
                           decoration: BoxDecoration(
                             color: dark ? AppColors.darkContainer : AppColors.grey.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
                           ),
                           padding: const EdgeInsets.all(3),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _CleanPill(
-                                selected: _ctrl.selectedView.value == 'challenge',
-                                icon: Iconsax.cup_copy,
-                                label: 'Challenges',
-                                onTap: () {
-                                  FocusManager.instance.primaryFocus?.unfocus();
-                                  _ctrl.setView('challenge');
-                                },
-                              ),
-                              _CleanPill(
-                                selected: _ctrl.selectedView.value == 'weekly',
-                                icon: Iconsax.calendar_1_copy,
-                                label: 'Weekly',
-                                onTap: () {
-                                  FocusManager.instance.primaryFocus?.unfocus();
-                                  _ctrl.setView('weekly');
-                                },
-                              ),
-                              _CleanPill(
-                                selected: _ctrl.selectedView.value == 'monthly',
-                                icon: Iconsax.calendar_copy,
-                                label: 'Monthly',
-                                onTap: () {
-                                  FocusManager.instance.primaryFocus?.unfocus();
-                                  _ctrl.setView('monthly');
-                                },
-                              ),
-                            ],
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _CleanPill(
+                                  selected: _ctrl.selectedView.value == 'challenge',
+                                  icon: Iconsax.cup_copy,
+                                  label: 'Challenges',
+                                  onTap: () {
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                    _ctrl.setView('challenge');
+                                  },
+                                ),
+                                _CleanPill(
+                                  selected: _ctrl.selectedView.value == 'weekly',
+                                  icon: Iconsax.calendar_1_copy,
+                                  label: 'Weekly',
+                                  onTap: () {
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                    _ctrl.setView('weekly');
+                                  },
+                                ),
+                                _CleanPill(
+                                  selected: _ctrl.selectedView.value == 'monthly',
+                                  icon: Iconsax.calendar_copy,
+                                  label: 'Monthly',
+                                  onTap: () {
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                    _ctrl.setView('monthly');
+                                  },
+                                ),
+                              ],
+                            ),
                           ),
                         ),
 
-                        // Stream Chips
-                        Wrap(
-                          spacing: 6,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            const Text('Stream: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                            ...['all', 'natural', 'social'].map((st) {
-                              final isSel = _ctrl.selectedStream.value == st;
-                              final col = st == 'social'
-                                  ? AppColors.secondary
-                                  : (st == 'natural' ? AppColors.primary : const Color(0xFF8B5CF6));
-                              return ChoiceChip(
-                                showCheckmark: false,
-                                label: Text(
-                                  st == 'all' ? 'All' : (st == 'natural' ? 'Natural' : 'Social'),
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
-                                    color: isSel ? Colors.white : AppColors.textSecondary,
+                        // Stream Chips (Scrollable)
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('Stream: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                              const SizedBox(width: 4),
+                              ...['all', 'natural', 'social'].map((st) {
+                                final isSel = _ctrl.selectedStream.value == st;
+                                final col = st == 'social'
+                                    ? AppColors.secondary
+                                    : (st == 'natural' ? AppColors.primary : const Color(0xFF8B5CF6));
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: ChoiceChip(
+                                    showCheckmark: false,
+                                    label: Text(
+                                      st == 'all' ? 'All' : (st == 'natural' ? 'Natural' : 'Social'),
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                                        color: isSel ? Colors.white : AppColors.textSecondary,
+                                      ),
+                                    ),
+                                    selected: isSel,
+                                    selectedColor: col,
+                                    backgroundColor: dark ? AppColors.darkContainer : AppColors.grey.withValues(alpha: 0.1),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                                      side: BorderSide(
+                                        color: isSel
+                                            ? Colors.transparent
+                                            : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+                                      ),
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    onSelected: (_) {
+                                      FocusManager.instance.primaryFocus?.unfocus();
+                                      _ctrl.setStream(st);
+                                    },
                                   ),
-                                ),
-                                selected: isSel,
-                                selectedColor: col,
-                                backgroundColor: dark ? AppColors.darkContainer : AppColors.grey.withValues(alpha: 0.1),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                                  side: BorderSide(
-                                    color: isSel
-                                        ? Colors.transparent
-                                        : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
-                                  ),
-                                ),
-                                visualDensity: VisualDensity.compact,
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                onSelected: (_) {
-                                  FocusManager.instance.primaryFocus?.unfocus();
-                                  _ctrl.setStream(st);
-                                },
-                              );
-                            }),
-                          ],
+                                );
+                              }),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -220,14 +231,14 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: dark ? Colors.white : Colors.black87,
+                                    color: dark ? Colors.white : AppColors.textPrimary,
                                   ),
                                   dropdownColor: dark ? AppColors.darkCard : AppColors.white,
-                                  items: _ctrl.allChallenges.map((ch) {
+                                  items: _ctrl.allChallenges.map((c) {
                                     return DropdownMenuItem<String>(
-                                      value: ch.id,
+                                      value: c.id,
                                       child: Text(
-                                        '${ch.title} (${ch.status.toUpperCase()} • ${ch.audience.toUpperCase()})',
+                                        '${c.title} (${c.audience.toUpperCase()})',
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     );
@@ -249,9 +260,13 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                     const SizedBox(height: 10),
 
                     // Row 2: Search Bar & Quick Stats Tag
-                    Row(
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Expanded(
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(minWidth: 220, maxWidth: 400),
                           child: SizedBox(
                             height: 38,
                             child: TextField(
@@ -284,8 +299,7 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                             ),
                           ),
                         ),
-                        if (hasEntries) ...[
-                          const SizedBox(width: AppSizes.md),
+                        if (hasEntries)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             decoration: BoxDecoration(
@@ -316,7 +330,6 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                               ],
                             ),
                           ),
-                        ],
                       ],
                     ),
                   ],
