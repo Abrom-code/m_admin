@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
+import 'package:m_admin/features/challenges/screens/challenges_list_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
 import 'package:m_admin/features/dashboard/screens/dashboard_screen.dart';
 import 'package:m_admin/features/notifications/screens/notifications_screen.dart';
@@ -45,8 +46,6 @@ class _AdminShellState extends State<AdminShell> {
 
   void _onHorizontalDragEnd(DragEndDetails details) {
     final dx = (details.globalPosition.dx) - _dragStartX;
-    // Open the drawer only on a clear left-to-right swipe (> 30 px threshold)
-    // that starts near the left edge of the screen (first 60 px).
     if (dx > 30 && _dragStartX < 60) {
       _scaffoldKey.currentState?.openDrawer();
     }
@@ -66,22 +65,22 @@ class _AdminShellState extends State<AdminShell> {
           ),
           actions: [
             Obx(() {
-              if (!nav.currentPageHasRefresh) return const SizedBox.shrink();
-              return Obx(() {
-                final spinning = nav.isRefreshing.value;
-                return AnimatedRotation(
-                  turns: spinning ? 1 : 0,
-                  duration: spinning
-                      ? const Duration(milliseconds: 700)
-                      : Duration.zero,
-                  child: IconButton(
-                    tooltip: 'Refresh',
-                    onPressed:
-                        spinning ? null : nav.invokeCurrentRefresh,
-                    icon: const Icon(Icons.refresh_rounded),
-                  ),
-                );
-              });
+              final pageIdx = nav.selectedIndex.value;
+              final hasRefresh = pageIdx >= 0 && nav.currentPageHasRefresh;
+              if (!hasRefresh) return const SizedBox.shrink();
+
+              final spinning = nav.isRefreshing.value;
+              return AnimatedRotation(
+                turns: spinning ? 1 : 0,
+                duration: spinning
+                    ? const Duration(milliseconds: 700)
+                    : Duration.zero,
+                child: IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: spinning ? null : nav.invokeCurrentRefresh,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              );
             }),
             const SizedBox(width: 4),
           ],
@@ -103,7 +102,7 @@ class _AdminShellState extends State<AdminShell> {
           );
         }
 
-        // Narrow layout: bottom navigation bar + drawer for secondary pages (Sessions, Settings).
+        // Narrow layout: bottom navigation bar + drawer for secondary pages (Dashboard, Sessions, Settings).
         return Scaffold(
           key: _scaffoldKey,
           appBar: appBar,
@@ -111,7 +110,6 @@ class _AdminShellState extends State<AdminShell> {
             width: kSidebarWidth,
             child: AdminSidebar(
               onLogout: () => _confirmLogout(context),
-              // In drawer mode a tap should also close the drawer.
               onNavigate: () => Navigator.of(context).maybePop(),
             ),
           ),
@@ -159,8 +157,7 @@ class _AdminBottomNavBar extends StatelessWidget {
 
     return Obx(() {
       final currentIdx = nav.selectedIndex.value;
-      // Tabs 0: Dashboard, 1: Payments, 2: Notifications, 3: Users, 4: Content.
-      final selectedDest = (currentIdx >= 0 && currentIdx <= 4) ? currentIdx : 0;
+      final selectedDest = (currentIdx >= 1 && currentIdx <= 5) ? currentIdx - 1 : 0;
 
       return Container(
         decoration: BoxDecoration(
@@ -176,17 +173,14 @@ class _AdminBottomNavBar extends StatelessWidget {
           height: 62,
           elevation: 0,
           backgroundColor: Colors.transparent,
-          indicatorColor: AppColors.primary.withValues(alpha: 0.16),
+          indicatorColor: (currentIdx >= 1 && currentIdx <= 5)
+              ? AppColors.primary.withValues(alpha: 0.16)
+              : Colors.transparent,
           selectedIndex: selectedDest,
           onDestinationSelected: (index) {
-            nav.changePage(index);
+            nav.changePage(index + 1);
           },
           destinations: [
-            const NavigationDestination(
-              icon: Icon(Iconsax.chart_2_copy, size: 20),
-              selectedIcon: Icon(Iconsax.chart_2, size: 20, color: AppColors.primary),
-              label: 'Dashboard',
-            ),
             NavigationDestination(
               icon: _NavBadge(
                 count: nav.pendingPaymentCount.value,
@@ -222,6 +216,11 @@ class _AdminBottomNavBar extends StatelessWidget {
               icon: Icon(Iconsax.book_copy, size: 20),
               selectedIcon: Icon(Iconsax.book, size: 20, color: AppColors.primary),
               label: 'Content',
+            ),
+            const NavigationDestination(
+              icon: Icon(Iconsax.cup_copy, size: 20),
+              selectedIcon: Icon(Iconsax.cup, size: 20, color: AppColors.primary),
+              label: 'Challenges',
             ),
           ],
         ),
@@ -277,6 +276,7 @@ class _Pages extends StatelessWidget {
           const NotificationsScreen(),
           const UsersScreen(),
           const ContentScreen(),
+          const ChallengesListScreen(),
           const SessionsScreen(),
           const SettingsScreen(),
         ],

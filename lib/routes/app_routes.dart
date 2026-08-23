@@ -3,6 +3,10 @@ import 'package:get/get.dart';
 import 'package:m_admin/common/widgets/layout/placeholder_screen.dart';
 import 'package:m_admin/features/auth/screens/admin_loading_screen.dart';
 import 'package:m_admin/features/auth/screens/admin_login_screen.dart';
+import 'package:m_admin/features/challenges/screens/challenge_editor_screen.dart';
+import 'package:m_admin/features/challenges/screens/challenge_leaderboard_screen.dart';
+import 'package:m_admin/features/challenges/screens/challenge_scheduler_screen.dart';
+import 'package:m_admin/features/challenges/screens/challenges_list_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
 import 'package:m_admin/features/content/screens/subject_tests_screen.dart';
 import 'package:m_admin/features/content/screens/test_editor_screen.dart';
@@ -26,14 +30,11 @@ final RouteObserver<ModalRoute<void>> appRouteObserver =
     RouteObserver<ModalRoute<void>>();
 
 /// The registered pages of the admin console.
-///
-/// Feature routes are filled in phase by phase; anything not yet built renders
-/// a [PlaceholderScreen] that names the phase responsible for it.
 class AdminAppRoutes {
   AdminAppRoutes._();
 
   static final List<GetPage> pages = <GetPage>[
-    // ── Unguarded: these are how a session is established ──────────────
+    // ── Unguarded ──────────────────────────────────────────────────────
     GetPage(
       name: AdminRoutes.loading,
       page: () => const AdminLoadingScreen(),
@@ -108,7 +109,7 @@ class AdminAppRoutes {
       middlewares: [AdminAuthMiddleware()],
     ),
 
-    // ── Content (Phase 10) ─────────────────────────────────────────────
+    // ── Content ────────────────────────────────────────────────────────
     GetPage(
       name: AdminRoutes.content,
       page: () => const ContentScreen(),
@@ -160,7 +161,49 @@ class AdminAppRoutes {
       middlewares: [AdminAuthMiddleware()],
     ),
 
-    // ── Phase 11 ───────────────────────────────────────────────────────
+    // ── Challenges (Leaderboard & Stream Challenges) ───────────────────
+    GetPage(
+      name: AdminRoutes.challenges,
+      page: () => const ChallengesListScreen(),
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.challengeEditor,
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>? ?? {};
+        return ChallengeEditorScreen(
+          setId: args['set_id']?.toString(),
+          subjectId: (args['subject_id'] as num?)?.toInt() ?? 0,
+          subjectName: args['subject_name']?.toString() ?? '',
+        );
+      },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.challengeScheduler,
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>? ?? {};
+        return ChallengeSchedulerScreen(
+          challengeId: args['challenge_id']?.toString(),
+          preselectedSetId: args['set_id']?.toString(),
+          preselectedSubjectId: (args['subject_id'] as num?)?.toInt(),
+        );
+      },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.challengeLeaderboard,
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>? ?? {};
+        return ChallengeLeaderboardScreen(
+          challengeId: args['challenge_id']?.toString(),
+          challengeTitle: args['title']?.toString(),
+        );
+      },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+
+    // ── Sessions & Settings ────────────────────────────────────────────
     GetPage(
       name: AdminRoutes.sessions,
       page: () => const SessionsScreen(),

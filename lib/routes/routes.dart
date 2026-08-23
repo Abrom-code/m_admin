@@ -1,10 +1,4 @@
 /// Route path constants for the admin console.
-///
-/// Naming note: the parent app has these two files inverted — its
-/// `routes/app_routes.dart` holds the constants and `routes/routes.dart` holds
-/// the page list. This app uses the conventional arrangement:
-///   routes.dart      -> AdminRoutes (the path strings)
-///   app_routes.dart  -> AdminAppRoutes.pages (the GetPage list) + observer
 class AdminRoutes {
   AdminRoutes._();
 
@@ -32,6 +26,11 @@ class AdminRoutes {
   static const contentChapter = '/content/chapter';
   static const contentTest = '/content/test';
   static const contentQuestion = '/content/question';
+
+  static const challenges = '/challenges';
+  static const challengeEditor = '/challenges/editor';
+  static const challengeScheduler = '/challenges/scheduler';
+  static const challengeLeaderboard = '/challenges/leaderboard';
 
   static const sessions = '/sessions';
   static const settings = '/settings';
