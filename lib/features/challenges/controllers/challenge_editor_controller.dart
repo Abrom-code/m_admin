@@ -93,7 +93,8 @@ class ChallengeEditorController extends GetxController {
 
   Future<String?> saveChallenge({bool isPublish = false}) async {
     if (!formKey.currentState!.validate()) return null;
-    if (selectedSubjectId.value == null) {
+    final subjectId = selectedSubjectId.value;
+    if (subjectId == null) {
       SnackbarHelper.warning('Subject Required', 'Please choose a subject for this challenge');
       return null;
     }
@@ -144,7 +145,7 @@ class ChallengeEditorController extends GetxController {
           'id': currentChallengeId.value,
         if (currentSetId.value != null && currentSetId.value!.isNotEmpty)
           'set_id': currentSetId.value,
-        'subject_id': selectedSubjectId.value!,
+        'subject_id': subjectId,
         'title': setTitle,
         'audience': audience.value,
         'duration_seconds': durationMins * 60,

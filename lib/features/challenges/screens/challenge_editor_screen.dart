@@ -931,38 +931,43 @@ class _ChallengeQuestionDialogState extends State<_ChallengeQuestionDialog> {
                         const SizedBox(height: 4),
 
                         // Choices A, B, C, D
-                        ...List.generate(4, (idx) {
-                          final letter = String.fromCharCode(65 + idx);
-                          final isSelected = _correctChoiceIndex == idx;
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Row(
-                              children: [
-                                Radio<int>(
-                                  value: idx,
-                                  groupValue: _correctChoiceIndex,
-                                  activeColor: Colors.teal,
-                                  visualDensity: VisualDensity.compact,
-                                  onChanged: (v) => setState(() => _correctChoiceIndex = v ?? 0),
-                                ),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _choiceControllers[idx],
-                                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                                    style: const TextStyle(fontSize: 12),
-                                    decoration: InputDecoration(
-                                      labelText: 'Choice $letter *',
-                                      filled: isSelected,
-                                      fillColor: isSelected ? Colors.teal.withValues(alpha: 0.08) : null,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        RadioGroup<int>(
+                          groupValue: _correctChoiceIndex,
+                          onChanged: (v) => setState(() => _correctChoiceIndex = v ?? 0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: List.generate(4, (idx) {
+                              final letter = String.fromCharCode(65 + idx);
+                              final isSelected = _correctChoiceIndex == idx;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Row(
+                                  children: [
+                                    Radio<int>(
+                                      value: idx,
+                                      activeColor: Colors.teal,
+                                      visualDensity: VisualDensity.compact,
                                     ),
-                                  ),
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: _choiceControllers[idx],
+                                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                                        style: const TextStyle(fontSize: 12),
+                                        decoration: InputDecoration(
+                                          labelText: 'Choice $letter *',
+                                          filled: isSelected,
+                                          fillColor: isSelected ? Colors.teal.withValues(alpha: 0.08) : null,
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          );
-                        }),
+                              );
+                            }),
+                          ),
+                        ),
 
                         const SizedBox(height: 8),
 

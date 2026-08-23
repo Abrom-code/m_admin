@@ -172,7 +172,7 @@ class _ChallengeSchedulerScreenState extends State<ChallengeSchedulerScreen> {
                         ),
                         const SizedBox(height: 4),
                         DropdownButtonFormField<String>(
-                          value: _ctrl.selectedSetId.value,
+                          initialValue: _ctrl.selectedSetId.value,
                           isExpanded: true,
                           decoration: InputDecoration(
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm)),

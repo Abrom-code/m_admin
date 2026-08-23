@@ -137,7 +137,7 @@ class _GrantRewardDialogState extends State<GrantRewardDialog> {
               ),
               const SizedBox(height: AppSizes.xs),
               DropdownButtonFormField<String>(
-                value: _rewardType,
+                initialValue: _rewardType,
                 decoration: InputDecoration(
                   contentPadding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 10),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm)),

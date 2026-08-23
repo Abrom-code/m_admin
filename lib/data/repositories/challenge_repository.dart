@@ -171,14 +171,14 @@ class ChallengeRepository {
     String? periodStart,
   }) async {
     await _sb.rpc('rpc_grant_reward', params: {
-      if (challengeId != null) 'p_challenge_id': challengeId,
+      'p_challenge_id': ?challengeId,
       'p_user_id': userId,
       'p_rank': rank,
       'p_reward_type': rewardType,
       'p_reward_value': rewardValue ?? '',
       'p_admin_uid': _adminUid ?? '',
-      if (period != null) 'p_period': period,
-      if (periodStart != null) 'p_period_start': periodStart,
+      'p_period': ?period,
+      'p_period_start': ?periodStart,
     });
   }
 

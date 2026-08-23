@@ -116,9 +116,9 @@ class NotificationsRepository {
               'title': title,
               'body': body,
               'audience': edgeAudience,
-              if (edgeTargetStream != null) 'target_stream': edgeTargetStream,
-              if (edgeTargetStatus != null) 'target_status': edgeTargetStatus,
-              if (edgeUserId != null) 'user_id': edgeUserId,
+              'target_stream': ?edgeTargetStream,
+              'target_status': ?edgeTargetStatus,
+              'user_id': ?edgeUserId,
               'payload': payload,
             }),
           )
