@@ -151,22 +151,32 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                             const Text('Stream: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                             ...['all', 'natural', 'social'].map((st) {
                               final isSel = _ctrl.selectedStream.value == st;
+                              final col = st == 'social'
+                                  ? AppColors.secondary
+                                  : (st == 'natural' ? AppColors.primary : const Color(0xFF8B5CF6));
                               return ChoiceChip(
+                                showCheckmark: false,
                                 label: Text(
                                   st == 'all' ? 'All' : (st == 'natural' ? 'Natural' : 'Social'),
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
-                                    color: isSel
-                                        ? (st == 'social' ? AppColors.secondary : AppColors.primary)
-                                        : AppColors.textSecondary,
+                                    color: isSel ? Colors.white : AppColors.textSecondary,
                                   ),
                                 ),
                                 selected: isSel,
-                                selectedColor: (st == 'social' ? AppColors.secondary : AppColors.primary)
-                                    .withValues(alpha: 0.15),
+                                selectedColor: col,
+                                backgroundColor: dark ? AppColors.darkContainer : AppColors.grey.withValues(alpha: 0.1),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                                  side: BorderSide(
+                                    color: isSel
+                                        ? Colors.transparent
+                                        : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+                                  ),
+                                ),
                                 visualDensity: VisualDensity.compact,
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 onSelected: (_) {
                                   FocusManager.instance.primaryFocus?.unfocus();
                                   _ctrl.setStream(st);
