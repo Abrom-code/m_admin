@@ -70,7 +70,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
   }
 
   void _openQuestionDialog({ChallengeQuestionModel? question}) {
-    if (_ctrl.currentChallengeId.value == null && _ctrl.currentSetId.value == null) {
+    if (_ctrl.currentChallengeId.value == null || _ctrl.currentChallengeId.value!.isEmpty) {
       SnackbarHelper.warning('Save First', 'Please save the challenge details before adding questions.');
       return;
     }
@@ -80,7 +80,6 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
       barrierDismissible: false,
       builder: (_) => _ChallengeQuestionDialog(
         challengeId: _ctrl.currentChallengeId.value ?? '',
-        setId: _ctrl.currentSetId.value,
         question: question,
         onSaved: () => _ctrl.reloadQuestions(),
       ),
@@ -766,18 +765,16 @@ class _QuestionTile extends StatelessWidget {
   }
 }
 
-// ── Question Dialog ──────────────────────────────────────────────────────────
+// ── Question Dialog (Direct challenge_id attachment, no set_id required) ─────
 
 class _ChallengeQuestionDialog extends StatefulWidget {
   const _ChallengeQuestionDialog({
     required this.challengeId,
-    this.setId,
     this.question,
     required this.onSaved,
   });
 
   final String challengeId;
-  final String? setId;
   final ChallengeQuestionModel? question;
   final VoidCallback onSaved;
 
@@ -848,7 +845,6 @@ class _ChallengeQuestionDialogState extends State<_ChallengeQuestionDialog> {
       final payload = <String, dynamic>{
         if (widget.question != null) 'id': widget.question!.id,
         if (widget.challengeId.isNotEmpty) 'challenge_id': widget.challengeId,
-        if (widget.setId != null && widget.setId!.isNotEmpty) 'set_id': widget.setId,
         'question_text': _textCtrl.text.trim(),
         'image_url': _imageCtrl.text.trim().isEmpty ? null : _imageCtrl.text.trim(),
         'choices': choices,
