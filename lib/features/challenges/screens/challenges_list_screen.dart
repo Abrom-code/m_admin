@@ -40,33 +40,34 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-      child: Scaffold(
-        body: AdminScaffold(
-          pageIndex: 5,
-          scrollable: false,
-          onRefresh: _ctrl.loadAll,
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── Unified Compact Top Bar (Single Row / Slim Header) ─
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 10),
-                decoration: BoxDecoration(
-                  color: dark ? AppColors.darkCard : AppColors.white,
-                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-                  border: Border.all(
-                    color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                  ),
+      child: AdminScaffold(
+        pageIndex: 5,
+        scrollable: false,
+        onRefresh: _ctrl.loadAll,
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Unified Compact Top Bar (Single Row / Slim Header) ─
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 8),
+              decoration: BoxDecoration(
+                color: dark ? AppColors.darkCard : AppColors.white,
+                borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                border: Border.all(
+                  color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
                 ),
-                child: Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 12,
-                  runSpacing: 10,
-                  children: [
-                    // Left: Tab Switcher Pills & Live Badge
-                    Obx(
-                      () => Row(
+              ),
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  // Left: Tab Switcher Pills & Live Badge
+                  Obx(
+                    () => SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
@@ -135,199 +136,202 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                         ],
                       ),
                     ),
+                  ),
 
-                    // Right: Quick Action Buttons & Refresh Button
-                    Wrap(
-                      spacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          onPressed: () async {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            final ok = await Get.to(() => const ChallengeEditorScreen());
-                            if (ok == true || ok is String) {
-                              _ctrl.loadQuestionSets();
-                            }
-                          },
-                          icon: const Icon(Iconsax.add_circle_copy, size: 14),
-                          label: const Text('New Set', style: TextStyle(fontSize: 11.5)),
+                  // Right: Quick Action Buttons & Refresh Button
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                          visualDensity: VisualDensity.compact,
                         ),
-                        FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          onPressed: () async {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            final ok = await Get.to(() => const ChallengeSchedulerScreen());
-                            if (ok == true) _ctrl.loadChallenges();
-                          },
-                          icon: const Icon(Iconsax.calendar_add_copy, size: 14),
-                          label: const Text('Schedule', style: TextStyle(fontSize: 11.5)),
+                        onPressed: () async {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          final ok = await Get.to(() => const ChallengeEditorScreen());
+                          if (ok == true || ok is String) {
+                            _ctrl.loadQuestionSets();
+                          }
+                        },
+                        icon: const Icon(Iconsax.add_circle_copy, size: 13),
+                        label: const Text('New Set', style: TextStyle(fontSize: 11)),
+                      ),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                          visualDensity: VisualDensity.compact,
                         ),
-                        IconButton(
-                          tooltip: 'Refresh from Supabase (Cmd+R)',
-                          icon: Obx(
-                            () => _ctrl.isRefreshing.value
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.refresh_rounded, size: 19),
-                          ),
-                          onPressed: () {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            _ctrl.loadAll(showLoading: false);
-                          },
+                        onPressed: () async {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          final ok = await Get.to(() => const ChallengeSchedulerScreen());
+                          if (ok == true) _ctrl.loadChallenges();
+                        },
+                        icon: const Icon(Iconsax.calendar_add_copy, size: 13),
+                        label: const Text('Schedule', style: TextStyle(fontSize: 11)),
+                      ),
+                      IconButton(
+                        tooltip: 'Refresh from Supabase',
+                        visualDensity: VisualDensity.compact,
+                        icon: Obx(
+                          () => _ctrl.isRefreshing.value
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.refresh_rounded, size: 18),
                         ),
-                      ],
+                        onPressed: () {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          _ctrl.loadAll(showLoading: false);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            // ── Slim Search & Filter Bar ────────────────────────────
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 6),
+              decoration: BoxDecoration(
+                color: dark ? AppColors.darkCard : AppColors.white,
+                borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                border: Border.all(
+                  color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                ),
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Search bar
+                    SizedBox(
+                      width: 200,
+                      height: 32,
+                      child: TextField(
+                        controller: _ctrl.searchCtrl,
+                        onChanged: _ctrl.onSearch,
+                        autofocus: false,
+                        style: const TextStyle(fontSize: 11.5),
+                        decoration: InputDecoration(
+                          hintText: 'Search title, subject...',
+                          hintStyle: const TextStyle(fontSize: 11),
+                          prefixIcon: const Icon(Iconsax.search_normal_copy, size: 13),
+                          suffixIcon: _ctrl.searchQuery.value.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 13),
+                                  onPressed: () {
+                                    _ctrl.searchCtrl.clear();
+                                    _ctrl.onSearch('');
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                  },
+                                )
+                              : null,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                            borderSide: BorderSide(color: dark ? AppColors.darkBorder : AppColors.borderPrimary),
+                          ),
+                        ),
+                      ),
                     ),
+                    const SizedBox(width: AppSizes.md),
+
+                    // Subject dropdown
+                    const Icon(Iconsax.filter_copy, size: 13, color: AppColors.primary),
+                    const SizedBox(width: 4),
+                    const Text('Subject: ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                    Obx(
+                      () => DropdownButton<int?>(
+                        value: _ctrl.selectedSubjectId.value,
+                        underline: const SizedBox.shrink(),
+                        hint: const Text('All Subjects', style: TextStyle(fontSize: 11)),
+                        items: [
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('All Subjects', style: TextStyle(fontSize: 11)),
+                          ),
+                          ..._ctrl.subjects.map(
+                            (s) => DropdownMenuItem<int?>(
+                              value: s['id'] as int,
+                              child: Text(s['name']?.toString() ?? '', style: const TextStyle(fontSize: 11)),
+                            ),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          _ctrl.setSubjectFilter(v);
+                        },
+                      ),
+                    ),
+
+                    // Status filter chips for Rounds tab
+                    Obx(() {
+                      if (_ctrl.selectedTab.value != 0) return const SizedBox.shrink();
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(width: AppSizes.md),
+                          const Text('Status: ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                          const SizedBox(width: 4),
+                          ...['all', 'live', 'scheduled', 'closed', 'draft'].map((st) {
+                            final isSel = _ctrl.statusFilter.value == st;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: FilterChip(
+                                label: Text(st == 'all' ? 'All' : st.toUpperCase()),
+                                selected: isSel,
+                                showCheckmark: false,
+                                labelStyle: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                  color: isSel ? Colors.white : AppColors.textSecondary,
+                                ),
+                                selectedColor: _statusColor(st),
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                                onSelected: (_) {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  _ctrl.setStatusFilter(st);
+                                },
+                              ),
+                            );
+                          }),
+                        ],
+                      );
+                    }),
                   ],
                 ),
               ),
+            ),
 
-              const SizedBox(height: 8),
+            const SizedBox(height: 6),
 
-              // ── Slim Search & Filter Bar ────────────────────────────
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 6),
-                decoration: BoxDecoration(
-                  color: dark ? AppColors.darkCard : AppColors.white,
-                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-                  border: Border.all(
-                    color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                  ),
-                ),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      // Search bar
-                      SizedBox(
-                        width: 220,
-                        height: 34,
-                        child: TextField(
-                          controller: _ctrl.searchCtrl,
-                          onChanged: _ctrl.onSearch,
-                          autofocus: false,
-                          style: const TextStyle(fontSize: 12),
-                          decoration: InputDecoration(
-                            hintText: 'Search title, subject, ID...',
-                            hintStyle: const TextStyle(fontSize: 11.5),
-                            prefixIcon: const Icon(Iconsax.search_normal_copy, size: 14),
-                            suffixIcon: _ctrl.searchQuery.value.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear, size: 14),
-                                    onPressed: () {
-                                      _ctrl.searchCtrl.clear();
-                                      _ctrl.onSearch('');
-                                      FocusManager.instance.primaryFocus?.unfocus();
-                                    },
-                                  )
-                                : null,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                              borderSide: BorderSide(color: dark ? AppColors.darkBorder : AppColors.borderPrimary),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppSizes.md),
+            // ── Main List Content (Maximized Vertical Area) ─────────
+            Expanded(
+              child: Obx(() {
+                if (_ctrl.isLoading.value && _ctrl.challenges.isEmpty && _ctrl.questionSets.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-                      // Subject dropdown
-                      const Icon(Iconsax.filter_copy, size: 14, color: AppColors.primary),
-                      const SizedBox(width: 4),
-                      const Text('Subject: ', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-                      Obx(
-                        () => DropdownButton<int?>(
-                          value: _ctrl.selectedSubjectId.value,
-                          underline: const SizedBox.shrink(),
-                          hint: const Text('All Subjects', style: TextStyle(fontSize: 11.5)),
-                          items: [
-                            const DropdownMenuItem<int?>(
-                              value: null,
-                              child: Text('All Subjects', style: TextStyle(fontSize: 11.5)),
-                            ),
-                            ..._ctrl.subjects.map(
-                              (s) => DropdownMenuItem<int?>(
-                                value: s['id'] as int,
-                                child: Text(s['name']?.toString() ?? '', style: const TextStyle(fontSize: 11.5)),
-                              ),
-                            ),
-                          ],
-                          onChanged: (v) {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            _ctrl.setSubjectFilter(v);
-                          },
-                        ),
-                      ),
-
-                      // Status filter chips for Rounds tab
-                      Obx(() {
-                        if (_ctrl.selectedTab.value != 0) return const SizedBox.shrink();
-                        return Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const SizedBox(width: AppSizes.md),
-                            const Text('Status: ', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-                            const SizedBox(width: 4),
-                            ...['all', 'live', 'scheduled', 'closed', 'draft'].map((st) {
-                              final isSel = _ctrl.statusFilter.value == st;
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 4),
-                                child: FilterChip(
-                                  label: Text(st == 'all' ? 'All' : st.toUpperCase()),
-                                  selected: isSel,
-                                  showCheckmark: false,
-                                  labelStyle: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                    color: isSel ? Colors.white : AppColors.textSecondary,
-                                  ),
-                                  selectedColor: _statusColor(st),
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                                  onSelected: (_) {
-                                    FocusManager.instance.primaryFocus?.unfocus();
-                                    _ctrl.setStatusFilter(st);
-                                  },
-                                ),
-                              );
-                            }),
-                          ],
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // ── Main List Content (Maximized Vertical Area) ─────────
-              Expanded(
-                child: Obx(() {
-                  if (_ctrl.isLoading.value && _ctrl.challenges.isEmpty && _ctrl.questionSets.isEmpty) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  return RefreshIndicator(
-                    onRefresh: () => _ctrl.loadAll(showLoading: false),
-                    child: _ctrl.selectedTab.value == 0
-                        ? _buildChallengesList(dark)
-                        : _buildQuestionSetsList(dark),
-                  );
-                }),
-              ),
-            ],
-          ),
+                return RefreshIndicator(
+                  onRefresh: () => _ctrl.loadAll(showLoading: false),
+                  child: _ctrl.selectedTab.value == 0
+                      ? _buildChallengesList(dark)
+                      : _buildQuestionSetsList(dark),
+                );
+              }),
+            ),
+          ],
         ),
       ),
     );
@@ -345,19 +349,19 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Iconsax.cup_copy, size: 48, color: dark ? Colors.white24 : AppColors.textSecondary),
+              Icon(Iconsax.cup_copy, size: 44, color: dark ? Colors.white24 : AppColors.textSecondary),
               const SizedBox(height: AppSizes.md),
-              const Text('No challenge rounds found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-              const SizedBox(height: 6),
+              const Text('No challenge rounds found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 4),
               const Text(
                 'Create a question set and schedule a national challenge round to see it here.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
               ),
               const SizedBox(height: AppSizes.md),
               FilledButton.icon(
                 onPressed: () => Get.to(() => const ChallengeSchedulerScreen()),
-                icon: const Icon(Iconsax.calendar_add_copy, size: 16),
+                icon: const Icon(Iconsax.calendar_add_copy, size: 15),
                 label: const Text('Schedule Challenge Round'),
               ),
             ],
@@ -401,19 +405,19 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Iconsax.document_copy, size: 48, color: dark ? Colors.white24 : AppColors.textSecondary),
+              Icon(Iconsax.document_copy, size: 44, color: dark ? Colors.white24 : AppColors.textSecondary),
               const SizedBox(height: AppSizes.md),
-              const Text('No question sets found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-              const SizedBox(height: 6),
+              const Text('No question sets found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 4),
               const Text(
                 'Create question sets or insert them directly via Supabase SQL command to use in challenges.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
               ),
               const SizedBox(height: AppSizes.md),
               FilledButton.icon(
                 onPressed: () => Get.to(() => const ChallengeEditorScreen()),
-                icon: const Icon(Iconsax.add_circle_copy, size: 16),
+                icon: const Icon(Iconsax.add_circle_copy, size: 15),
                 label: const Text('Create Question Set'),
               ),
             ],
@@ -512,7 +516,7 @@ class _TabPill extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: selected ? (dark ? AppColors.darkCard : AppColors.white) : Colors.transparent,
           borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
@@ -531,14 +535,14 @@ class _TabPill extends StatelessWidget {
           children: [
             Icon(
               icon,
-              size: 13,
+              size: 12,
               color: selected ? AppColors.primary : AppColors.textSecondary,
             ),
             const SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(
-                fontSize: 11.5,
+                fontSize: 11,
                 fontWeight: selected ? FontWeight.bold : FontWeight.w500,
                 color: selected ? (dark ? Colors.white : Colors.black87) : AppColors.textSecondary,
               ),
@@ -659,12 +663,16 @@ class _ChallengeRoundCard extends StatelessWidget {
             // Title & Subject
             Text(
               challenge.title,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
             ),
             const SizedBox(height: 2),
             Text(
               '${challenge.subjectName ?? 'Subject'} • Duration: ${challenge.durationMinutes} mins',
-              style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
             ),
 
             const SizedBox(height: 6),
@@ -672,24 +680,31 @@ class _ChallengeRoundCard extends StatelessWidget {
             // Time Window
             Row(
               children: [
-                const Icon(Iconsax.calendar_1_copy, size: 13, color: AppColors.textSecondary),
+                const Icon(Iconsax.calendar_1_copy, size: 12, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
-                Text(
-                  '${challenge.startsAt != null ? dateFormat.format(challenge.startsAt!) : '--'} → ${challenge.endsAt != null ? dateFormat.format(challenge.endsAt!) : '--'}',
-                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                Expanded(
+                  child: Text(
+                    '${challenge.startsAt != null ? dateFormat.format(challenge.startsAt!) : '--'} → ${challenge.endsAt != null ? dateFormat.format(challenge.endsAt!) : '--'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                  ),
                 ),
               ],
             ),
 
             const SizedBox(height: 8),
 
-            // Action Buttons Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            // Action Buttons Row (Wrap to avoid overflow)
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 6,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                     visualDensity: VisualDensity.compact,
                   ),
                   onPressed: () => Get.to(
@@ -698,13 +713,13 @@ class _ChallengeRoundCard extends StatelessWidget {
                       challengeTitle: challenge.title,
                     ),
                   ),
-                  icon: const Icon(Iconsax.ranking_copy, size: 13),
-                  label: const Text('Leaderboard', style: TextStyle(fontSize: 11)),
+                  icon: const Icon(Iconsax.ranking_copy, size: 12),
+                  label: const Text('Leaderboard', style: TextStyle(fontSize: 10.5)),
                 ),
-                const SizedBox(width: 6),
                 IconButton(
                   tooltip: 'Delete Round',
-                  icon: const Icon(Iconsax.trash_copy, size: 16, color: AppColors.error),
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Iconsax.trash_copy, size: 15, color: AppColors.error),
                   onPressed: onDelete,
                 ),
               ],
@@ -765,7 +780,7 @@ class _QuestionSetCard extends StatelessWidget {
                   child: Text(
                     set.subjectName ?? 'Subject',
                     style: const TextStyle(
-                      fontSize: 10.5,
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary,
                     ),
@@ -780,7 +795,7 @@ class _QuestionSetCard extends StatelessWidget {
                   child: Text(
                     '${set.questionCount} Questions',
                     style: const TextStyle(
-                      fontSize: 10.5,
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFFD97706),
                     ),
@@ -820,44 +835,50 @@ class _QuestionSetCard extends StatelessWidget {
             // Title
             Text(
               set.title,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
             ),
             const SizedBox(height: 2),
             Text(
               'Created ${dateFormat.format(set.createdAt)}',
-              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
             ),
 
             const SizedBox(height: 8),
 
-            // Actions
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            // Actions (Wrap to avoid overflow)
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 6,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                     visualDensity: VisualDensity.compact,
                   ),
                   onPressed: onEdit,
-                  icon: const Icon(Iconsax.edit_2_copy, size: 13),
-                  label: const Text('Edit Questions', style: TextStyle(fontSize: 11)),
+                  icon: const Icon(Iconsax.edit_2_copy, size: 12),
+                  label: const Text('Edit Questions', style: TextStyle(fontSize: 10.5)),
                 ),
-                const SizedBox(width: 6),
                 FilledButton.icon(
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                     visualDensity: VisualDensity.compact,
                   ),
                   onPressed: onSchedule,
-                  icon: const Icon(Iconsax.calendar_add_copy, size: 13),
-                  label: const Text('Schedule', style: TextStyle(fontSize: 11)),
+                  icon: const Icon(Iconsax.calendar_add_copy, size: 12),
+                  label: const Text('Schedule', style: TextStyle(fontSize: 10.5)),
                 ),
-                const SizedBox(width: 6),
                 IconButton(
                   tooltip: 'Delete Set',
-                  icon: const Icon(Iconsax.trash_copy, size: 16, color: AppColors.error),
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Iconsax.trash_copy, size: 15, color: AppColors.error),
                   onPressed: onDelete,
                 ),
               ],
