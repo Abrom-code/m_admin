@@ -196,11 +196,11 @@ class _NotifyChallengeDialogState extends State<NotifyChallengeDialog> {
                   ],
                 ),
 
-                const SizedBox(height: AppSizes.md),
+                const SizedBox(height: AppSizes.spaceBtwItems),
 
                 // Target Audience Selector
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                   decoration: BoxDecoration(
                     color: audColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(10),
@@ -240,7 +240,7 @@ class _NotifyChallengeDialogState extends State<NotifyChallengeDialog> {
                   ),
                 ),
 
-                const SizedBox(height: AppSizes.md),
+                const SizedBox(height: AppSizes.spaceBtwInputFields),
 
                 // Title input
                 TextField(
@@ -251,28 +251,29 @@ class _NotifyChallengeDialogState extends State<NotifyChallengeDialog> {
                     labelStyle: const TextStyle(fontSize: 12),
                     prefixIcon: const Icon(Icons.title_rounded, size: 18),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   ),
                 ),
 
-                const SizedBox(height: AppSizes.sm),
+                const SizedBox(height: AppSizes.spaceBtwInputFields),
 
                 // Body input (multiline for basic details)
                 TextField(
                   controller: _bodyCtrl,
                   enabled: !_isSending,
-                  maxLines: 5,
+                  minLines: 6,
+                  maxLines: 8,
                   decoration: InputDecoration(
                     labelText: 'Basic Details (Subject, Date, Time, Duration)',
                     alignLabelWithHint: true,
                     labelStyle: const TextStyle(fontSize: 12),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: const EdgeInsets.all(12),
+                    contentPadding: const EdgeInsets.all(14),
                   ),
-                  style: const TextStyle(fontSize: 12.5, height: 1.4),
+                  style: const TextStyle(fontSize: 13, height: 1.45),
                 ),
 
-                const SizedBox(height: AppSizes.lg),
+                const SizedBox(height: AppSizes.defaultSpace),
 
                 // Action Buttons
                 Row(
@@ -282,13 +283,13 @@ class _NotifyChallengeDialogState extends State<NotifyChallengeDialog> {
                       onPressed: _isSending ? null : () => Navigator.of(context).pop(),
                       child: const Text('Cancel'),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     ElevatedButton.icon(
                       onPressed: _isSending ? null : _sendNotification,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       ),
                       icon: _isSending
                           ? const SizedBox(
