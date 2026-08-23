@@ -225,7 +225,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                   padding: const EdgeInsets.only(bottom: 24, top: 4),
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 440,
-                    mainAxisExtent: 185,
+                    mainAxisExtent: 225,
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
                   ),
