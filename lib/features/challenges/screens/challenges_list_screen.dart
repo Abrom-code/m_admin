@@ -94,6 +94,25 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                       label: const Text('Leaderboard', style: TextStyle(fontSize: 12)),
                     ),
 
+                    const SizedBox(width: 8),
+
+                    // Refresh Button
+                    IconButton(
+                      tooltip: 'Refresh',
+                      visualDensity: VisualDensity.compact,
+                      icon: Obx(() => _ctrl.isRefreshing.value
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.refresh_rounded, size: 16)),
+                      onPressed: () {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        _ctrl.loadAll();
+                      },
+                    ),
+
                     const SizedBox(width: AppSizes.md),
 
                     // Search input
@@ -216,53 +235,69 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                 }
 
                 if (_ctrl.filteredChallenges.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                  return RefreshIndicator(
+                    onRefresh: _ctrl.loadAll,
+                    child: ListView(
+                      controller: _scrollCtrl,
+                      physics: const AlwaysScrollableScrollPhysics(),
                       children: [
-                        Icon(Iconsax.cup_copy, size: 48, color: dark ? Colors.white24 : AppColors.textSecondary),
-                        const SizedBox(height: AppSizes.md),
-                        const Text(
-                          'No challenges found',
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Try clearing filters or create a new challenge round.',
-                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        SizedBox(
+                          height: 350,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Iconsax.cup_copy, size: 48, color: dark ? Colors.white24 : AppColors.textSecondary),
+                                const SizedBox(height: AppSizes.md),
+                                const Text(
+                                  'No challenges found',
+                                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Try clearing filters or create a new challenge round.',
+                                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   );
                 }
 
-                return GridView.builder(
-                  controller: _scrollCtrl,
-                  padding: const EdgeInsets.only(bottom: 24, top: 4),
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 440,
-                    mainAxisExtent: 225,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
+                return RefreshIndicator(
+                  onRefresh: _ctrl.loadAll,
+                  child: GridView.builder(
+                    controller: _scrollCtrl,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 24, top: 4),
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 440,
+                      mainAxisExtent: 225,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
+                    itemCount: _ctrl.filteredChallenges.length,
+                    itemBuilder: (context, index) {
+                      final challenge = _ctrl.filteredChallenges[index];
+                      return _ChallengeCard(
+                        challenge: challenge,
+                        dateFormat: _dateFormat,
+                        onEdit: () async {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          await Get.to(() => ChallengeEditorScreen(challengeId: challenge.id));
+                          _ctrl.loadAll(showLoading: false);
+                        },
+                        onNotify: () {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          NotifyChallengeDialog.show(context, challenge);
+                        },
+                        onDelete: () => _confirmDelete(context, challenge),
+                      );
+                    },
                   ),
-                  itemCount: _ctrl.filteredChallenges.length,
-                  itemBuilder: (context, index) {
-                    final challenge = _ctrl.filteredChallenges[index];
-                    return _ChallengeCard(
-                      challenge: challenge,
-                      dateFormat: _dateFormat,
-                      onEdit: () async {
-                        FocusManager.instance.primaryFocus?.unfocus();
-                        await Get.to(() => ChallengeEditorScreen(challengeId: challenge.id));
-                        _ctrl.loadAll(showLoading: false);
-                      },
-                      onNotify: () {
-                        FocusManager.instance.primaryFocus?.unfocus();
-                        NotifyChallengeDialog.show(context, challenge);
-                      },
-                      onDelete: () => _confirmDelete(context, challenge),
-                    );
-                  },
                 );
               }),
             ),

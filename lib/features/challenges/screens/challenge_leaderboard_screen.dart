@@ -65,7 +65,15 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
           actions: [
             IconButton(
               tooltip: 'Refresh Standings',
-              icon: const Icon(Icons.refresh_rounded),
+              icon: Obx(
+                () => _ctrl.isLoading.value
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+              ),
               onPressed: () {
                 FocusManager.instance.primaryFocus?.unfocus();
                 _ctrl.refreshLeaderboard();
@@ -323,60 +331,76 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                   }
 
                   if (!hasEntries) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSizes.xl),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.08),
-                                shape: BoxShape.circle,
+                    return RefreshIndicator(
+                      onRefresh: _ctrl.refreshLeaderboard,
+                      child: ListView(
+                        controller: _scrollCtrl,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: 380,
+                            child: Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(AppSizes.xl),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(alpha: 0.08),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Iconsax.ranking_copy, size: 44, color: AppColors.primary),
+                                    ),
+                                    const SizedBox(height: AppSizes.md),
+                                    const Text(
+                                      'No student attempts recorded yet',
+                                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Standings will automatically populate as students submit their challenge rounds.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              child: const Icon(Iconsax.ranking_copy, size: 44, color: AppColors.primary),
                             ),
-                            const SizedBox(height: AppSizes.md),
-                            const Text(
-                              'No student attempts recorded yet',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Standings will automatically populate as students submit their challenge rounds.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     );
                   }
 
-                  return Scrollbar(
-                    controller: _scrollCtrl,
-                    child: ListView.separated(
+                  return RefreshIndicator(
+                    onRefresh: _ctrl.refreshLeaderboard,
+                    child: Scrollbar(
                       controller: _scrollCtrl,
-                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.all(AppSizes.lg),
-                      itemCount: entries.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, idx) {
-                        final entry = entries[idx];
-                        return _CleanLeaderboardTile(
-                          entry: entry,
-                          isChallengeView: isChallengeView,
-                          onGrantReward: () {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            GrantRewardDialog.show(
-                              context,
-                              entry: entry,
-                              controller: _ctrl,
-                            );
-                          },
-                        );
-                      },
+                      child: ListView.separated(
+                        controller: _scrollCtrl,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: const EdgeInsets.all(AppSizes.lg),
+                        itemCount: entries.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, idx) {
+                          final entry = entries[idx];
+                          return _CleanLeaderboardTile(
+                            entry: entry,
+                            isChallengeView: isChallengeView,
+                            onGrantReward: () {
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              GrantRewardDialog.show(
+                                context,
+                                entry: entry,
+                                controller: _ctrl,
+                              );
+                            },
+                          );
+                        },
+                      ),
                     ),
                   );
                 }),
