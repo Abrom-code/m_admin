@@ -49,242 +49,276 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.challengeTitle ?? 'Challenge Leaderboard'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh Standings',
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => _ctrl.refreshLeaderboard(),
-          ),
-          const SizedBox(width: AppSizes.sm),
-        ],
-      ),
-      body: Obx(() {
-        final entries = _ctrl.filteredEntries;
-        final isChallengeView = _ctrl.selectedView.value == 'challenge';
-        final hasEntries = entries.isNotEmpty;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.challengeTitle ?? 'Challenge Leaderboard'),
+          actions: [
+            IconButton(
+              tooltip: 'Refresh Standings',
+              icon: const Icon(Icons.refresh_rounded),
+              onPressed: () {
+                FocusManager.instance.primaryFocus?.unfocus();
+                _ctrl.refreshLeaderboard();
+              },
+            ),
+            const SizedBox(width: AppSizes.sm),
+          ],
+        ),
+        body: Obx(() {
+          final entries = _ctrl.filteredEntries;
+          final isChallengeView = _ctrl.selectedView.value == 'challenge';
+          final hasEntries = entries.isNotEmpty;
 
-        return Column(
-          children: [
-            // ── Single Clean, Streamlined Header Bar ────────────────
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppSizes.lg, vertical: 12),
-              decoration: BoxDecoration(
-                color: dark ? AppColors.darkCard : AppColors.white,
-                border: Border(
-                  bottom: BorderSide(
-                    color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+          return Column(
+            children: [
+              // ── Single Clean, Streamlined Header Bar ────────────────
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: AppSizes.lg, vertical: 12),
+                decoration: BoxDecoration(
+                  color: dark ? AppColors.darkCard : AppColors.white,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                    ),
                   ),
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Row 1: View Period Tabs & Stream Filter
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 12,
-                    runSpacing: 10,
-                    children: [
-                      // Clean View Tabs
-                      Container(
-                        decoration: BoxDecoration(
-                          color: dark ? AppColors.darkContainer : AppColors.grey.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-                        ),
-                        padding: const EdgeInsets.all(3),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (widget.challengeId != null)
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Row 1: View Period Tabs & Stream Filter
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 12,
+                      runSpacing: 10,
+                      children: [
+                        // Clean View Tabs
+                        Container(
+                          decoration: BoxDecoration(
+                            color: dark ? AppColors.darkContainer : AppColors.grey.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                          ),
+                          padding: const EdgeInsets.all(3),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (widget.challengeId != null)
+                                _CleanPill(
+                                  selected: _ctrl.selectedView.value == 'challenge',
+                                  icon: Iconsax.cup_copy,
+                                  label: 'This Round',
+                                  onTap: () {
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                    _ctrl.setView('challenge');
+                                  },
+                                ),
                               _CleanPill(
-                                selected: _ctrl.selectedView.value == 'challenge',
-                                icon: Iconsax.cup_copy,
-                                label: 'This Round',
-                                onTap: () => _ctrl.setView('challenge'),
+                                selected: _ctrl.selectedView.value == 'weekly',
+                                icon: Iconsax.calendar_1_copy,
+                                label: 'Weekly',
+                                onTap: () {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  _ctrl.setView('weekly');
+                                },
                               ),
-                            _CleanPill(
-                              selected: _ctrl.selectedView.value == 'weekly',
-                              icon: Iconsax.calendar_1_copy,
-                              label: 'Weekly',
-                              onTap: () => _ctrl.setView('weekly'),
+                              _CleanPill(
+                                selected: _ctrl.selectedView.value == 'monthly',
+                                icon: Iconsax.calendar_copy,
+                                label: 'Monthly',
+                                onTap: () {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  _ctrl.setView('monthly');
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Stream Chips
+                        Wrap(
+                          spacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            const Text('Stream: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            ...['all', 'natural', 'social'].map((st) {
+                              final isSel = _ctrl.selectedStream.value == st;
+                              return ChoiceChip(
+                                label: Text(
+                                  st == 'all' ? 'All' : (st == 'natural' ? 'Natural' : 'Social'),
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                                    color: isSel
+                                        ? (st == 'social' ? AppColors.secondary : AppColors.primary)
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                                selected: isSel,
+                                selectedColor: (st == 'social' ? AppColors.secondary : AppColors.primary)
+                                    .withValues(alpha: 0.15),
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                                onSelected: (_) {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  _ctrl.setStream(st);
+                                },
+                              );
+                            }),
+                          ],
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Row 2: Search Bar & Quick Stats Tag
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 38,
+                            child: TextField(
+                              controller: _searchCtrl,
+                              autofocus: false,
+                              onChanged: (v) => _ctrl.searchQuery.value = v,
+                              style: const TextStyle(fontSize: 12.5),
+                              decoration: InputDecoration(
+                                hintText: 'Search student name, ID or rank...',
+                                hintStyle: const TextStyle(fontSize: 12),
+                                prefixIcon: const Icon(Iconsax.search_normal_copy, size: 16),
+                                suffixIcon: _searchCtrl.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear, size: 16),
+                                        onPressed: () {
+                                          _searchCtrl.clear();
+                                          _ctrl.searchQuery.value = '';
+                                          FocusManager.instance.primaryFocus?.unfocus();
+                                        },
+                                      )
+                                    : null,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 10),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                                  borderSide: BorderSide(
+                                    color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                                  ),
+                                ),
+                              ),
                             ),
-                            _CleanPill(
-                              selected: _ctrl.selectedView.value == 'monthly',
-                              icon: Iconsax.calendar_copy,
-                              label: 'Monthly',
-                              onTap: () => _ctrl.setView('monthly'),
+                          ),
+                        ),
+                        if (hasEntries) ...[
+                          const SizedBox(width: AppSizes.md),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Iconsax.profile_2user_copy, size: 14, color: AppColors.primary),
+                                const SizedBox(width: 5),
+                                Text(
+                                  '${_ctrl.totalParticipants} students',
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                if (_ctrl.topScore > 0) ...[
+                                  const Text(' • ', style: TextStyle(color: AppColors.textSecondary)),
+                                  Text(
+                                    'Top: ${_ctrl.topScore} pts',
+                                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Clean Standings List with Generous Padding ──────────
+              Expanded(
+                child: Builder(builder: (context) {
+                  if (_ctrl.isLoading.value && _ctrl.entries.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (!hasEntries) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSizes.xl),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.08),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Iconsax.ranking_copy, size: 44, color: AppColors.primary),
+                            ),
+                            const SizedBox(height: AppSizes.md),
+                            const Text(
+                              'No student attempts recorded yet',
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Standings will automatically populate as students submit their challenge rounds.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                             ),
                           ],
                         ),
                       ),
+                    );
+                  }
 
-                      // Stream Chips
-                      Wrap(
-                        spacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          const Text('Stream: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          ...['all', 'natural', 'social'].map((st) {
-                            final isSel = _ctrl.selectedStream.value == st;
-                            return ChoiceChip(
-                              label: Text(
-                                st == 'all' ? 'All' : (st == 'natural' ? 'Natural' : 'Social'),
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
-                                  color: isSel
-                                      ? (st == 'social' ? AppColors.secondary : AppColors.primary)
-                                      : AppColors.textSecondary,
-                                ),
-                              ),
-                              selected: isSel,
-                              selectedColor: (st == 'social' ? AppColors.secondary : AppColors.primary)
-                                  .withValues(alpha: 0.15),
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                              onSelected: (_) => _ctrl.setStream(st),
+                  return Scrollbar(
+                    controller: _scrollCtrl,
+                    child: ListView.separated(
+                      controller: _scrollCtrl,
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.all(AppSizes.lg),
+                      itemCount: entries.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, idx) {
+                        final entry = entries[idx];
+                        return _CleanLeaderboardTile(
+                          entry: entry,
+                          isChallengeView: isChallengeView,
+                          onGrantReward: () {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            GrantRewardDialog.show(
+                              context,
+                              entry: entry,
+                              controller: _ctrl,
                             );
-                          }),
-                        ],
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  // Row 2: Search Bar & Quick Stats Tag
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 38,
-                          child: TextField(
-                            controller: _searchCtrl,
-                            onChanged: (v) => _ctrl.searchQuery.value = v,
-                            style: const TextStyle(fontSize: 12.5),
-                            decoration: InputDecoration(
-                              hintText: 'Search student name, ID or rank...',
-                              hintStyle: const TextStyle(fontSize: 12),
-                              prefixIcon: const Icon(Iconsax.search_normal_copy, size: 16),
-                              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 10),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                                borderSide: BorderSide(
-                                  color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (hasEntries) ...[
-                        const SizedBox(width: AppSizes.md),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Iconsax.profile_2user_copy, size: 14, color: AppColors.primary),
-                              const SizedBox(width: 5),
-                              Text(
-                                '${_ctrl.totalParticipants} students',
-                                style: const TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                              if (_ctrl.topScore > 0) ...[
-                                const Text(' • ', style: TextStyle(color: AppColors.textSecondary)),
-                                Text(
-                                  'Top: ${_ctrl.topScore} pts',
-                                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Clean Standings List with Generous Padding ──────────
-            Expanded(
-              child: Builder(builder: (context) {
-                if (_ctrl.isLoading.value && _ctrl.entries.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (!hasEntries) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSizes.xl),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.08),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Iconsax.ranking_copy, size: 44, color: AppColors.primary),
-                          ),
-                          const SizedBox(height: AppSizes.md),
-                          const Text(
-                            'No student attempts recorded yet',
-                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Standings will automatically populate as students submit their challenge rounds.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
+                          },
+                        );
+                      },
                     ),
                   );
-                }
-
-                return Scrollbar(
-                  controller: _scrollCtrl,
-                  child: ListView.separated(
-                    controller: _scrollCtrl,
-                    padding: const EdgeInsets.all(AppSizes.lg),
-                    itemCount: entries.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, idx) {
-                      final entry = entries[idx];
-                      return _CleanLeaderboardTile(
-                        entry: entry,
-                        isChallengeView: isChallengeView,
-                        onGrantReward: () => GrantRewardDialog.show(
-                          context,
-                          entry: entry,
-                          controller: _ctrl,
-                        ),
-                      );
-                    },
-                  ),
-                );
-              }),
-            ),
-          ],
-        );
-      }),
+                }),
+              ),
+            ],
+          );
+        }),
+      ),
     );
   }
 }
