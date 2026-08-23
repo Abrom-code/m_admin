@@ -164,7 +164,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
             controller: _scrollCtrl,
             child: SingleChildScrollView(
               controller: _scrollCtrl,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Form(
                 key: _ctrl.formKey,
                 child: LayoutBuilder(
@@ -176,7 +176,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                       children: [
                         // ── SECTION 1: CHALLENGE DETAILS ────────────────────────
                         Container(
-                          padding: const EdgeInsets.all(14),
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                           decoration: BoxDecoration(
                             color: dark ? AppColors.darkCard : AppColors.white,
                             borderRadius: BorderRadius.circular(12),
@@ -214,24 +214,24 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                     ),
                                 ],
                               ),
-                              const Divider(height: 18),
+                              const Divider(height: 24),
 
                               // Challenge Title Field
                               TextFormField(
                                 controller: _ctrl.titleCtrl,
                                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter a challenge title' : null,
-                                style: const TextStyle(fontSize: 12.5),
+                                style: const TextStyle(fontSize: 13),
                                 decoration: InputDecoration(
                                   labelText: 'Challenge Title *',
                                   hintText: 'e.g. National Physics Round #4',
-                                  prefixIcon: const Icon(Iconsax.edit_copy, size: 15),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                  prefixIcon: const Icon(Iconsax.edit_copy, size: 16),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 16),
 
                               // Subject & Stream Row
                               if (isWide)
@@ -242,11 +242,11 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                       flex: 5,
                                       child: DropdownButtonFormField<int?>(
                                         initialValue: _ctrl.selectedSubjectId.value,
-                                        style: TextStyle(fontSize: 12, color: dark ? Colors.white : Colors.black),
+                                        style: TextStyle(fontSize: 12.5, color: dark ? Colors.white : Colors.black),
                                         decoration: InputDecoration(
                                           labelText: 'Subject *',
-                                          prefixIcon: const Icon(Iconsax.book_copy, size: 15),
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                          prefixIcon: const Icon(Iconsax.book_copy, size: 16),
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                           border: OutlineInputBorder(
                                             borderRadius: BorderRadius.circular(8),
                                           ),
@@ -266,7 +266,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                         onChanged: (v) => _ctrl.selectedSubjectId.value = v,
                                       ),
                                     ),
-                                    const SizedBox(width: 10),
+                                    const SizedBox(width: 12),
                                     Expanded(
                                       flex: 6,
                                       child: _StreamSelectorBox(ctrl: _ctrl),
@@ -276,11 +276,11 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                               else ...[
                                 DropdownButtonFormField<int?>(
                                   initialValue: _ctrl.selectedSubjectId.value,
-                                  style: TextStyle(fontSize: 12, color: dark ? Colors.white : Colors.black),
+                                  style: TextStyle(fontSize: 12.5, color: dark ? Colors.white : Colors.black),
                                   decoration: InputDecoration(
                                     labelText: 'Subject *',
-                                    prefixIcon: const Icon(Iconsax.book_copy, size: 15),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    prefixIcon: const Icon(Iconsax.book_copy, size: 16),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
                                     ),
@@ -299,11 +299,11 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                   ],
                                   onChanged: (v) => _ctrl.selectedSubjectId.value = v,
                                 ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 16),
                                 _StreamSelectorBox(ctrl: _ctrl),
                               ],
 
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 16),
 
                               // Duration & Dates Row
                               if (isWide)
@@ -311,25 +311,25 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     SizedBox(
-                                      width: 130,
+                                      width: 140,
                                       child: TextFormField(
                                         controller: _ctrl.durationCtrl,
                                         keyboardType: TextInputType.number,
                                         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                         validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                                        style: const TextStyle(fontSize: 12),
+                                        style: const TextStyle(fontSize: 12.5),
                                         decoration: InputDecoration(
                                           labelText: 'Duration (Mins) *',
                                           hintText: '40',
-                                          prefixIcon: const Icon(Iconsax.timer_1_copy, size: 15),
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                          prefixIcon: const Icon(Iconsax.timer_1_copy, size: 16),
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                           border: OutlineInputBorder(
                                             borderRadius: BorderRadius.circular(8),
                                           ),
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(width: 10),
+                                    const SizedBox(width: 12),
 
                                     // Start Time
                                     Expanded(
@@ -342,8 +342,8 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                         child: InputDecorator(
                                           decoration: InputDecoration(
                                             labelText: 'Start Time *',
-                                            prefixIcon: const Icon(Iconsax.calendar_1_copy, size: 15),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                            prefixIcon: const Icon(Iconsax.calendar_1_copy, size: 16),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                             border: OutlineInputBorder(
                                               borderRadius: BorderRadius.circular(8),
                                             ),
@@ -355,13 +355,13 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                                   : 'Select start',
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(fontSize: 11.5),
+                                              style: const TextStyle(fontSize: 12),
                                             ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(width: 10),
+                                    const SizedBox(width: 12),
 
                                     // End Time
                                     Expanded(
@@ -374,8 +374,8 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                         child: InputDecorator(
                                           decoration: InputDecoration(
                                             labelText: 'End Time *',
-                                            prefixIcon: const Icon(Iconsax.calendar_2_copy, size: 15),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                            prefixIcon: const Icon(Iconsax.calendar_2_copy, size: 16),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                             border: OutlineInputBorder(
                                               borderRadius: BorderRadius.circular(8),
                                             ),
@@ -387,7 +387,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                                   : 'Select end',
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(fontSize: 11.5),
+                                              style: const TextStyle(fontSize: 12),
                                             ),
                                           ),
                                         ),
@@ -401,18 +401,18 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                   keyboardType: TextInputType.number,
                                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                                  style: const TextStyle(fontSize: 12),
+                                  style: const TextStyle(fontSize: 12.5),
                                   decoration: InputDecoration(
                                     labelText: 'Duration (Mins) *',
                                     hintText: '40',
-                                    prefixIcon: const Icon(Iconsax.timer_1_copy, size: 15),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    prefixIcon: const Icon(Iconsax.timer_1_copy, size: 16),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 16),
                                 InkWell(
                                   borderRadius: BorderRadius.circular(8),
                                   onTap: () async {
@@ -422,8 +422,8 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                   child: InputDecorator(
                                     decoration: InputDecoration(
                                       labelText: 'Start Time *',
-                                      prefixIcon: const Icon(Iconsax.calendar_1_copy, size: 15),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                      prefixIcon: const Icon(Iconsax.calendar_1_copy, size: 16),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
                                       ),
@@ -433,12 +433,12 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                         _ctrl.startsAt.value != null
                                             ? _dateFormat.format(_ctrl.startsAt.value!)
                                             : 'Select start',
-                                        style: const TextStyle(fontSize: 11.5),
+                                        style: const TextStyle(fontSize: 12),
                                       ),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 16),
                                 InkWell(
                                   borderRadius: BorderRadius.circular(8),
                                   onTap: () async {
@@ -448,8 +448,8 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                   child: InputDecorator(
                                     decoration: InputDecoration(
                                       labelText: 'End Time *',
-                                      prefixIcon: const Icon(Iconsax.calendar_2_copy, size: 15),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                      prefixIcon: const Icon(Iconsax.calendar_2_copy, size: 16),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
                                       ),
@@ -459,7 +459,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                         _ctrl.endsAt.value != null
                                             ? _dateFormat.format(_ctrl.endsAt.value!)
                                             : 'Select end',
-                                        style: const TextStyle(fontSize: 11.5),
+                                        style: const TextStyle(fontSize: 12),
                                       ),
                                     ),
                                   ),
@@ -469,11 +469,11 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                           ),
                         ),
 
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
 
                         // ── SECTION 2: QUESTIONS LIST ───────────────────────────
                         Container(
-                          padding: const EdgeInsets.all(14),
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                           decoration: BoxDecoration(
                             color: dark ? AppColors.darkCard : AppColors.white,
                             borderRadius: BorderRadius.circular(12),
@@ -516,7 +516,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                   ),
                                 ],
                               ),
-                              const Divider(height: 18),
+                              const Divider(height: 24),
 
                               if (_ctrl.questions.isEmpty) ...[
                                 Padding(
