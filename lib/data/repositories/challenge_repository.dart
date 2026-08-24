@@ -145,9 +145,15 @@ class ChallengeRepository {
     }
   }
 
-  Future<String> publishChallenge(String challengeId) async {
+  Future<String> publishChallenge(String challengeId, {bool forceLive = false}) async {
     final ch = await fetchChallengeDetail(challengeId);
     final now = DateTime.now();
+
+    if (forceLive) {
+      await updateChallengeStatus(challengeId, 'live');
+      return 'live';
+    }
+
     final starts = ch.startsAt ?? now;
     final ends = ch.endsAt ?? starts.add(const Duration(hours: 12));
 

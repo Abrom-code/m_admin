@@ -33,6 +33,77 @@ class ChallengesListController extends GetxController {
   int get closedCount => challenges.where((c) => c.isClosed || c.isArchived).length;
   int get draftCount => challenges.where((c) => c.isDraft).length;
 
+  // Expanded subject IDs for accordion
+  final expandedSubjectIds = <int>{}.obs;
+
+  void toggleSubjectExpanded(int subjectId) {
+    if (expandedSubjectIds.contains(subjectId)) {
+      expandedSubjectIds.remove(subjectId);
+    } else {
+      expandedSubjectIds.add(subjectId);
+    }
+    expandedSubjectIds.refresh();
+  }
+
+  void expandAllSubjects() {
+    final allIds = subjects
+        .map((s) => (s['id'] as num?)?.toInt() ?? int.tryParse(s['id']?.toString() ?? '') ?? 0)
+        .where((id) => id > 0)
+        .toSet();
+    expandedSubjectIds.addAll(allIds);
+    expandedSubjectIds.refresh();
+  }
+
+  void collapseAllSubjects() {
+    expandedSubjectIds.clear();
+    expandedSubjectIds.refresh();
+  }
+
+  // Top Section: Live and Draft challenges
+  List<LeaderboardChallengeModel> get topChallenges {
+    final list = filteredChallenges;
+    if (statusFilter.value == 'all') {
+      return list.where((c) => c.isLive || c.isDraft).toList();
+    }
+    return list;
+  }
+
+  // Challenges belonging to a specific subject (matching search filter)
+  List<LeaderboardChallengeModel> challengesForSubject(int subjectId) {
+    final query = searchQuery.value.trim().toLowerCase();
+    return challenges.where((c) {
+      if (c.subjectId != subjectId) return false;
+      if (query.isNotEmpty) {
+        final matchTitle = c.title.toLowerCase().contains(query);
+        final matchSub = c.subjectName?.toLowerCase().contains(query) ?? false;
+        final matchId = c.id.toLowerCase().contains(query);
+        return matchTitle || matchSub || matchId;
+      }
+      return true;
+    }).toList();
+  }
+
+  // Subjects filtered by selected dropdown or search
+  List<Map<String, dynamic>> get filteredSubjectsList {
+    final query = searchQuery.value.trim().toLowerCase();
+    var list = subjects.toList();
+    if (selectedSubjectId.value != null) {
+      list = list.where((s) {
+        final sid = (s['id'] as num?)?.toInt() ?? int.tryParse(s['id']?.toString() ?? '') ?? 0;
+        return sid == selectedSubjectId.value;
+      }).toList();
+    }
+    if (query.isNotEmpty) {
+      list = list.where((s) {
+        final sid = (s['id'] as num?)?.toInt() ?? int.tryParse(s['id']?.toString() ?? '') ?? 0;
+        final name = (s['name']?.toString() ?? '').toLowerCase();
+        final hasMatchingChallenges = challengesForSubject(sid).isNotEmpty;
+        return name.contains(query) || hasMatchingChallenges;
+      }).toList();
+    }
+    return list;
+  }
+
   List<LeaderboardChallengeModel> get filteredChallenges {
     final query = searchQuery.value.trim().toLowerCase();
     var list = challenges.toList();
@@ -119,6 +190,10 @@ class ChallengesListController extends GetxController {
     try {
       final rows = await _repo.fetchChallenges();
       challenges.value = rows;
+      if (expandedSubjectIds.isEmpty) {
+        final sidsWithChallenges = rows.map((r) => r.subjectId).toSet();
+        expandedSubjectIds.addAll(sidsWithChallenges);
+      }
     } catch (e) {
       SnackbarHelper.error('Error loading challenges', AppExceptionHandler.handle(e).message);
     }
@@ -143,6 +218,27 @@ class ChallengesListController extends GetxController {
       SnackbarHelper.success('Deleted', 'Challenge deleted successfully');
     } catch (e) {
       SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
+    }
+  }
+
+  Future<void> publishChallenge(String id, {bool forceLive = false}) async {
+    try {
+      final ch = challenges.firstWhereOrNull((c) => c.id == id);
+      if (ch != null && ch.questionCount == 0) {
+        SnackbarHelper.warning(
+          'Questions Required',
+          'Please edit the challenge and add at least 1 question before publishing.',
+        );
+        return;
+      }
+      isLoading.value = true;
+      final newStatus = await _repo.publishChallenge(id, forceLive: forceLive);
+      await loadChallenges();
+      SnackbarHelper.success('Published', 'Challenge status is now ${newStatus.toUpperCase()}');
+    } catch (e) {
+      SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
+    } finally {
+      isLoading.value = false;
     }
   }
 

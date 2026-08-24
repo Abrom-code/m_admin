@@ -116,6 +116,30 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                 );
               }
 
+              if (!_ctrl.isEditingExisting) {
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () async {
+                        final id = await _ctrl.saveChallenge(isPublish: false);
+                        if (id != null) {
+                          Get.back(result: true);
+                        }
+                      },
+                      icon: const Icon(Icons.save_outlined, size: 14),
+                      label: const Text('Save Draft', style: TextStyle(fontSize: 11.5)),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                );
+              }
+
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -468,90 +492,84 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                           ),
                         ),
 
-                        const SizedBox(height: 16),
-
-                        // ── SECTION 2: QUESTIONS LIST ───────────────────────────
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                          decoration: BoxDecoration(
-                            color: dark ? AppColors.darkCard : AppColors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                        // ── SECTION 2: QUESTIONS LIST (Only when editing) ───────
+                        if (_ctrl.isEditingExisting) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                            decoration: BoxDecoration(
+                              color: dark ? AppColors.darkCard : AppColors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                              ),
                             ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(Iconsax.document_copy, color: AppColors.primary, size: 16),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'Questions (${_ctrl.questions.length})',
-                                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold),
-                                      ),
-                                    ],
-                                  ),
-                                  FilledButton.icon(
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: AppColors.primary,
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      visualDensity: VisualDensity.compact,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(Iconsax.document_copy, color: AppColors.primary, size: 16),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Questions (${_ctrl.questions.length})',
+                                          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
                                     ),
-                                    onPressed: () async {
-                                      if (!_ctrl.isEditingExisting && _ctrl.currentChallengeId.value == null) {
-                                        final id = await _ctrl.saveChallenge(isPublish: false);
-                                        if (id != null) _openQuestionDialog();
-                                      } else {
-                                        _openQuestionDialog();
-                                      }
+                                    FilledButton.icon(
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: AppColors.primary,
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      onPressed: () => _openQuestionDialog(),
+                                      icon: const Icon(Iconsax.add_circle_copy, size: 14),
+                                      label: const Text('Add Question', style: TextStyle(fontSize: 11.5)),
+                                    ),
+                                  ],
+                                ),
+                                const Divider(height: 24),
+
+                                if (_ctrl.questions.isEmpty) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 24),
+                                    child: Column(
+                                      children: [
+                                        Icon(Iconsax.document_copy, size: 36, color: dark ? Colors.white24 : AppColors.textSecondary),
+                                        const SizedBox(height: 8),
+                                        const Text(
+                                          'No questions added yet',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ] else ...[
+                                  ListView.separated(
+                                    shrinkWrap: true,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    itemCount: _ctrl.questions.length,
+                                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                                    itemBuilder: (context, idx) {
+                                      final q = _ctrl.questions[idx];
+                                      return _QuestionTile(
+                                        question: q,
+                                        index: idx + 1,
+                                        dark: dark,
+                                        onEdit: () => _openQuestionDialog(question: q),
+                                        onDelete: () => _confirmDeleteQuestion(context, q),
+                                      );
                                     },
-                                    icon: const Icon(Iconsax.add_circle_copy, size: 14),
-                                    label: const Text('Add Question', style: TextStyle(fontSize: 11.5)),
                                   ),
                                 ],
-                              ),
-                              const Divider(height: 24),
-
-                              if (_ctrl.questions.isEmpty) ...[
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 24),
-                                  child: Column(
-                                    children: [
-                                      Icon(Iconsax.document_copy, size: 36, color: dark ? Colors.white24 : AppColors.textSecondary),
-                                      const SizedBox(height: 8),
-                                      const Text(
-                                        'No questions added yet',
-                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ] else ...[
-                                ListView.separated(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: _ctrl.questions.length,
-                                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                                  itemBuilder: (context, idx) {
-                                    final q = _ctrl.questions[idx];
-                                    return _QuestionTile(
-                                      question: q,
-                                      index: idx + 1,
-                                      dark: dark,
-                                      onEdit: () => _openQuestionDialog(question: q),
-                                      onDelete: () => _confirmDeleteQuestion(context, q),
-                                    );
-                                  },
-                                ),
                               ],
-                            ],
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     );
                   },
