@@ -108,7 +108,7 @@ class ChallengeRepository {
     } on PostgrestException catch (e) {
       // If DB requires set_id (not-null constraint violation):
       final msg = e.message.toLowerCase();
-      final details = e.details?.toLowerCase() ?? '';
+      final details = e.details?.toString().toLowerCase() ?? '';
       if (msg.contains('set_id') || details.contains('set_id') || e.code == '23502') {
         try {
           if (setId == null || setId.isEmpty) {
