@@ -260,7 +260,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 2. Flip live -> closed
+    // 2. Flip live -> closed (In-app Supabase notification only, no FCM push interrupt)
     const { data: newlyClosed, error: closeErr } = await supabase
       .from("leaderboard_challenges")
       .update({ status: "closed" })
@@ -274,11 +274,24 @@ Deno.serve(async (req: Request) => {
       console.log(`Flipped ${newlyClosed.length} challenges to closed`);
 
       for (const ch of newlyClosed) {
+        // Check if a closed notification was already created for this challenge
+        const { data: existing } = await supabase
+          .from("notifications")
+          .select("id")
+          .eq("type", "challenge")
+          .contains("payload", { challenge_id: String(ch.id), type: "challenge_closed" })
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          continue;
+        }
+
         const notifTitle = "🏆 Challenge Closed — Results In!";
         const notifBody = `${ch.title} has ended. Check the leaderboard to see your rank and download the practice set!`;
         const targetStream = ch.audience === "both" ? null : ch.audience;
 
-        const { data: inserted } = await supabase
+        // Insert in Supabase notifications table for in-app feed
+        await supabase
           .from("notifications")
           .insert({
             title: notifTitle,
@@ -291,20 +304,9 @@ Deno.serve(async (req: Request) => {
             },
             is_read: false,
             created_at: new Date().toISOString(),
-          })
-          .select("id")
-          .single();
+          });
 
-        await sendFcmToStream(
-          targetStream,
-          {
-            type: "challenge_closed",
-            challenge_id: String(ch.id),
-            notification_id: String(inserted?.id ?? ""),
-            title: notifTitle,
-            body: notifBody,
-          },
-        );
+        // NOTE: No FCM push is sent for 'closed' to keep mobile notification panel clean & avoid fatigue.
       }
     }
 
