@@ -182,12 +182,20 @@ Deno.serve(async (req: Request) => {
   try {
     const now = new Date().toISOString();
 
-    // 1. Flip scheduled -> live
+    // 0. Expired scheduled challenges (ends_at <= now): flip directly to closed without firing live notification
+    await supabase
+      .from("leaderboard_challenges")
+      .update({ status: "closed" })
+      .eq("status", "scheduled")
+      .lte("ends_at", now);
+
+    // 1. Flip scheduled -> live (only if currently within the active window)
     const { data: newlyLive, error: liveErr } = await supabase
       .from("leaderboard_challenges")
       .update({ status: "live" })
       .eq("status", "scheduled")
       .lte("starts_at", now)
+      .gt("ends_at", now)
       .select("id, title, audience, subject_id");
 
     if (liveErr) {
@@ -196,16 +204,16 @@ Deno.serve(async (req: Request) => {
       console.log(`Flipped ${newlyLive.length} challenges to live`);
 
       for (const ch of newlyLive) {
-        // Check if admin already sent a notification for this challenge
+        // Check if a live notification was already created for this challenge
         const { data: existing } = await supabase
           .from("notifications")
           .select("id")
           .eq("type", "challenge")
-          .contains("payload", { challenge_id: String(ch.id) })
+          .contains("payload", { challenge_id: String(ch.id), type: "challenge_live" })
           .limit(1);
 
         if (existing && existing.length > 0) {
-          console.log(`Skipping notification for challenge ${ch.id} — admin already notified (notification ${existing[0].id})`);
+          console.log(`Skipping live notification for challenge ${ch.id} — already notified (notification ${existing[0].id})`);
           continue;
         }
 
@@ -220,7 +228,7 @@ Deno.serve(async (req: Request) => {
         const notifBody = `${ch.title} (${subjName}) is now open. Test your skills and compete for the leaderboard!`;
         const targetStream = ch.audience === "both" ? null : ch.audience;
 
-        // Insert notification row
+        // Insert exactly one notification row
         const { data: inserted } = await supabase
           .from("notifications")
           .insert({
