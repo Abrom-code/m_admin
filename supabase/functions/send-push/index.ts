@@ -229,6 +229,9 @@ async function sendFcmToToken(
     return { ok: false, error: "FCM authentication unavailable" };
   }
 
+  // Data-only message: no "notification" field so the app has full control
+  // over display. The Flutter background handler and foreground handler both
+  // read title/body from data and show a local notification manually.
   const res = await fetch(
     `https://fcm.googleapis.com/v1/projects/${FCM_PROJECT_ID}/messages:send`,
     {
@@ -240,27 +243,18 @@ async function sendFcmToToken(
       body: JSON.stringify({
         message: {
           token,
-          notification,
           data,
           android: {
             priority: "high",
-            notification: {
-              channel_id: "matricmate_default",
-              notification_priority: "PRIORITY_MAX",
-              default_sound: true,
-              default_vibrate_timings: true,
-            },
           },
           apns: {
             headers: {
               "apns-priority": "10",
+              "apns-push-type": "background",
             },
             payload: {
               aps: {
-                alert: {
-                  title: notification.title,
-                  body: notification.body,
-                },
+                "content-available": 1,
                 sound: "default",
               },
             },
@@ -317,25 +311,18 @@ async function sendFcmToTokens(
             body: JSON.stringify({
               message: {
                 token,
-                notification,
                 data,
                 android: {
                   priority: "high",
-                  notification: {
-                    channel_id: "matricmate_default",
-                    notification_priority: "PRIORITY_MAX",
-                    default_sound: true,
-                    default_vibrate_timings: true,
-                  },
                 },
                 apns: {
-                  headers: { "apns-priority": "10" },
+                  headers: {
+                    "apns-priority": "10",
+                    "apns-push-type": "background",
+                  },
                   payload: {
                     aps: {
-                      alert: {
-                        title: notification.title,
-                        body: notification.body,
-                      },
+                      "content-available": 1,
                       sound: "default",
                     },
                   },
