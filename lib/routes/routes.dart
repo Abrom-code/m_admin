@@ -28,6 +28,7 @@ class AdminRoutes {
   static const contentQuestion = '/content/question';
 
   static const challenges = '/challenges';
+  static const subjectChallenges = '/challenges/subject';
   static const challengeEditor = '/challenges/editor';
   static const challengeScheduler = '/challenges/scheduler';
   static const challengeLeaderboard = '/challenges/leaderboard';

@@ -7,6 +7,7 @@ import 'package:m_admin/features/challenges/screens/challenge_editor_screen.dart
 import 'package:m_admin/features/challenges/screens/challenge_leaderboard_screen.dart';
 import 'package:m_admin/features/challenges/screens/challenge_scheduler_screen.dart';
 import 'package:m_admin/features/challenges/screens/challenges_list_screen.dart';
+import 'package:m_admin/features/challenges/screens/subject_challenges_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
 import 'package:m_admin/features/content/screens/subject_tests_screen.dart';
 import 'package:m_admin/features/content/screens/test_editor_screen.dart';
@@ -165,6 +166,19 @@ class AdminAppRoutes {
     GetPage(
       name: AdminRoutes.challenges,
       page: () => const ChallengesListScreen(),
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.subjectChallenges,
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>? ?? {};
+        return SubjectChallengesScreen(
+          subjectId: (args['subject_id'] as num?)?.toInt() ?? 0,
+          subjectName: args['subject_name']?.toString() ?? 'Subject',
+          isNatural: args['is_natural'] == true,
+          isCommon: args['is_common'] == true,
+        );
+      },
       middlewares: [AdminAuthMiddleware()],
     ),
     GetPage(
