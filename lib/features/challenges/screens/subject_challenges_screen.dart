@@ -61,7 +61,7 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
     final status = _statusFilter.value.toLowerCase();
 
     return _ctrl.challenges.where((c) {
-      if (c.subjectId != widget.subjectId) return false;
+      if (widget.subjectId != 0 && c.subjectId != widget.subjectId) return false;
       if (status != 'all' && c.status.toLowerCase() != status) return false;
       if (query.isNotEmpty) {
         final matchTitle = c.title.toLowerCase().contains(query);
@@ -73,7 +73,7 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
   }
 
   int _countByStatus(String status) {
-    final allForSubject = _ctrl.challenges.where((c) => c.subjectId == widget.subjectId);
+    final allForSubject = widget.subjectId != 0 ? _ctrl.challenges.where((c) => c.subjectId == widget.subjectId) : _ctrl.challenges;
     if (status == 'all') return allForSubject.length;
     if (status == 'live') return allForSubject.where((c) => c.isLive).length;
     if (status == 'scheduled') return allForSubject.where((c) => c.isScheduled).length;
@@ -136,7 +136,7 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
     Color streamColor;
     String streamLabel;
     if (widget.isCommon) {
-      streamColor = const Color(0xFF8B5CF6);
+      streamColor = const Color(0xFF0284C7);
       streamLabel = 'Common';
     } else if (widget.isNatural) {
       streamColor = AppColors.primary;

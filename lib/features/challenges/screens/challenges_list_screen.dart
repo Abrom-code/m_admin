@@ -91,7 +91,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                         FocusManager.instance.primaryFocus?.unfocus();
                         Get.to(() => const ChallengeLeaderboardScreen());
                       },
-                      icon: const Icon(Iconsax.ranking_copy, size: 15, color: Color(0xFF8B5CF6)),
+                      icon: const Icon(Iconsax.ranking_copy, size: 15, color: Color(0xFF0284C7)),
                       label: const Text('Leaderboard', style: TextStyle(fontSize: 12)),
                     ),
 
@@ -345,10 +345,10 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                             Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF8B5CF6).withValues(alpha: 0.12),
+                                color: const Color(0xFF0284C7).withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: const Icon(Iconsax.book_1_copy, size: 15, color: Color(0xFF8B5CF6)),
+                              child: const Icon(Iconsax.book_1_copy, size: 15, color: Color(0xFF0284C7)),
                             ),
                             const SizedBox(width: 8),
                             const Text(
@@ -359,12 +359,12 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                                color: const Color(0xFF0284C7).withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
                                 '${_ctrl.filteredSubjectsList.length} Subjects',
-                                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF8B5CF6)),
+                                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF0284C7)),
                               ),
                             ),
                           ],
@@ -390,10 +390,37 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                           ListView.separated(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _ctrl.filteredSubjectsList.length,
+                            itemCount: _ctrl.filteredSubjectsList.length + (_ctrl.selectedSubjectId.value == null ? 1 : 0),
                             separatorBuilder: (_, _) => const SizedBox(height: 8),
                             itemBuilder: (context, index) {
-                              final sub = _ctrl.filteredSubjectsList[index];
+                              // Render "All Subjects" tile first when not filtered to a single subject
+                              if (_ctrl.selectedSubjectId.value == null && index == 0) {
+                                return _SubjectTile(
+                                  subjectId: 0,
+                                  subjectName: 'All Subjects',
+                                  isNatural: false,
+                                  isCommon: true,
+                                  isAllSubjects: true,
+                                  stats: _ctrl.allSubjectsStats,
+                                  onTap: () {
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                    Get.to(() => const SubjectChallengesScreen(
+                                          subjectId: 0,
+                                          subjectName: 'All Subjects',
+                                          isNatural: false,
+                                          isCommon: true,
+                                        ));
+                                  },
+                                  onCreateChallenge: () async {
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                    await Get.to(() => const ChallengeEditorScreen());
+                                    _ctrl.loadAll(showLoading: false);
+                                  },
+                                );
+                              }
+
+                              final actualIndex = _ctrl.selectedSubjectId.value == null ? index - 1 : index;
+                              final sub = _ctrl.filteredSubjectsList[actualIndex];
                               final subId = (sub['id'] as num?)?.toInt() ?? int.tryParse(sub['id']?.toString() ?? '') ?? 0;
                               final subName = sub['name']?.toString() ?? 'Subject';
                               final isNatural = sub['is_natural'] == true;
@@ -488,6 +515,7 @@ class _SubjectTile extends StatelessWidget {
     required this.subjectName,
     required this.isNatural,
     required this.isCommon,
+    this.isAllSubjects = false,
     required this.stats,
     required this.onTap,
     required this.onCreateChallenge,
@@ -497,6 +525,7 @@ class _SubjectTile extends StatelessWidget {
   final String subjectName;
   final bool isNatural;
   final bool isCommon;
+  final bool isAllSubjects;
   final Map<String, int> stats;
   final VoidCallback onTap;
   final VoidCallback onCreateChallenge;
@@ -507,8 +536,11 @@ class _SubjectTile extends StatelessWidget {
 
     Color streamColor;
     String streamLabel;
-    if (isCommon) {
-      streamColor = const Color(0xFF8B5CF6);
+    if (isAllSubjects) {
+      streamColor = const Color(0xFF0284C7);
+      streamLabel = 'All Streams & Common';
+    } else if (isCommon) {
+      streamColor = const Color(0xFF0284C7);
       streamLabel = 'Common';
     } else if (isNatural) {
       streamColor = AppColors.primary;

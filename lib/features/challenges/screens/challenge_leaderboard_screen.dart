@@ -168,7 +168,7 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                                 final isSel = _ctrl.selectedStream.value == st;
                                 final col = st == 'social'
                                     ? AppColors.secondary
-                                    : (st == 'natural' ? AppColors.primary : const Color(0xFF8B5CF6));
+                                    : (st == 'natural' ? AppColors.primary : const Color(0xFF0284C7));
                                 return Padding(
                                   padding: const EdgeInsets.only(right: 6),
                                   child: ChoiceChip(
@@ -218,7 +218,7 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                         ),
                         child: Row(
                           children: [
-                            const Icon(Iconsax.cup_copy, size: 14, color: Color(0xFF8B5CF6)),
+                            const Icon(Iconsax.cup_copy, size: 14, color: Color(0xFF0284C7)),
                             const SizedBox(width: 8),
                             const Text('Challenge: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                             const SizedBox(width: 4),

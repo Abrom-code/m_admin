@@ -89,7 +89,7 @@ class _NotifyChallengeDialogState extends State<NotifyChallengeDialog> {
       case 'stream:social':
         return AppColors.secondary;
       default:
-        return const Color(0xFF8B5CF6);
+        return const Color(0xFF0284C7);
     }
   }
 

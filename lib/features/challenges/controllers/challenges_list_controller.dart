@@ -60,6 +60,17 @@ class ChallengesListController extends GetxController {
     }).toList();
   }
 
+  // Total challenge stats across all subjects
+  Map<String, int> get allSubjectsStats {
+    return {
+      'total': challenges.length,
+      'live': liveCount,
+      'scheduled': scheduledCount,
+      'draft': draftCount,
+      'closed': closedCount,
+    };
+  }
+
   // Count challenges by status for a subject
   Map<String, int> getSubjectStats(int subjectId) {
     final subChallenges = challenges.where((c) => c.subjectId == subjectId).toList();

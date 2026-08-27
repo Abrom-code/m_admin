@@ -64,7 +64,7 @@ class ChallengeCard extends StatelessWidget {
         audienceLabel = 'Social';
         break;
       default:
-        audienceBadgeColor = const Color(0xFF8B5CF6);
+        audienceBadgeColor = const Color(0xFF0284C7);
         audienceLabel = 'Common';
     }
 
@@ -295,13 +295,13 @@ class ChallengeCard extends StatelessWidget {
                             visualDensity: VisualDensity.compact,
                             minimumSize: const Size(0, 24),
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            side: BorderSide(color: const Color(0xFF8B5CF6).withValues(alpha: 0.5)),
+                            side: BorderSide(color: const Color(0xFF0284C7).withValues(alpha: 0.5)),
                           ),
                           onPressed: onNotify,
-                          icon: const Icon(Icons.notifications_active_outlined, size: 11, color: Color(0xFF8B5CF6)),
+                          icon: const Icon(Icons.notifications_active_outlined, size: 11, color: Color(0xFF0284C7)),
                           label: const Text(
                             'Notify',
-                            style: TextStyle(fontSize: 10, color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold),
+                            style: TextStyle(fontSize: 10, color: Color(0xFF0284C7), fontWeight: FontWeight.bold),
                           ),
                         ),
                       ),
@@ -351,7 +351,7 @@ class ChallengeCard extends StatelessWidget {
                             challengeTitle: challenge.title,
                           ),
                         ),
-                        icon: const Icon(Iconsax.ranking_copy, size: 11, color: Color(0xFF8B5CF6)),
+                        icon: const Icon(Iconsax.ranking_copy, size: 11, color: Color(0xFF0284C7)),
                         label: const Text('Leaderboard', style: TextStyle(fontSize: 10)),
                       ),
                   ],
