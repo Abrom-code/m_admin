@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/features/challenges/controllers/challenge_scheduler_controller.dart';
 import 'package:m_admin/features/challenges/screens/challenge_editor_screen.dart';
@@ -407,6 +408,7 @@ class _ChallengeSchedulerScreenState extends State<ChallengeSchedulerScreen> {
                             title: 'Starts At (Pre-visibility begins 12h before)',
                             icon: Iconsax.calendar_copy,
                             timeText: startsAt != null ? _dateFormat.format(startsAt) : 'Select Start Date & Time',
+                            ethTimeText: startsAt != null ? 'Ethiopian: ${EthiopianTimeHelper.formatDateTimeWithEth(startsAt)}' : null,
                             isSelected: startsAt != null,
                             color: const Color(0xFF2563EB),
                             onTap: () async {
@@ -419,6 +421,7 @@ class _ChallengeSchedulerScreenState extends State<ChallengeSchedulerScreen> {
                             title: 'Ends At (Challenge Closes & Leaderboards Finalize)',
                             icon: Iconsax.calendar_tick_copy,
                             timeText: endsAt != null ? _dateFormat.format(endsAt) : 'Select End Date & Time',
+                            ethTimeText: endsAt != null ? 'Ethiopian: ${EthiopianTimeHelper.formatDateTimeWithEth(endsAt)}' : null,
                             isSelected: endsAt != null,
                             color: AppColors.success,
                             onTap: () async {
@@ -567,6 +570,7 @@ class _TimePickerCard extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.timeText,
+    this.ethTimeText,
     required this.isSelected,
     required this.color,
     required this.onTap,
@@ -575,6 +579,7 @@ class _TimePickerCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final String timeText;
+  final String? ethTimeText;
   final bool isSelected;
   final Color color;
   final VoidCallback onTap;
@@ -631,6 +636,24 @@ class _TimePickerCard extends StatelessWidget {
                       color: isSelected ? (dark ? Colors.white : Colors.black87) : AppColors.textSecondary,
                     ),
                   ),
+                  if (ethTimeText != null) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        ethTimeText!,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

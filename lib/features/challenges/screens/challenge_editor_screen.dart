@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -806,6 +806,7 @@ class _ChallengeQuestionDialogState extends State<_ChallengeQuestionDialog> {
 
   final _textCtrl = TextEditingController();
   final _imageCtrl = TextEditingController();
+  final _passageIdCtrl = TextEditingController();
   final _explEnCtrl = TextEditingController();
   final _explAmCtrl = TextEditingController();
 
@@ -820,6 +821,7 @@ class _ChallengeQuestionDialogState extends State<_ChallengeQuestionDialog> {
     if (q != null) {
       _textCtrl.text = q.questionText;
       _imageCtrl.text = q.imageUrl ?? '';
+      _passageIdCtrl.text = q.passageId != null ? q.passageId.toString() : '';
       _explEnCtrl.text = q.explanationEn;
       _explAmCtrl.text = q.explanationAm;
 
@@ -841,6 +843,7 @@ class _ChallengeQuestionDialogState extends State<_ChallengeQuestionDialog> {
   void dispose() {
     _textCtrl.dispose();
     _imageCtrl.dispose();
+    _passageIdCtrl.dispose();
     _explEnCtrl.dispose();
     _explAmCtrl.dispose();
     for (final c in _choiceControllers) {
@@ -865,6 +868,7 @@ class _ChallengeQuestionDialogState extends State<_ChallengeQuestionDialog> {
         if (widget.challengeId.isNotEmpty) 'challenge_id': widget.challengeId,
         'question_text': _textCtrl.text.trim(),
         'image_url': _imageCtrl.text.trim().isEmpty ? null : _imageCtrl.text.trim(),
+        'passage_id': int.tryParse(_passageIdCtrl.text.trim()),
         'choices': choices,
         'correct_choice': '$_correctChoiceIndex',
         'explanation_en': _explEnCtrl.text.trim(),
@@ -936,6 +940,21 @@ class _ChallengeQuestionDialogState extends State<_ChallengeQuestionDialog> {
                           decoration: InputDecoration(
                             labelText: 'Image URL (optional)',
                             prefixIcon: const Icon(Iconsax.image_copy, size: 15),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Passage ID (optional)
+                        TextFormField(
+                          controller: _passageIdCtrl,
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(fontSize: 12),
+                          decoration: InputDecoration(
+                            labelText: 'Passage ID (optional)',
+                            hintText: 'e.g. 101 (from passages table)',
+                            prefixIcon: const Icon(Iconsax.document_text_copy, size: 15),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           ),

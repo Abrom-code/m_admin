@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/features/challenges/models/challenge_model.dart';
 import 'package:m_admin/features/challenges/screens/challenge_leaderboard_screen.dart';
 import 'package:m_admin/utils/constants/colors.dart';
@@ -265,9 +266,9 @@ class ChallengeCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           challenge.startsAt != null && challenge.endsAt != null
-                              ? '${dateFormat.format(challenge.startsAt!)} → ${dateFormat.format(challenge.endsAt!)}'
+                              ? '${EthiopianTimeHelper.formatDateTimeWithEth(challenge.startsAt!)} → ${EthiopianTimeHelper.formatDateTimeWithEth(challenge.endsAt!)}'
                               : (challenge.startsAt != null
-                                  ? 'Starts ${dateFormat.format(challenge.startsAt!)}'
+                                  ? 'Starts ${EthiopianTimeHelper.formatDateTimeWithEth(challenge.startsAt!)}'
                                   : 'No schedule set'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

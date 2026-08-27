@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 class ChallengeQuestionModel {
   final String id;
@@ -11,6 +11,7 @@ class ChallengeQuestionModel {
   final String explanationEn;
   final String explanationAm;
   final String? imageUrl;
+  final int? passageId;
 
   ChallengeQuestionModel({
     required this.id,
@@ -23,10 +24,15 @@ class ChallengeQuestionModel {
     this.explanationEn = '',
     this.explanationAm = '',
     this.imageUrl,
+    this.passageId,
   });
 
-  bool get hasExplanation => explanation.isNotEmpty || explanationEn.isNotEmpty || explanationAm.isNotEmpty;
-  bool get hasBothExplanations => explanationEn.isNotEmpty && explanationAm.isNotEmpty;
+  bool get hasExplanation =>
+      explanation.isNotEmpty ||
+      explanationEn.isNotEmpty ||
+      explanationAm.isNotEmpty;
+  bool get hasBothExplanations =>
+      explanationEn.isNotEmpty && explanationAm.isNotEmpty;
 
   factory ChallengeQuestionModel.fromJson(Map<String, dynamic> json) {
     List<String> parsedChoices = [];
@@ -52,7 +58,8 @@ class ChallengeQuestionModel {
     final expEn = json['explanation_en']?.toString() ?? '';
     final expAm = json['explanation_am']?.toString() ?? '';
     final rawExp = json['explanation']?.toString() ?? '';
-    final defaultExp = rawExp.isNotEmpty ? rawExp : (expEn.isNotEmpty ? expEn : expAm);
+    final defaultExp =
+        rawExp.isNotEmpty ? rawExp : (expEn.isNotEmpty ? expEn : expAm);
 
     return ChallengeQuestionModel(
       id: json['id']?.toString() ?? '',
@@ -65,11 +72,14 @@ class ChallengeQuestionModel {
       explanationEn: expEn.isNotEmpty ? expEn : rawExp,
       explanationAm: expAm,
       imageUrl: json['image_url']?.toString(),
+      passageId: (json['passage_id'] as num?)?.toInt(),
     );
   }
 
   Map<String, dynamic> toJson() {
-    final defaultExp = explanation.isNotEmpty ? explanation : (explanationEn.isNotEmpty ? explanationEn : explanationAm);
+    final defaultExp = explanation.isNotEmpty
+        ? explanation
+        : (explanationEn.isNotEmpty ? explanationEn : explanationAm);
     return {
       if (id.isNotEmpty) 'id': id,
       'set_id': setId,
@@ -80,7 +90,8 @@ class ChallengeQuestionModel {
       'explanation': defaultExp,
       if (explanationEn.isNotEmpty) 'explanation_en': explanationEn,
       if (explanationAm.isNotEmpty) 'explanation_am': explanationAm,
-      'image_url': imageUrl,
+      if (imageUrl != null && imageUrl!.isNotEmpty) 'image_url': imageUrl,
+      if (passageId != null) 'passage_id': passageId,
     };
   }
 
@@ -95,6 +106,7 @@ class ChallengeQuestionModel {
     String? explanationEn,
     String? explanationAm,
     String? imageUrl,
+    int? passageId,
   }) {
     return ChallengeQuestionModel(
       id: id ?? this.id,
@@ -107,6 +119,7 @@ class ChallengeQuestionModel {
       explanationEn: explanationEn ?? this.explanationEn,
       explanationAm: explanationAm ?? this.explanationAm,
       imageUrl: imageUrl ?? this.imageUrl,
+      passageId: passageId ?? this.passageId,
     );
   }
 }
