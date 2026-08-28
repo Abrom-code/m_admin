@@ -671,78 +671,80 @@ class _QuestionEditorViewState extends State<_QuestionEditorView> {
                             color: AppColors.textSecondary,
                           ),
                         ),
-                        child: Column(
-                          children: [
-                            for (int i = 0; i < _options.length; i++)
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: AppSizes.sm,
-                                ),
-                                child: Row(
-                                  children: [
-                                    // Correct-answer radio.
-                                    Radio<int>(
-                                      value: i,
-                                      groupValue: _correctIndex,
-                                      onChanged: (v) => setState(
-                                        () => _correctIndex = v!,
-                                      ),
-                                    ),
-                                    // Option letter.
-                                    SizedBox(
-                                      width: 20,
-                                      child: Text(
-                                        String.fromCharCode(65 + i),
-                                        style: TextStyle(
-                                          fontWeight: _correctIndex == i
-                                              ? FontWeight.w700
-                                              : FontWeight.normal,
-                                          color: _correctIndex == i
-                                              ? AppColors.success
-                                              : null,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: AppSizes.xs),
-                                    Expanded(
-                                      child: TextFormField(
-                                        controller: _options[i],
-                                        decoration: InputDecoration(
-                                          isDense: true,
-                                          hintText: 'Option ${i + 1}',
-                                        ),
-                                        validator: (v) =>
-                                            v == null || v.trim().isEmpty
-                                                ? 'Required'
-                                                : null,
-                                      ),
-                                    ),
-                                    if (_options.length > 2)
-                                      IconButton(
-                                        tooltip: 'Remove',
-                                        iconSize: AppSizes.iconSm,
-                                        onPressed: () => _removeOption(i),
-                                        icon: const Icon(
-                                          Icons.remove_circle_outline,
-                                          color: AppColors.error,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            if (_options.length < 6)
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton.icon(
-                                  onPressed: _addOption,
-                                  icon: const Icon(
-                                    Icons.add_rounded,
-                                    size: AppSizes.iconSm,
+                        child: RadioGroup<int>(
+                          groupValue: _correctIndex,
+                          onChanged: (v) => setState(
+                            () => _correctIndex = v ?? 0,
+                          ),
+                          child: Column(
+                            children: [
+                              for (int i = 0; i < _options.length; i++)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: AppSizes.sm,
                                   ),
-                                  label: const Text('Add option'),
+                                  child: Row(
+                                    children: [
+                                      // Correct-answer radio.
+                                      Radio<int>(
+                                        value: i,
+                                      ),
+                                      // Option letter.
+                                      SizedBox(
+                                        width: 20,
+                                        child: Text(
+                                          String.fromCharCode(65 + i),
+                                          style: TextStyle(
+                                            fontWeight: _correctIndex == i
+                                                ? FontWeight.w700
+                                                : FontWeight.normal,
+                                            color: _correctIndex == i
+                                                ? AppColors.success
+                                                : null,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppSizes.xs),
+                                      Expanded(
+                                        child: TextFormField(
+                                          controller: _options[i],
+                                          decoration: InputDecoration(
+                                            isDense: true,
+                                            hintText: 'Option ${i + 1}',
+                                          ),
+                                          validator: (v) =>
+                                              v == null || v.trim().isEmpty
+                                                  ? 'Required'
+                                                  : null,
+                                        ),
+                                      ),
+                                      if (_options.length > 2)
+                                        IconButton(
+                                          tooltip: 'Remove',
+                                          iconSize: AppSizes.iconSm,
+                                          onPressed: () => _removeOption(i),
+                                          icon: const Icon(
+                                            Icons.remove_circle_outline,
+                                            color: AppColors.error,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                          ],
+                              if (_options.length < 6)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton.icon(
+                                    onPressed: _addOption,
+                                    icon: const Icon(
+                                      Icons.add_rounded,
+                                      size: AppSizes.iconSm,
+                                    ),
+                                    label: const Text('Add option'),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: AppSizes.spaceBtwItems),

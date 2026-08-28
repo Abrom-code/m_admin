@@ -16,7 +16,6 @@ class NotificationsRepository {
     String? typeFilter,
   }) async {
     try {
-
       // Filters must be applied before .order()/.range() — the Supabase
       // Flutter client returns a PostgrestTransformBuilder after those calls,
       // which no longer exposes .eq().
@@ -29,7 +28,6 @@ class NotificationsRepository {
       final rows = await q
           .order('created_at', ascending: false)
           .range(page * pageSize, (page + 1) * pageSize - 1);
-
 
       return rows
           .map(
@@ -89,17 +87,18 @@ class NotificationsRepository {
       String? edgeTargetStatus;
       String? edgeUserId;
 
-      if (audience == 'all') {
+      final aud = audience.trim().toLowerCase();
+      if (aud == 'all') {
         edgeAudience = 'all';
-      } else if (audience.startsWith('stream:')) {
+      } else if (aud.startsWith('stream:')) {
         edgeAudience = 'stream';
-        edgeTargetStream = audience.substring(7);
-      } else if (audience.startsWith('status:')) {
+        edgeTargetStream = aud.substring(7).trim().toLowerCase();
+      } else if (aud.startsWith('status:')) {
         edgeAudience = 'status';
-        edgeTargetStatus = audience.substring(7);
-      } else if (audience.startsWith('user:')) {
+        edgeTargetStatus = aud.substring(7).trim().toLowerCase();
+      } else if (aud.startsWith('user:')) {
         edgeAudience = 'user';
-        edgeUserId = audience.substring(5);
+        edgeUserId = audience.substring(5).trim();
       } else {
         edgeAudience = 'all';
       }
@@ -120,6 +119,7 @@ class NotificationsRepository {
               'target_stream': ?edgeTargetStream,
               'target_status': ?edgeTargetStatus,
               'user_id': ?edgeUserId,
+              'payload': payload,
             }),
           )
           .timeout(const Duration(seconds: 30));

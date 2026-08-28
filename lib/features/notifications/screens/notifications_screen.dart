@@ -209,8 +209,6 @@ class _SelectionBar extends StatelessWidget {
   }
 }
 
-
-
 class _TypeFilter extends StatelessWidget {
   const _TypeFilter({required this.controller});
 
@@ -227,22 +225,21 @@ class _TypeFilter extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(
       () => Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           for (final (key, icon, label) in _types) ...[
-            Flexible(
-              child: ChoiceChip(
-                showCheckmark: false,
-                selected: (controller.typeFilter.value ?? '') == key,
-                onSelected: (_) =>
-                    controller.setTypeFilter(key.isEmpty ? null : key),
-                avatar: Icon(icon, size: 16, color: AppColors.textSecondary),
-                label: Text(label, style: const TextStyle(fontSize: 11)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSizes.xs,
-                  vertical: 2,
-                ),
-                visualDensity: VisualDensity.compact,
+            ChoiceChip(
+              showCheckmark: false,
+              selected: (controller.typeFilter.value ?? '') == key,
+              onSelected: (_) =>
+                  controller.setTypeFilter(key.isEmpty ? null : key),
+              avatar: Icon(icon, size: 16, color: AppColors.textSecondary),
+              label: Text(label, style: const TextStyle(fontSize: 11)),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSizes.xs,
+                vertical: 2,
               ),
+              visualDensity: VisualDensity.compact,
             ),
             if (_types.last.$1 != key) const SizedBox(width: AppSizes.xs),
           ],
