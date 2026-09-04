@@ -22,6 +22,7 @@ class TestRow {
     required this.time,
     required this.questionCount,
     this.updatedAt,
+    this.description,
   });
 
   final int id;
@@ -32,6 +33,7 @@ class TestRow {
   final int time; // -1 = untimed
   final int questionCount;
   final DateTime? updatedAt;
+  final String? description;
 
   bool get isUntimed => time == -1;
 
@@ -61,6 +63,7 @@ class TestRow {
     updatedAt: j['updated_at'] == null
         ? null
         : DateTime.tryParse(j['updated_at'].toString()),
+    description: j['description']?.toString(),
   );
 }
 
@@ -235,14 +238,31 @@ class SubjectTestsScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        row.title,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            row.title,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (row.description != null &&
+                              row.description!.trim().isNotEmpty)
+                            Text(
+                              row.description!.trim(),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ],

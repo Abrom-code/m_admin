@@ -15,7 +15,7 @@ class ContentRepository {
       var q = _sb
           .from('tests')
           .select('id, title, type, grade, chapter_id, time, question_count, '
-              'created_at, updated_at')
+              'description, created_at, updated_at')
           .eq('subject_id', subjectId);
 
       if (type != null && type.isNotEmpty) {

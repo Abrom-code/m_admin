@@ -199,6 +199,67 @@ class _TestForm extends StatelessWidget {
               );
             }),
             const SizedBox(height: AppSizes.spaceBtwInputFields),
+            // ── Description (optional) ───────────────────────────────
+            Obx(() {
+              final isModel = controller.typeValue.value == 'model';
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (isModel)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.success.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.lightbulb_outline_rounded,
+                              size: 14,
+                              color: AppColors.success,
+                            ),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Recommended for Model Exams — specify institution, regional bureau, or source.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.success,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  TextFormField(
+                    controller: controller.descriptionCtrl,
+                    decoration: InputDecoration(
+                      labelText: isModel
+                          ? 'Model Exam Description & Source (Optional)'
+                          : 'Description (Optional)',
+                      hintText: isModel
+                          ? 'e.g., Prepared by Addis Ababa City Admin Education Bureau 2016 for Grade 12 Natural Science'
+                          : 'e.g., Special instructions, review notes, or test overview',
+                      alignLabelWithHint: true,
+                    ),
+                    minLines: 2,
+                    maxLines: 5,
+                  ),
+                  const SizedBox(height: AppSizes.spaceBtwInputFields),
+                ],
+              );
+            }),
             Obx(
               () => Material(
                 color: Colors.transparent,

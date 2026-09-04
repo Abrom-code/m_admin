@@ -24,6 +24,7 @@ class TestEditorController extends GetxController {
   final gradeCtrl = TextEditingController();
   final selectedChapterId = RxnInt();
   final timeCtrl = TextEditingController();
+  final descriptionCtrl = TextEditingController();
   final isUntimed = false.obs;
 
   final formKey = GlobalKey<FormState>();
@@ -42,6 +43,7 @@ class TestEditorController extends GetxController {
     titleCtrl.dispose();
     gradeCtrl.dispose();
     timeCtrl.dispose();
+    descriptionCtrl.dispose();
     super.onClose();
   }
 
@@ -67,6 +69,7 @@ class TestEditorController extends GetxController {
       final time = AppHelperFunctions.toInt(data['time']) ?? -1;
       isUntimed.value = time == -1;
       timeCtrl.text = time == -1 ? '' : time.toString();
+      descriptionCtrl.text = data['description']?.toString() ?? '';
       questions.value = await _repo.fetchQuestionsForTest(testId!);
     } catch (e) {
       SnackbarHelper.error('Load error', AppExceptionHandler.handle(e).message);
@@ -95,6 +98,9 @@ class TestEditorController extends GetxController {
             ? selectedChapterId.value
             : null,
         'time': time,
+        'description': descriptionCtrl.text.trim().isEmpty
+            ? null
+            : descriptionCtrl.text.trim(),
       };
 
       await _repo.upsertTest(data);
