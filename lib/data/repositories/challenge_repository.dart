@@ -147,25 +147,79 @@ class ChallengeRepository {
 
   Future<String> publishChallenge(String challengeId, {bool forceLive = false}) async {
     final ch = await fetchChallengeDetail(challengeId);
-    final now = DateTime.now();
+    final now = DateTime.now().toUtc();
 
     if (forceLive) {
-      await updateChallengeStatus(challengeId, 'live');
+      // 1. Move starts_at to 10s in the past so Supabase server time satisfies now() >= starts_at immediately.
+      final newStartsAt = now.subtract(const Duration(seconds: 10));
+      // 2. Preserve original duration window if defined and in the future; otherwise default to 12 hours.
+      DateTime newEndsAt;
+      if (ch.startsAt != null && ch.endsAt != null && ch.endsAt!.isAfter(ch.startsAt!)) {
+        final window = ch.endsAt!.difference(ch.startsAt!);
+        newEndsAt = now.add(window.inMinutes >= 10 ? window : const Duration(hours: 12));
+      } else if (ch.endsAt != null && ch.endsAt!.toUtc().isAfter(now)) {
+        newEndsAt = ch.endsAt!.toUtc();
+      } else {
+        newEndsAt = now.add(const Duration(hours: 12));
+      }
+
+      await _sb.from('leaderboard_challenges').update({
+        'status': 'live',
+        'starts_at': newStartsAt.toIso8601String(),
+        'ends_at': newEndsAt.toIso8601String(),
+      }).eq('id', challengeId);
+
       return 'live';
     }
 
-    final starts = ch.startsAt ?? now;
-    final ends = ch.endsAt ?? starts.add(const Duration(hours: 12));
+    final starts = ch.startsAt?.toUtc() ?? now;
+    final ends = ch.endsAt?.toUtc() ?? starts.add(const Duration(hours: 12));
 
-    final newStatus = (now.isAfter(starts) && now.isBefore(ends)) ? 'live' : 'scheduled';
-    await updateChallengeStatus(challengeId, newStatus);
+    // 60-second window buffer for clock drift
+    final isLiveNow = now.add(const Duration(seconds: 60)).isAfter(starts) && now.isBefore(ends);
+    final newStatus = isLiveNow ? 'live' : 'scheduled';
+
+    if (newStatus == 'live') {
+      final updatePayload = <String, dynamic>{'status': 'live'};
+      if (ch.startsAt == null || ch.startsAt!.toUtc().isAfter(now)) {
+        updatePayload['starts_at'] = now.subtract(const Duration(seconds: 10)).toIso8601String();
+      }
+      if (ch.endsAt == null || !ch.endsAt!.toUtc().isAfter(now)) {
+        updatePayload['ends_at'] = now.add(const Duration(hours: 12)).toIso8601String();
+      }
+      await _sb.from('leaderboard_challenges').update(updatePayload).eq('id', challengeId);
+    } else {
+      await _sb.from('leaderboard_challenges').update({'status': newStatus}).eq('id', challengeId);
+    }
+
     return newStatus;
   }
 
   Future<void> updateChallengeStatus(String challengeId, String newStatus) async {
+    final payload = <String, dynamic>{'status': newStatus};
+    if (newStatus == 'live') {
+      final now = DateTime.now().toUtc();
+      try {
+        final ch = await fetchChallengeDetail(challengeId);
+        if (ch.startsAt == null || ch.startsAt!.toUtc().isAfter(now)) {
+          payload['starts_at'] = now.subtract(const Duration(seconds: 10)).toIso8601String();
+        }
+        if (ch.endsAt == null || !ch.endsAt!.toUtc().isAfter(now)) {
+          if (ch.startsAt != null && ch.endsAt != null && ch.endsAt!.isAfter(ch.startsAt!)) {
+            final window = ch.endsAt!.difference(ch.startsAt!);
+            payload['ends_at'] = now.add(window.inMinutes >= 10 ? window : const Duration(hours: 12)).toIso8601String();
+          } else {
+            payload['ends_at'] = now.add(const Duration(hours: 12)).toIso8601String();
+          }
+        }
+      } catch (_) {
+        payload['starts_at'] = now.subtract(const Duration(seconds: 10)).toIso8601String();
+        payload['ends_at'] = now.add(const Duration(hours: 12)).toIso8601String();
+      }
+    }
     await _sb
         .from('leaderboard_challenges')
-        .update({'status': newStatus})
+        .update(payload)
         .eq('id', challengeId);
   }
 
