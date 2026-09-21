@@ -17,6 +17,7 @@ class UsersController extends GetxController {
   final _session = Get.find<AdminSessionService>();
 
   final rows = <AdminUserModel>[].obs;
+  final totalCount = 0.obs;
   final isLoading = false.obs;
   final errorMessage = RxnString();
   final counts = <String, int>{}.obs;
@@ -61,13 +62,15 @@ class UsersController extends GetxController {
     try {
       isLoading.value = true;
       errorMessage.value = null;
-      rows.value = await _repo.fetchUsers(
+      final result = await _repo.fetchUsers(
         search: searchQuery.value,
         statusFilter: statusFilter.value,
         streamFilter: streamFilter.value,
         page: page.value,
         pageSize: pageSize,
       );
+      rows.value = result.users;
+      totalCount.value = result.totalCount;
       _deduplicateRows();
     } catch (e) {
       errorMessage.value = AppExceptionHandler.handle(e).message;

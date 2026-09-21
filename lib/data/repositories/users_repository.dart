@@ -10,7 +10,7 @@ import 'package:m_admin/utils/exceptions/exception_handler.dart';
 class UsersRepository {
   final _sb = Supabase.instance.client;
 
-  Future<List<AdminUserModel>> fetchUsers({
+  Future<({List<AdminUserModel> users, int totalCount})> fetchUsers({
     String? search,
     String? statusFilter,
     String? streamFilter,
@@ -33,18 +33,43 @@ class UsersRepository {
       }
 
       if (search != null && search.trim().isNotEmpty) {
-        final safe = _escapeFilterValue(search.trim());
-        q = q.or(
-          'id.ilike.%$safe%,'
-          'first_name.ilike.%$safe%,'
-          'last_name.ilike.%$safe%,'
+        final trimmed = search.trim();
+        final safe = _escapeFilterValue(trimmed);
+
+        // Supabase Auth stores id as uuid — ilike fails on uuid in Postgres.
+        // Check if query is a valid UUID string for exact match.
+        final isUuid = RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+        ).hasMatch(trimmed);
+
+        final parts = trimmed.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+        final orClauses = <String>[
+          'first_name.ilike.%$safe%',
+          'last_name.ilike.%$safe%',
           'email.ilike.%$safe%',
-        );
+        ];
+
+        if (isUuid) {
+          orClauses.add('id.eq.$trimmed');
+        }
+
+        if (parts.length >= 2) {
+          final first = _escapeFilterValue(parts.first);
+          final last = _escapeFilterValue(parts.sublist(1).join(' '));
+          orClauses.add('and(first_name.ilike.%$first%,last_name.ilike.%$last%)');
+          orClauses.add('and(first_name.ilike.%$last%,last_name.ilike.%$first%)');
+        }
+
+        q = q.or(orClauses.join(','));
       }
 
-      final rows = await q
+      final response = await q
           .order('created_at', ascending: false)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+          .count(CountOption.exact);
+
+      final rows = response.data as List;
+      final total = response.count;
 
       final users = rows
           .map(
@@ -79,7 +104,7 @@ class UsersRepository {
         }
       }
 
-      return deduped;
+      return (users: deduped, totalCount: total);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }

@@ -26,7 +26,7 @@ class SessionRow {
   final int trial;
 
   factory SessionRow.fromJson(Map<String, dynamic> j) => SessionRow(
-    firebaseUid: j['firebase_uid']?.toString() ?? '',
+    firebaseUid: (j['user_id'] ?? j['firebase_uid'])?.toString() ?? '',
     deviceId: j['device_id']?.toString() ?? '',
     trial: AppHelperFunctions.toInt(j['trial']) ?? 0,
   );
@@ -105,6 +105,13 @@ class SessionsController extends GetxController {
             r.deviceId.toLowerCase().contains(q);
       }).toList();
     }
+  }
+
+  List<SessionRow> get pagedRows {
+    final start = page.value * pageSize;
+    if (start >= rows.length) return [];
+    final end = (start + pageSize).clamp(0, rows.length);
+    return rows.sublist(start, end);
   }
 
   void changePage(int next) {
@@ -400,7 +407,7 @@ class _SessionTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(
       () => AdminDataTable<SessionRow>(
-        rows: controller.rows.toList(),
+        rows: controller.pagedRows,
         isLoading: controller.isLoading.value,
         error: controller.errorMessage.value,
         onRetry: controller.load,
@@ -409,6 +416,7 @@ class _SessionTable extends StatelessWidget {
         emptyMessage: 'Sessions are registered when students open the mobile app.',
         page: controller.page.value,
         pageSize: SessionsController.pageSize,
+        totalCount: controller.rows.length,
         onPageChanged: controller.changePage,
         columns: [
           AdminColumn(

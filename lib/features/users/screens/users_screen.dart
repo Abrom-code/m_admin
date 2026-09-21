@@ -358,7 +358,7 @@ class _UserTable extends StatelessWidget {
         emptyMessage: 'Try adjusting your search query or stream filters.',
         page: controller.page.value,
         pageSize: UsersController.pageSize,
-        totalCount: controller.counts[''],
+        totalCount: controller.totalCount.value,
         onPageChanged: controller.changePage,
         onRowTap: (user) => _openDetail(context, user),
         columns: [
