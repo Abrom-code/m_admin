@@ -32,10 +32,10 @@ class ChallengeAttemptModel {
       userId: json['user_id']?.toString() ?? '',
       stream: json['stream']?.toString() ?? '',
       startedAt: json['started_at'] != null
-          ? DateTime.tryParse(json['started_at'].toString()) ?? DateTime.now()
+          ? (DateTime.tryParse(json['started_at'].toString())?.toLocal() ?? DateTime.now())
           : DateTime.now(),
       submittedAt: json['submitted_at'] != null
-          ? DateTime.tryParse(json['submitted_at'].toString())
+          ? DateTime.tryParse(json['submitted_at'].toString())?.toLocal()
           : null,
       score: (json['score'] as num?)?.toInt() ?? 0,
       totalTimeSeconds: (json['total_time_seconds'] as num?)?.toInt() ?? 0,

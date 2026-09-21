@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
+import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/features/users/controllers/users_controller.dart';
@@ -397,13 +398,42 @@ class _UserTable extends StatelessWidget {
             ),
           ),
         ],
-        rowActions: (context, user) => IconButton(
-          tooltip: 'Manage Student',
-          icon: const Icon(Icons.arrow_forward_ios_rounded, size: 13),
-          onPressed: () => _openDetail(context, user),
+        rowActions: (context, user) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Delete User Permanently',
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                size: 16,
+                color: AppColors.error,
+              ),
+              onPressed: () => _confirmDelete(context, user),
+            ),
+            IconButton(
+              tooltip: 'Manage Student',
+              icon: const Icon(Icons.arrow_forward_ios_rounded, size: 13),
+              onPressed: () => _openDetail(context, user),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, AdminUserModel user) async {
+    final confirmed = await AppDialogBoxes.confirmTyped(
+      title: 'Delete User Permanently',
+      message: 'This will permanently delete "${user.displayName}" (${user.email}) '
+          'and wipe ALL associated data including test attempts, bookmarks, '
+          'receipts, and active sessions.\n\nThis action cannot be undone.',
+      expectedText: 'DELETE',
+      confirmLabel: 'Permanently Delete',
+    );
+
+    if (!confirmed) return;
+
+    await controller.deleteUser(user);
   }
 
   void _openDetail(BuildContext context, AdminUserModel user) {

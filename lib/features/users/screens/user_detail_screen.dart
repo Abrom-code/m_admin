@@ -115,6 +115,24 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     await UsersController.instance.setSubscription(user, status);
   }
 
+  Future<void> _deleteUser(AdminUserModel user) async {
+    final confirmed = await AppDialogBoxes.confirmTyped(
+      title: 'Delete User Permanently',
+      message: 'This will permanently delete "${user.displayName}" (${user.email}) '
+          'and wipe ALL associated data including test attempts, bookmarks, '
+          'receipts, and active sessions.\n\nThis action cannot be undone.',
+      expectedText: 'DELETE',
+      confirmLabel: 'Permanently Delete',
+    );
+
+    if (!confirmed) return;
+
+    final success = await UsersController.instance.deleteUser(user);
+    if (success && mounted) {
+      Navigator.of(context).maybePop();
+    }
+  }
+
   Future<void> _resetUploadCount(AdminUserModel user) async {
     final confirmed = await AppDialogBoxes.confirm(
       title: 'Reset upload limit',
@@ -186,6 +204,13 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
               _ReceiptHistoryCard(
                 loading: _loadingReceipts,
                 receipts: _receipts,
+              ),
+              const SizedBox(height: AppSizes.spaceBtwItems),
+
+              // ── 4. Danger Zone Card ───────────────────────────────────────
+              _DangerZoneCard(
+                user: user,
+                onDelete: () => _deleteUser(user),
               ),
             ],
           ),
@@ -755,6 +780,104 @@ class _UserStatusPill extends StatelessWidget {
               color: isExpired ? AppColors.error : color,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Danger Zone Card ───────────────────────────────────────────────────────
+
+class _DangerZoneCard extends StatelessWidget {
+  const _DangerZoneCard({
+    required this.user,
+    required this.onDelete,
+  });
+
+  final AdminUserModel user;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSizes.md),
+      decoration: BoxDecoration(
+        color: dark
+            ? AppColors.error.withValues(alpha: 0.05)
+            : AppColors.error.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(
+          color: AppColors.error.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                size: 18,
+                color: AppColors.error,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Danger Zone',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.error,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSizes.sm),
+          const Text(
+            'Permanently delete this user and all associated records across the platform. This action is irreversible.',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSizes.md),
+          Obx(() {
+            final isActing = Get.isRegistered<UsersController>() &&
+                UsersController.instance.isActing(user.id);
+
+            return SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: AppColors.error),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSizes.md,
+                    vertical: 12,
+                  ),
+                ),
+                onPressed: isActing ? null : onDelete,
+                icon: isActing
+                    ? const SizedBox(
+                        height: 14,
+                        width: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.error,
+                        ),
+                      )
+                    : const Icon(Icons.delete_forever_rounded, size: 18),
+                label: Text(
+                  isActing ? 'Deleting User...' : 'Delete User Permanently',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );

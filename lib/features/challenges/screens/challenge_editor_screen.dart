@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -868,7 +868,7 @@ class _ChallengeQuestionDialogState extends State<_ChallengeQuestionDialog> {
         if (widget.challengeId.isNotEmpty) 'challenge_id': widget.challengeId,
         'question_text': _textCtrl.text.trim(),
         'image_url': _imageCtrl.text.trim().isEmpty ? null : _imageCtrl.text.trim(),
-        'passage_id': int.tryParse(_passageIdCtrl.text.trim()),
+        'passage_id': _passageIdCtrl.text.trim().isEmpty ? null : _passageIdCtrl.text.trim(),
         'choices': choices,
         'correct_choice': '$_correctChoiceIndex',
         'explanation_en': _explEnCtrl.text.trim(),
@@ -949,11 +949,10 @@ class _ChallengeQuestionDialogState extends State<_ChallengeQuestionDialog> {
                         // Passage ID (optional)
                         TextFormField(
                           controller: _passageIdCtrl,
-                          keyboardType: TextInputType.number,
                           style: const TextStyle(fontSize: 12),
                           decoration: InputDecoration(
                             labelText: 'Passage ID (optional)',
-                            hintText: 'e.g. 101 (from passages table)',
+                            hintText: 'Passage ID or UUID (from passages table)',
                             prefixIcon: const Icon(Iconsax.document_text_copy, size: 15),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

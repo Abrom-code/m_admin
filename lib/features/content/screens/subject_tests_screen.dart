@@ -21,6 +21,7 @@ class TestRow {
     this.chapterId,
     required this.time,
     required this.questionCount,
+    this.isPremium = true,
     this.updatedAt,
     this.description,
   });
@@ -32,6 +33,7 @@ class TestRow {
   final int? chapterId;
   final int time; // -1 = untimed
   final int questionCount;
+  final bool isPremium;
   final DateTime? updatedAt;
   final String? description;
 
@@ -52,19 +54,29 @@ class TestRow {
     }
   }
 
-  factory TestRow.fromJson(Map<String, dynamic> j) => TestRow(
-    id: AppHelperFunctions.toInt(j['id']) ?? 0,
-    title: j['title']?.toString() ?? '',
-    type: j['type']?.toString() ?? '',
-    grade: AppHelperFunctions.toInt(j['grade']),
-    chapterId: AppHelperFunctions.toInt(j['chapter_id']),
-    time: AppHelperFunctions.toInt(j['time']) ?? -1,
-    questionCount: AppHelperFunctions.toInt(j['question_count']) ?? 0,
-    updatedAt: j['updated_at'] == null
-        ? null
-        : DateTime.tryParse(j['updated_at'].toString()),
-    description: j['description']?.toString(),
-  );
+  factory TestRow.fromJson(Map<String, dynamic> j) {
+    final rawPremium = j['is_premium'];
+    final isPremium = rawPremium == null
+        ? true
+        : (rawPremium == true ||
+            rawPremium == 1 ||
+            rawPremium == 'true' ||
+            rawPremium == '1');
+    return TestRow(
+      id: AppHelperFunctions.toInt(j['id']) ?? 0,
+      title: j['title']?.toString() ?? '',
+      type: j['type']?.toString() ?? '',
+      grade: AppHelperFunctions.toInt(j['grade']),
+      chapterId: AppHelperFunctions.toInt(j['chapter_id']),
+      time: AppHelperFunctions.toInt(j['time']) ?? -1,
+      questionCount: AppHelperFunctions.toInt(j['question_count']) ?? 0,
+      isPremium: isPremium,
+      updatedAt: j['updated_at'] == null
+          ? null
+          : DateTime.tryParse(j['updated_at'].toString()),
+      description: j['description']?.toString(),
+    );
+  }
 }
 
 // ── Controller ───────────────────────────────────────────────────────
@@ -266,6 +278,58 @@ class SubjectTestsScreen extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+              AdminColumn<TestRow>(
+                label: 'ACCESS',
+                width: 75,
+                cell: (_, row) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: row.isPremium
+                        ? Colors.amber.withValues(alpha: 0.12)
+                        : AppColors.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: row.isPremium
+                          ? Colors.amber.withValues(alpha: 0.3)
+                          : AppColors.success.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    row.isPremium ? 'PRO' : 'FREE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: row.isPremium ? Colors.amber[800] : AppColors.success,
+                    ),
+                  ),
+                ),
+              ),
+              AdminColumn<TestRow>(
+                label: 'ACCESS',
+                width: 75,
+                cell: (_, row) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: row.isPremium
+                        ? Colors.amber.withValues(alpha: 0.12)
+                        : AppColors.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: row.isPremium
+                          ? Colors.amber.withValues(alpha: 0.3)
+                          : AppColors.success.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    row.isPremium ? 'PRO' : 'FREE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: row.isPremium ? Colors.amber[800] : AppColors.success,
+                    ),
+                  ),
                 ),
               ),
               AdminColumn<TestRow>(

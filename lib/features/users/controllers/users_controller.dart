@@ -223,6 +223,49 @@ class UsersController extends GetxController {
     }
   }
 
+  /// Permanently deletes a user from auth and public tables.
+  Future<bool> deleteUser(AdminUserModel user, {String? reason}) async {
+    if (isActing(user.id)) return false;
+
+    try {
+      actingIds.add(user.id);
+      actingIds.refresh();
+
+      await _repo.deleteUserPermanently(
+        user.id,
+        _session.adminUid,
+        userEmail: user.email,
+        reason: reason,
+      );
+
+      // Remove from in-memory row list (including any duplicate email rows)
+      rows.removeWhere((r) =>
+          r.id == user.id ||
+          (user.email.isNotEmpty &&
+              r.email.trim().toLowerCase() == user.email.trim().toLowerCase()));
+      rows.refresh();
+
+      await refreshCounts();
+
+      // Refresh dashboard if registered
+      if (Get.isRegistered<DashboardController>()) {
+        DashboardController.instance.load();
+      }
+
+      SnackbarHelper.success(
+        'User Deleted',
+        '${user.displayName} has been permanently deleted.',
+      );
+      return true;
+    } catch (e) {
+      AppExceptionHandler.handleResponse(e);
+      return false;
+    } finally {
+      actingIds.remove(user.id);
+      actingIds.refresh();
+    }
+  }
+
   /// Updates a user's subscription status in the in-memory list without a
   /// network round-trip.
   void applyLocalStatusUpdate(

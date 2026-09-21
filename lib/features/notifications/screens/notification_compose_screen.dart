@@ -40,6 +40,9 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
   static const _types = {
     'announcement': 'Announcement',
     'new_content': 'New content',
+    'challenge': 'Challenge',
+    'challenge_round': 'Challenge Round',
+    'challenge_reward': 'Challenge Reward',
   };
 
   static const _audienceOptions = {

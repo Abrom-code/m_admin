@@ -26,6 +26,7 @@ class TestEditorController extends GetxController {
   final timeCtrl = TextEditingController();
   final descriptionCtrl = TextEditingController();
   final isUntimed = false.obs;
+  final isPremium = true.obs;
 
   final formKey = GlobalKey<FormState>();
 
@@ -70,6 +71,16 @@ class TestEditorController extends GetxController {
       isUntimed.value = time == -1;
       timeCtrl.text = time == -1 ? '' : time.toString();
       descriptionCtrl.text = data['description']?.toString() ?? '';
+
+      // Premium flag — default true when absent (matches student app default).
+      final rawPremium = data['is_premium'];
+      isPremium.value = rawPremium == null
+          ? true
+          : (rawPremium == true ||
+              rawPremium == 1 ||
+              rawPremium == 'true' ||
+              rawPremium == '1');
+
       questions.value = await _repo.fetchQuestionsForTest(testId!);
     } catch (e) {
       SnackbarHelper.error('Load error', AppExceptionHandler.handle(e).message);
@@ -101,6 +112,7 @@ class TestEditorController extends GetxController {
         'description': descriptionCtrl.text.trim().isEmpty
             ? null
             : descriptionCtrl.text.trim(),
+        'is_premium': isPremium.value,
       };
 
       await _repo.upsertTest(data);

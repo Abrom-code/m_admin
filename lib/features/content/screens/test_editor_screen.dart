@@ -286,6 +286,34 @@ class _TestForm extends StatelessWidget {
                 keyboardType: TextInputType.number,
               );
             }),
+            const SizedBox(height: AppSizes.spaceBtwInputFields),
+            // ── Premium toggle ───────────────────────────────────────
+            Obx(
+              () => Material(
+                color: Colors.transparent,
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Premium', style: TextStyle(fontSize: 13)),
+                  subtitle: Text(
+                    controller.isPremium.value
+                        ? 'Only accessible to premium users'
+                        : 'Free for all users',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  secondary: Icon(
+                    controller.isPremium.value
+                        ? Icons.workspace_premium_rounded
+                        : Icons.lock_open_rounded,
+                    color: controller.isPremium.value
+                        ? AppColors.warning
+                        : AppColors.textSecondary,
+                    size: 20,
+                  ),
+                  value: controller.isPremium.value,
+                  onChanged: (v) => controller.isPremium.value = v,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -538,14 +566,24 @@ class _QuestionEditorViewState extends State<_QuestionEditorView> {
   final _questionCtrl = TextEditingController();
   final _explanationEnCtrl = TextEditingController();
   final _explanationAmCtrl = TextEditingController();
+  final _imageUrlCtrl = TextEditingController();
+  final _explanationImageUrlCtrl = TextEditingController();
+  final _questionOrderCtrl = TextEditingController();
+  final _gradeCtrl = TextEditingController();
   final _options = <TextEditingController>[];
   int _correctIndex = 0;
+  int? _selectedSectionId;
+  int? _selectedPassageId;
+
+  List<Map<String, dynamic>> _sections = [];
+  List<Map<String, dynamic>> _passages = [];
 
   @override
   void initState() {
     super.initState();
     // Start with 4 empty option fields.
     _options.addAll(List.generate(4, (_) => TextEditingController()));
+    _loadLookups();
     if (widget.questionId != null) _loadQuestion();
   }
 
@@ -554,10 +592,29 @@ class _QuestionEditorViewState extends State<_QuestionEditorView> {
     _questionCtrl.dispose();
     _explanationEnCtrl.dispose();
     _explanationAmCtrl.dispose();
+    _imageUrlCtrl.dispose();
+    _explanationImageUrlCtrl.dispose();
+    _questionOrderCtrl.dispose();
+    _gradeCtrl.dispose();
     for (final c in _options) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _loadLookups() async {
+    try {
+      final futures = await Future.wait([
+        _repo.fetchQuestionSections(),
+        _repo.fetchPassages(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _sections = futures[0];
+          _passages = futures[1];
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadQuestion() async {
@@ -567,6 +624,12 @@ class _QuestionEditorViewState extends State<_QuestionEditorView> {
       _questionCtrl.text = data['question_text']?.toString() ?? '';
       _explanationEnCtrl.text = data['explanation_en']?.toString() ?? '';
       _explanationAmCtrl.text = data['explanation_am']?.toString() ?? '';
+      _imageUrlCtrl.text = data['image_url']?.toString() ?? '';
+      _explanationImageUrlCtrl.text = data['explanation_image_url']?.toString() ?? '';
+      _questionOrderCtrl.text = data['question_order']?.toString() ?? '';
+      _gradeCtrl.text = data['grade']?.toString() ?? '';
+      _selectedSectionId = AppHelperFunctions.toInt(data['section_id']);
+      _selectedPassageId = AppHelperFunctions.toInt(data['passage_id']);
 
       final opts = data['options'];
       if (opts is List) {
@@ -613,6 +676,12 @@ class _QuestionEditorViewState extends State<_QuestionEditorView> {
         'correct_option_index': _correctIndex,
         'explanation_en': _explanationEnCtrl.text.trim(),
         'explanation_am': _explanationAmCtrl.text.trim(),
+        'image_url': _imageUrlCtrl.text.trim().isEmpty ? null : _imageUrlCtrl.text.trim(),
+        'explanation_image_url': _explanationImageUrlCtrl.text.trim().isEmpty ? null : _explanationImageUrlCtrl.text.trim(),
+        'question_order': int.tryParse(_questionOrderCtrl.text.trim()),
+        'grade': int.tryParse(_gradeCtrl.text.trim()),
+        'section_id': _selectedSectionId,
+        'passage_id': _selectedPassageId,
       };
 
       await _repo.upsertQuestion(data);
@@ -718,6 +787,128 @@ class _QuestionEditorViewState extends State<_QuestionEditorView> {
                           validator: (v) => v == null || v.trim().isEmpty
                               ? 'Required'
                               : null,
+                        ),
+                      ),
+                      const SizedBox(height: AppSizes.spaceBtwItems),
+
+                      // ── Question metadata ──────────────────────────
+                      AdminSection(
+                        title: 'Question metadata',
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _questionOrderCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Order',
+                                      hintText: 'e.g. 1',
+                                      isDense: true,
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                                const SizedBox(width: AppSizes.sm),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _gradeCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Grade',
+                                      hintText: 'e.g. 12',
+                                      isDense: true,
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: AppSizes.spaceBtwInputFields),
+                            // Section dropdown
+                            DropdownButtonFormField<int?>(
+                              isExpanded: true,
+                              initialValue: _selectedSectionId,
+                              decoration: const InputDecoration(
+                                labelText: 'Section (optional)',
+                                isDense: true,
+                              ),
+                              items: [
+                                const DropdownMenuItem<int?>(
+                                  value: null,
+                                  child: Text('— None —'),
+                                ),
+                                ..._sections.map((s) => DropdownMenuItem<int?>(
+                                      value: AppHelperFunctions.toInt(s['id']),
+                                      child: Text(
+                                        s['title']?.toString() ?? '',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    )),
+                              ],
+                              onChanged: (v) {
+                                setState(() => _selectedSectionId = v);
+                                _isDirty = true;
+                              },
+                            ),
+                            const SizedBox(height: AppSizes.spaceBtwInputFields),
+                            // Passage dropdown
+                            DropdownButtonFormField<int?>(
+                              isExpanded: true,
+                              initialValue: _selectedPassageId,
+                              decoration: const InputDecoration(
+                                labelText: 'Passage (optional)',
+                                isDense: true,
+                              ),
+                              items: [
+                                const DropdownMenuItem<int?>(
+                                  value: null,
+                                  child: Text('— None —'),
+                                ),
+                                ..._passages.map((p) => DropdownMenuItem<int?>(
+                                      value: AppHelperFunctions.toInt(p['id']),
+                                      child: Text(
+                                        p['title']?.toString().isNotEmpty == true
+                                            ? p['title']!.toString()
+                                            : 'Passage #${p['id']}',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    )),
+                              ],
+                              onChanged: (v) {
+                                setState(() => _selectedPassageId = v);
+                                _isDirty = true;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSizes.spaceBtwItems),
+
+                      // ── Image URLs ──────────────────────────────────
+                      AdminSection(
+                        title: 'Images',
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _imageUrlCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Question image URL (optional)',
+                                hintText: 'https://…',
+                                isDense: true,
+                                prefixIcon: Icon(Icons.image_outlined, size: 18),
+                              ),
+                            ),
+                            const SizedBox(height: AppSizes.spaceBtwInputFields),
+                            TextFormField(
+                              controller: _explanationImageUrlCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Explanation image URL (optional)',
+                                hintText: 'https://…',
+                                isDense: true,
+                                prefixIcon: Icon(Icons.image_outlined, size: 18),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: AppSizes.spaceBtwItems),

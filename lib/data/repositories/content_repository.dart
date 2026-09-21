@@ -5,7 +5,7 @@ import 'package:m_admin/utils/helpers/helper_functions.dart';
 class ContentRepository {
   final _sb = Supabase.instance.client;
 
-  // ── Tests ──────────────────────────────────────────────────────────
+  // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<List<Map<String, dynamic>>> fetchTestsForSubject(
     int subjectId, {
@@ -15,7 +15,7 @@ class ContentRepository {
       var q = _sb
           .from('tests')
           .select('id, title, type, grade, chapter_id, time, question_count, '
-              'description, created_at, updated_at')
+              'is_premium, description, created_at, updated_at')
           .eq('subject_id', subjectId);
 
       if (type != null && type.isNotEmpty) {
@@ -87,7 +87,7 @@ class ContentRepository {
     }
   }
 
-  // ── Questions ──────────────────────────────────────────────────────
+  // â”€â”€ Questions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<List<Map<String, dynamic>>> fetchQuestionsForTest(int testId) async {
     try {
@@ -197,7 +197,7 @@ class ContentRepository {
     }
   }
 
-  // ── Subjects & Chapters ────────────────────────────────────────────
+  // â”€â”€ Subjects & Chapters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<List<Map<String, dynamic>>> fetchSubjects() async {
     try {
@@ -271,7 +271,7 @@ class ContentRepository {
     }
   }
 
-  // ── Question sections ──────────────────────────────────────────────
+  // â”€â”€ Question sections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<List<Map<String, dynamic>>> fetchQuestionSections() async {
     try {
@@ -307,7 +307,7 @@ class ContentRepository {
     }
   }
 
-  // ── Passages ───────────────────────────────────────────────────────
+  // â”€â”€ Passages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<List<Map<String, dynamic>>> fetchPassages() async {
     try {
@@ -342,7 +342,7 @@ class ContentRepository {
 
       if (refs.isNotEmpty) {
         throw Exception(
-          'Cannot delete passage — it is referenced by questions.',
+          'Cannot delete passage â€” it is referenced by questions.',
         );
       }
 

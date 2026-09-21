@@ -156,6 +156,41 @@ class UsersRepository {
     }
   }
 
+  /// Permanently deletes a user from the system.
+  ///
+  /// Calls the dmin_delete_user RPC function to delete from uth.users
+  /// (which cascades to all tables) and records the action in dmin_audit_log.
+  /// Falls back to direct RLS deletion on public.users if the RPC is absent.
+  Future<void> deleteUserPermanently(
+    String userId,
+    String adminUid, {
+    String? userEmail,
+    String? reason,
+  }) async {
+    try {
+      await _sb.rpc('admin_delete_user', params: {
+        'p_user_id': userId,
+        'p_admin_uid': adminUid,
+        if (reason != null && reason.isNotEmpty) 'p_reason': reason,
+      });
+    } on PostgrestException {
+      // If RPC is absent or errors, fall back to direct delete via RLS
+      await _sb.from('users').delete().eq('id', userId);
+      if (userEmail != null && userEmail.trim().isNotEmpty) {
+        await _sb.from('users').delete().ilike('email', userEmail.trim());
+      }
+    } catch (e) {
+      try {
+        await _sb.from('users').delete().eq('id', userId);
+        if (userEmail != null && userEmail.trim().isNotEmpty) {
+          await _sb.from('users').delete().ilike('email', userEmail.trim());
+        }
+      } catch (_) {
+        throw AppExceptionHandler.handle(e);
+      }
+    }
+  }
+
   /// Sends a push notification for a manual subscription change (grant or revoke).
   Future<void> sendSubscriptionPush({
     required String userId,
