@@ -501,7 +501,7 @@ class _StudentProfileCell extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                user.displayName,
+                user.fullName.isNotEmpty ? user.fullName : user.displayName,
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
                 style: const TextStyle(

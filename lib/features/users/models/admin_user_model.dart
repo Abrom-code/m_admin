@@ -36,14 +36,22 @@ class AdminUserModel {
   final String? subscriptionPlan;
   final DateTime? subscriptionExpiresAt;
 
+  String get fullName {
+    final name = '$firstName $lastName'.trim();
+    return name;
+  }
+
   String get displayName {
-    final name = ' '.trim();
-    return name.isEmpty ? (email.isEmpty ? id : email) : name;
+    final name = fullName;
+    return name.isNotEmpty ? name : (email.isNotEmpty ? email : id);
   }
 
   String get initials {
-    if (firstName.isNotEmpty && lastName.isNotEmpty) {
-      return ''.toUpperCase();
+    if (firstName.trim().isNotEmpty && lastName.trim().isNotEmpty) {
+      return '${firstName.trim()[0]}${lastName.trim()[0]}'.toUpperCase();
+    }
+    if (firstName.trim().isNotEmpty) {
+      return firstName.trim()[0].toUpperCase();
     }
     if (displayName.isNotEmpty) {
       return displayName[0].toUpperCase();
@@ -79,9 +87,9 @@ class AdminUserModel {
     if (subscriptionExpiresAt == null) return '';
     final diff = subscriptionExpiresAt!.difference(DateTime.now()).inDays;
     if (diff <= 0) return 'Expired';
-    if (diff > 365) return ' yrs left';
-    if (diff > 30) return ' mo left';
-    return ' d left';
+    if (diff > 365) return '${(diff / 365).toStringAsFixed(1)} yrs left';
+    if (diff > 30) return '${(diff / 30).floor()} mo left';
+    return '$diff d left';
   }
 
   factory AdminUserModel.fromJson(Map<String, dynamic> json) {

@@ -167,7 +167,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  user.displayName,
+                  user.fullName.isNotEmpty ? user.fullName : user.displayName,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(width: 8),
@@ -275,7 +275,7 @@ class _ProfileHeroCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      user.displayName,
+                      user.fullName.isNotEmpty ? user.fullName : user.displayName,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
