@@ -65,6 +65,21 @@ class AdminLeaderboardController extends GetxController {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  Future<void> closeCurrentChallenge() async {
+    final id = currentChallengeId.value;
+    if (id == null) return;
+    try {
+      isLoading.value = true;
+      await _repo.closeChallenge(id);
+      await loadData();
+      SnackbarHelper.success('Challenge Closed', 'The challenge has been closed and removed from live.');
+    } catch (e) {
+      SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   Future<void> loadData() async {
     isLoading.value = true;
     try {

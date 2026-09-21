@@ -101,6 +101,21 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
     );
   }
 
+  void _confirmClose(BuildContext context, LeaderboardChallengeModel challenge) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    AppDialogBoxes.showOkCancelDialog(
+      context: context,
+      title: 'Close Live Challenge?',
+      subtitle: 'Are you sure you want to close "${challenge.title}" from live now?\n\n'
+          'Students will immediately no longer be able to attempt this challenge, '
+          'and the round will be marked as CLOSED.',
+      onPressed: () {
+        Navigator.pop(context);
+        _ctrl.closeChallenge(challenge.id);
+      },
+    );
+  }
+
   void _confirmDelete(BuildContext context, LeaderboardChallengeModel challenge) {
     FocusManager.instance.primaryFocus?.unfocus();
     AppDialogBoxes.showOkCancelDialog(
@@ -421,6 +436,7 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                             NotifyChallengeDialog.show(context, challenge);
                           },
                           onPublish: () => _confirmPublish(context, challenge),
+                          onClose: () => _confirmClose(context, challenge),
                           onDelete: () => _confirmDelete(context, challenge),
                         );
                       },

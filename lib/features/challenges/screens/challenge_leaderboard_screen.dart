@@ -1,3 +1,5 @@
+import 'package:m_admin/features/challenges/models/challenge_model.dart';
+import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -38,6 +40,21 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
     );
   }
 
+  void _confirmClose(BuildContext context, LeaderboardChallengeModel ch) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    AppDialogBoxes.showOkCancelDialog(
+      context: context,
+      title: 'Close Live Challenge?',
+      subtitle: 'Are you sure you want to manually close "${ch.title}" from live now?\n\n'
+          'Students will immediately no longer be able to start new attempts, '
+          'and the round will be marked as CLOSED.',
+      onPressed: () {
+        Navigator.pop(context);
+        _ctrl.closeCurrentChallenge();
+      },
+    );
+  }
+
   @override
   void dispose() {
     _scrollCtrl.dispose();
@@ -63,6 +80,26 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
             return Text(_ctrl.challenge.value?.title ?? widget.challengeTitle ?? 'Challenge Leaderboard');
           }),
           actions: [
+            Obx(() {
+              final ch = _ctrl.challenge.value;
+              if (ch != null && ch.isLive && _ctrl.selectedView.value == 'challenge') {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: BorderSide(color: AppColors.error.withValues(alpha: 0.7)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => _confirmClose(context, ch),
+                    icon: const Icon(Icons.stop_circle_outlined, size: 14),
+                    label: const Text('Close Challenge', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            }),
             IconButton(
               tooltip: 'Refresh Standings',
               icon: Obx(

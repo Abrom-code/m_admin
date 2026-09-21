@@ -223,6 +223,14 @@ class ChallengeRepository {
         .eq('id', challengeId);
   }
 
+  Future<void> closeChallenge(String challengeId) async {
+    final now = DateTime.now().toUtc();
+    await _sb.from('leaderboard_challenges').update({
+      'status': 'closed',
+      'ends_at': now.toIso8601String(),
+    }).eq('id', challengeId);
+  }
+
   Future<void> deleteChallenge(String challengeId) async {
     await _sb.from('leaderboard_challenges').delete().eq('id', challengeId);
   }
