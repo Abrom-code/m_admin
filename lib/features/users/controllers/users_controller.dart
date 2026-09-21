@@ -26,6 +26,7 @@ class UsersController extends GetxController {
   final searchQuery = ''.obs;
   final statusFilter = RxnString();
   final streamFilter = RxnString();
+  final dateRange = Rxn<DateTimeRange>();
   final page = 0.obs;
   static const pageSize = 30;
 
@@ -66,6 +67,7 @@ class UsersController extends GetxController {
         search: searchQuery.value,
         statusFilter: statusFilter.value,
         streamFilter: streamFilter.value,
+        dateRange: dateRange.value,
         page: page.value,
         pageSize: pageSize,
       );
@@ -118,11 +120,18 @@ class UsersController extends GetxController {
     load();
   }
 
+  void setDateRange(DateTimeRange? range) {
+    dateRange.value = range;
+    page.value = 0;
+    load();
+  }
+
   void clearFilters() {
     searchController.clear();
     searchQuery.value = '';
     statusFilter.value = null;
     streamFilter.value = null;
+    dateRange.value = null;
     page.value = 0;
     load();
   }

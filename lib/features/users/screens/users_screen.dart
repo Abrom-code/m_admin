@@ -1,3 +1,4 @@
+import 'package:m_admin/common/widgets/admin_date_filter_pill.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -296,8 +297,18 @@ class _UserFilterBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSizes.xs),
+              // Registration Date Gap Filter
+              Obx(
+                () => AdminDateFilterPill(
+                  selectedRange: controller.dateRange.value,
+                  onRangeChanged: controller.setDateRange,
+                  defaultLabel: 'Registration Date',
+                ),
+              ),
+              const SizedBox(width: AppSizes.xs),
               Obx(() {
                 final active = controller.streamFilter.value != null ||
+                    controller.dateRange.value != null ||
                     controller.searchController.text.isNotEmpty;
                 if (!active) return const SizedBox.shrink();
                 return IconButton(
@@ -320,7 +331,10 @@ class _UserFilterBar extends StatelessWidget {
               children: [
                 searchInput,
                 const SizedBox(height: 6),
-                filterRow,
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: filterRow,
+                ),
               ],
             );
           }

@@ -37,9 +37,15 @@ class AdminPaymentRepository {
       }
 
       if (range != null) {
-        query = query
-            .gte('created_at', range.start.toUtc().toIso8601String())
-            .lte('created_at', range.end.toUtc().toIso8601String());
+        final startIso = range.start.toUtc().toIso8601String();
+        final endOfDay = DateTime(
+          range.end.year,
+          range.end.month,
+          range.end.day,
+          23, 59, 59, 999,
+        );
+        final endIso = endOfDay.toUtc().toIso8601String();
+        query = query.gte('created_at', startIso).lte('created_at', endIso);
       }
 
       final term = search?.trim() ?? '';

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show DateTimeRange;
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -14,6 +15,7 @@ class UsersRepository {
     String? search,
     String? statusFilter,
     String? streamFilter,
+    DateTimeRange? dateRange,
     int page = 0,
     int pageSize = 30,
   }) async {
@@ -30,6 +32,18 @@ class UsersRepository {
 
       if (streamFilter != null && streamFilter.isNotEmpty) {
         q = q.ilike('stream', streamFilter);
+      }
+
+      if (dateRange != null) {
+        final startIso = dateRange.start.toUtc().toIso8601String();
+        final endOfDay = DateTime(
+          dateRange.end.year,
+          dateRange.end.month,
+          dateRange.end.day,
+          23, 59, 59, 999,
+        );
+        final endIso = endOfDay.toUtc().toIso8601String();
+        q = q.gte('created_at', startIso).lte('created_at', endIso);
       }
 
       if (search != null && search.trim().isNotEmpty) {

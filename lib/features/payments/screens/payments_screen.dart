@@ -1,3 +1,4 @@
+import 'package:m_admin/common/widgets/admin_date_filter_pill.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -288,7 +289,13 @@ class _ModernFilterBar extends StatelessWidget {
               const SizedBox(width: AppSizes.xs),
 
               // Date Range Pill
-              _DatePill(controller: controller),
+              Obx(
+                () => AdminDateFilterPill(
+                  selectedRange: controller.dateRange.value,
+                  onRangeChanged: controller.setDateRange,
+                  defaultLabel: 'Payment Date',
+                ),
+              ),
               const SizedBox(width: AppSizes.xs),
 
               // Clear Filters Button
@@ -621,76 +628,5 @@ class _FilterDropdown<T> extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _DatePill extends StatelessWidget {
-  const _DatePill({required this.controller});
-
-  final PaymentsController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final range = controller.dateRange.value;
-      final primary = Theme.of(context).colorScheme.primary;
-      final borderColor = range != null
-          ? primary
-          : Theme.of(context).colorScheme.outline.withValues(alpha: 0.35);
-
-      return InkWell(
-        onTap: () async {
-          final picked = await showDateRangePicker(
-            context: context,
-            firstDate: DateTime(2024),
-            lastDate: DateTime.now().add(const Duration(days: 1)),
-            initialDateRange: range,
-          );
-          if (picked != null) controller.setDateRange(picked);
-        },
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-        child: Container(
-          height: 34,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-            border: Border.all(color: borderColor),
-            color: range != null ? primary.withValues(alpha: 0.06) : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Iconsax.calendar_copy,
-                size: 13,
-                color: range != null ? primary : null,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                range == null
-                    ? 'Date'
-                    : '${DateFormat('d MMM').format(range.start)} – '
-                        '${DateFormat('d MMM').format(range.end)}',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: range != null ? primary : null,
-                ),
-              ),
-              if (range != null) ...[
-                const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: () => controller.setDateRange(null),
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 12,
-                    color: primary,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    });
   }
 }
