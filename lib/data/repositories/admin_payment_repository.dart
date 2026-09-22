@@ -24,7 +24,7 @@ class AdminPaymentRepository {
       var query = _supabase
           .from('payment_receipts')
           .select(
-            '*, users!inner(id, first_name, last_name, email, stream, '
+            '*, users!inner(id, first_name, last_name, full_name, email, stream, '
             'subscription_status)',
           );
 
@@ -54,6 +54,7 @@ class AdminPaymentRepository {
         query = query.or(
           'first_name.ilike.%$safe%,'
           'last_name.ilike.%$safe%,'
+          'full_name.ilike.%$safe%,'
           'email.ilike.%$safe%',
           referencedTable: 'users',
         );
@@ -91,7 +92,7 @@ class AdminPaymentRepository {
       final row = await _supabase
           .from('payment_receipts')
           .select(
-            '*, users!inner(id, first_name, last_name, email, stream, '
+            '*, users!inner(id, first_name, last_name, full_name, email, stream, '
             'subscription_status)',
           )
           .eq('id', id)

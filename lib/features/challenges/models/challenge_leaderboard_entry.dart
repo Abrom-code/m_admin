@@ -39,11 +39,23 @@ class ChallengeLeaderboardEntry {
     final sc = (json['score'] as num?)?.toInt() ??
         (json['total_score'] as num?)?.toInt() ??
         0;
+
+    var firstName = json['first_name']?.toString() ?? '';
+    var lastName = json['last_name']?.toString() ?? '';
+    final fullName = json['full_name']?.toString() ?? '';
+
+    if (firstName.isEmpty && lastName.isEmpty && fullName.isNotEmpty) {
+      final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+      firstName = parts.isNotEmpty ? parts.first : '';
+      lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+    }
+    if (firstName.isEmpty) firstName = 'Student';
+
     return ChallengeLeaderboardEntry(
       rank: (json['rank'] as num?)?.toInt() ?? 1,
       userId: json['user_id']?.toString() ?? '',
-      firstName: json['first_name']?.toString() ?? 'Student',
-      lastName: json['last_name']?.toString() ?? '',
+      firstName: firstName,
+      lastName: lastName,
       stream: json['stream']?.toString() ?? '',
       score: sc,
       totalTimeSeconds: (json['total_time_seconds'] as num?)?.toInt() ?? 0,

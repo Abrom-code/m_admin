@@ -85,11 +85,13 @@ class PaymentReview {
 
     final firstName = user['first_name']?.toString() ?? '';
     final lastName = user['last_name']?.toString() ?? '';
+    final fullName = user['full_name']?.toString() ?? '';
+    final resolvedName = fullName.isNotEmpty ? fullName : '$firstName $lastName'.trim();
 
     return PaymentReview(
       id: json['id']?.toString() ?? '',
       userId: json['user_id']?.toString() ?? '',
-      userName: '$firstName $lastName'.trim(),
+      userName: resolvedName,
       userEmail: user['email']?.toString() ?? '',
       userStream: user['stream']?.toString() ?? '',
       subscriptionStatus:

@@ -47,11 +47,12 @@ class AdminUserModel {
   }
 
   String get initials {
-    if (firstName.trim().isNotEmpty && lastName.trim().isNotEmpty) {
-      return '${firstName.trim()[0]}${lastName.trim()[0]}'.toUpperCase();
+    final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    if (firstName.trim().isNotEmpty) {
-      return firstName.trim()[0].toUpperCase();
+    if (parts.isNotEmpty && parts[0].isNotEmpty) {
+      return parts[0][0].toUpperCase();
     }
     if (displayName.isNotEmpty) {
       return displayName[0].toUpperCase();
@@ -93,10 +94,20 @@ class AdminUserModel {
   }
 
   factory AdminUserModel.fromJson(Map<String, dynamic> json) {
+    var firstName = json['first_name']?.toString() ?? '';
+    var lastName = json['last_name']?.toString() ?? '';
+    final fullName = json['full_name']?.toString() ?? '';
+
+    if (firstName.isEmpty && lastName.isEmpty && fullName.isNotEmpty) {
+      final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+      firstName = parts.isNotEmpty ? parts.first : '';
+      lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+    }
+
     return AdminUserModel(
       id: json['id']?.toString() ?? '',
-      firstName: json['first_name']?.toString() ?? '',
-      lastName: json['last_name']?.toString() ?? '',
+      firstName: firstName,
+      lastName: lastName,
       email: json['email']?.toString() ?? '',
       stream: json['stream']?.toString() ?? '',
       subscriptionStatus:

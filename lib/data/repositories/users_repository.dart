@@ -22,7 +22,7 @@ class UsersRepository {
     try {
       var q = _sb
           .from('users')
-          .select('id, first_name, last_name, email, stream, '
+          .select('id, first_name, last_name, full_name, email, stream, '
               'subscription_status, created_at, receipt_upload_count, '
               'subscription_plan, subscription_expires_at');
 
@@ -60,6 +60,7 @@ class UsersRepository {
         final orClauses = <String>[
           'first_name.ilike.%$safe%',
           'last_name.ilike.%$safe%',
+          'full_name.ilike.%$safe%',
           'email.ilike.%$safe%',
         ];
 
