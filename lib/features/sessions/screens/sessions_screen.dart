@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
@@ -16,20 +17,70 @@ import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 class SessionRow {
   const SessionRow({
-    required this.firebaseUid,
+    required this.userId,
+    this.userName,
+    this.userEmail,
     required this.deviceId,
-    required this.trial,
+    this.deviceModel,
+    this.osVersion,
+    this.lastActiveAt,
+    this.updatedAt,
   });
 
-  final String firebaseUid;
+  final String userId;
+  final String? userName;
+  final String? userEmail;
   final String deviceId;
-  final int trial;
+  final String? deviceModel;
+  final String? osVersion;
+  final DateTime? lastActiveAt;
+  final DateTime? updatedAt;
 
-  factory SessionRow.fromJson(Map<String, dynamic> j) => SessionRow(
-    firebaseUid: (j['user_id'] ?? j['firebase_uid'])?.toString() ?? '',
-    deviceId: j['device_id']?.toString() ?? '',
-    trial: AppHelperFunctions.toInt(j['trial']) ?? 0,
-  );
+  bool get isLocked => deviceId.trim().isNotEmpty;
+  String get firebaseUid => userId;
+
+  SessionRow copyWith({
+    String? userId,
+    String? userName,
+    String? userEmail,
+    String? deviceId,
+    String? deviceModel,
+    String? osVersion,
+    DateTime? lastActiveAt,
+    DateTime? updatedAt,
+  }) {
+    return SessionRow(
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      userEmail: userEmail ?? this.userEmail,
+      deviceId: deviceId ?? this.deviceId,
+      deviceModel: deviceModel ?? this.deviceModel,
+      osVersion: osVersion ?? this.osVersion,
+      lastActiveAt: lastActiveAt ?? this.lastActiveAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  factory SessionRow.fromJson(Map<String, dynamic> j) {
+    final user = j['users'] as Map<String, dynamic>? ?? {};
+    final fName = user['first_name']?.toString() ?? '';
+    final lName = user['last_name']?.toString() ?? '';
+    final fullName = user['full_name']?.toString() ?? '';
+    final resolvedName = fullName.isNotEmpty
+        ? fullName
+        : ('$fName $lName'.trim().isNotEmpty ? '$fName $lName'.trim() : null);
+
+    return SessionRow(
+      userId: (j['user_id'] ?? j['firebase_uid'])?.toString() ?? '',
+      userName: resolvedName,
+      userEmail: user['email']?.toString(),
+      deviceId: j['device_id']?.toString() ?? '',
+      deviceModel: j['device_model']?.toString(),
+      osVersion: j['os_version']?.toString(),
+      lastActiveAt: j['last_active_at'] != null ? DateTime.tryParse(j['last_active_at'].toString()) : null,
+      updatedAt: j['updated_at'] != null ? DateTime.tryParse(j['updated_at'].toString()) : null,
+    );
+  }
 }
 
 // ── Controller ───────────────────────────────────────────────────────
@@ -51,8 +102,8 @@ class SessionsController extends GetxController {
   static const pageSize = 30;
 
   int get totalSessions => allRows.length;
-  int get fullTrialCount => allRows.where((r) => r.trial >= 5).length;
-  int get exhaustedTrialCount => allRows.where((r) => r.trial == 0).length;
+  int get lockedCount => allRows.where((r) => r.isLocked).length;
+  int get unlockedCount => allRows.where((r) => !r.isLocked).length;
 
   @override
   void onInit() {
@@ -73,10 +124,13 @@ class SessionsController extends GetxController {
 
       final data = await _sb
           .from('user_sessions')
-          .select('firebase_uid, device_id, trial')
-          .order('firebase_uid');
+          .select('''
+            user_id, device_id, device_model, os_version, last_active_at, updated_at,
+            users(first_name, last_name, full_name, email)
+          ''')
+          .order('updated_at', ascending: false);
 
-      final list = data
+      final list = (data as List)
           .map((r) => SessionRow.fromJson(Map<String, dynamic>.from(r)))
           .toList();
 
@@ -101,8 +155,11 @@ class SessionsController extends GetxController {
     } else {
       final q = searchQuery.value;
       rows.value = allRows.where((r) {
-        return r.firebaseUid.toLowerCase().contains(q) ||
-            r.deviceId.toLowerCase().contains(q);
+        return r.userId.toLowerCase().contains(q) ||
+            (r.userName?.toLowerCase().contains(q) ?? false) ||
+            (r.userEmail?.toLowerCase().contains(q) ?? false) ||
+            r.deviceId.toLowerCase().contains(q) ||
+            (r.deviceModel?.toLowerCase().contains(q) ?? false);
       }).toList();
     }
   }
@@ -118,59 +175,74 @@ class SessionsController extends GetxController {
     page.value = next;
   }
 
-  Future<void> resetTrial(SessionRow session) async {
-    if (actingUids.contains(session.firebaseUid)) return;
+  Future<void> resetDevice(SessionRow session) async {
+    if (actingUids.contains(session.userId)) return;
     try {
-      actingUids.add(session.firebaseUid);
+      actingUids.add(session.userId);
       actingUids.refresh();
 
-      await _sb
-          .from('user_sessions')
-          .update({'trial': 5})
-          .eq('firebase_uid', session.firebaseUid);
+      final admin = _sb.auth.currentUser;
+      final adminUid = admin?.email ?? admin?.id ?? 'admin';
 
-      final updated = SessionRow(
-        firebaseUid: session.firebaseUid,
-        deviceId: session.deviceId,
-        trial: 5,
+      try {
+        await _sb.rpc('admin_reset_user_device', params: {
+          'p_user_id': session.userId,
+          'p_admin_uid': adminUid,
+          'p_reason': 'Reset device from Sessions console',
+        });
+      } catch (_) {
+        await _sb
+            .from('user_sessions')
+            .update({
+              'device_id': null,
+              'device_model': null,
+              'os_version': null,
+              'updated_at': DateTime.now().toIso8601String(),
+            })
+            .eq('user_id', session.userId);
+      }
+
+      final updated = session.copyWith(
+        deviceId: '',
+        deviceModel: null,
       );
 
-      final idxAll = allRows.indexWhere((r) => r.firebaseUid == session.firebaseUid);
+      final idxAll = allRows.indexWhere((r) => r.userId == session.userId);
       if (idxAll != -1) allRows[idxAll] = updated;
 
-      final idx = rows.indexWhere((r) => r.firebaseUid == session.firebaseUid);
+      final idx = rows.indexWhere((r) => r.userId == session.userId);
       if (idx != -1) {
         rows[idx] = updated;
         rows.refresh();
       }
 
-      SnackbarHelper.success('Trial reset', 'Trial count set back to 5.');
+      SnackbarHelper.success('Device Reset', 'Device lock removed. User can pair a new phone on next login.');
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
     } finally {
-      actingUids.remove(session.firebaseUid);
+      actingUids.remove(session.userId);
       actingUids.refresh();
     }
   }
 
   Future<void> deleteSession(SessionRow session) async {
-    if (actingUids.contains(session.firebaseUid)) return;
+    if (actingUids.contains(session.userId)) return;
     try {
-      actingUids.add(session.firebaseUid);
+      actingUids.add(session.userId);
       actingUids.refresh();
 
       await _sb
           .from('user_sessions')
           .delete()
-          .eq('firebase_uid', session.firebaseUid);
+          .eq('user_id', session.userId);
 
-      allRows.removeWhere((r) => r.firebaseUid == session.firebaseUid);
-      rows.removeWhere((r) => r.firebaseUid == session.firebaseUid);
+      allRows.removeWhere((r) => r.userId == session.userId);
+      rows.removeWhere((r) => r.userId == session.userId);
       SnackbarHelper.success('Session deleted', 'User session removed successfully.');
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
     } finally {
-      actingUids.remove(session.firebaseUid);
+      actingUids.remove(session.userId);
       actingUids.refresh();
     }
   }
@@ -228,18 +300,18 @@ class _SessionMetricRibbon extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             _SessionMetricPill(
-              label: 'Full Trial (5/5)',
-              value: '${controller.fullTrialCount}',
+              label: 'Locked (1 Device)',
+              value: '${controller.lockedCount}',
               icon: Iconsax.shield_tick_copy,
               color: AppColors.success,
               dark: dark,
             ),
             const SizedBox(width: 8),
             _SessionMetricPill(
-              label: 'Exhausted (0/5)',
-              value: '${controller.exhaustedTrialCount}',
-              icon: Iconsax.warning_2_copy,
-              color: AppColors.error,
+              label: 'Ready to Pair',
+              value: '${controller.unlockedCount}',
+              icon: Icons.lock_open_rounded,
+              color: AppColors.warning,
               dark: dark,
             ),
           ],
@@ -349,7 +421,7 @@ class _SessionFilterBar extends StatelessWidget {
                 style: const TextStyle(fontSize: 12.5),
                 decoration: InputDecoration(
                   isDense: true,
-                  hintText: 'Search sessions by Firebase UID or Device ID...',
+                  hintText: 'Search sessions by student, email, device, or user ID...',
                   hintStyle: TextStyle(
                     color: AppColors.textSecondary.withValues(alpha: 0.6),
                     fontSize: 12.5,
@@ -407,6 +479,7 @@ class _SessionTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(
       () => AdminDataTable<SessionRow>(
+        minWidth: 780,
         rows: controller.pagedRows,
         isLoading: controller.isLoading.value,
         error: controller.errorMessage.value,
@@ -420,23 +493,28 @@ class _SessionTable extends StatelessWidget {
         onPageChanged: controller.changePage,
         columns: [
           AdminColumn(
-            label: 'FIREBASE UID',
+            label: 'STUDENT / USER',
             flex: 4,
-            cell: (context, row) => _SessionUidCell(uid: row.firebaseUid),
+            cell: (context, row) => _SessionUserCell(session: row),
           ),
           AdminColumn(
-            label: 'DEVICE ID',
+            label: 'DEVICE BOUND',
             flex: 3,
-            cell: (_, row) => _DeviceIdCell(deviceId: row.deviceId),
+            cell: (_, row) => _DeviceIdCell(session: row),
           ),
           AdminColumn(
-            label: 'TRIAL REMAINING',
-            width: 140,
-            cell: (_, row) => _TrialGaugeCell(trial: row.trial),
+            label: 'LOCK STATUS',
+            width: 155,
+            cell: (_, row) => _LockStatusCell(isLocked: row.isLocked),
+          ),
+          AdminColumn(
+            label: 'LAST ACTIVE',
+            width: 125,
+            cell: (_, row) => _LastActiveCell(date: row.lastActiveAt ?? row.updatedAt),
           ),
         ],
         rowActions: (context, row) => Obx(() {
-          final isActing = controller.actingUids.contains(row.firebaseUid);
+          final isActing = controller.actingUids.contains(row.userId);
           if (isActing) {
             return const SizedBox(
               height: 16,
@@ -447,29 +525,41 @@ class _SessionTable extends StatelessWidget {
           return Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (row.trial < 5)
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    visualDensity: VisualDensity.compact,
+              if (row.isLocked) ...[
+                IconButton(
+                  tooltip: 'Reset Device Lock (Allow New Phone)',
+                  iconSize: 18,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () async {
+                    final name = row.userName ?? row.userEmail ?? row.userId;
+                    final ok = await AppDialogBoxes.confirm(
+                      title: 'Reset Device Lock',
+                      message:
+                          'Are you sure you want to reset device lock for $name? '
+                          'They will be permitted to pair a new phone on their next login.',
+                      confirmLabel: 'Reset Device',
+                      isDestructive: false,
+                    );
+                    if (ok) controller.resetDevice(row);
+                  },
+                  icon: const Icon(
+                    Icons.phonelink_erase_rounded,
+                    color: AppColors.warning,
                   ),
-                  onPressed: () => controller.resetTrial(row),
-                  icon: const Icon(Icons.refresh_rounded, size: 13),
-                  label: const Text('Reset to 5', style: TextStyle(fontSize: 11)),
                 ),
-              const SizedBox(width: 4),
+                const SizedBox(width: 2),
+              ],
               IconButton(
                 tooltip: 'Revoke session',
-                iconSize: 16,
+                iconSize: 18,
                 visualDensity: VisualDensity.compact,
                 onPressed: () async {
+                  final name = row.userName ?? row.userEmail ?? row.userId;
                   final ok = await AppDialogBoxes.confirm(
                     title: 'Revoke device session',
                     message:
-                        'Are you sure you want to remove the session for ${row.firebaseUid}? '
-                        'The user will be prompted to re-launch the app.',
+                        'Are you sure you want to remove the session for $name? '
+                        'The user session will be removed from the database.',
                     confirmLabel: 'Revoke',
                     isDestructive: true,
                   );
@@ -490,42 +580,73 @@ class _SessionTable extends StatelessWidget {
 
 // ── 4. Table Cell Components ───────────────────────────────────────────────
 
-class _SessionUidCell extends StatelessWidget {
-  const _SessionUidCell({required this.uid});
-  final String uid;
+class _SessionUserCell extends StatelessWidget {
+  const _SessionUserCell({required this.session});
+  final SessionRow session;
 
   @override
   Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final hasName = session.userName != null && session.userName!.isNotEmpty;
+
     return Row(
       children: [
         Container(
-          width: 26,
-          height: 26,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.1),
+            color: AppColors.primary.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Iconsax.user_copy, size: 13, color: AppColors.primary),
+          child: const Icon(Iconsax.user_copy, size: 14, color: AppColors.primary),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            uid,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'monospace',
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                hasName ? session.userName! : (session.userEmail ?? session.userId),
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: dark ? AppColors.white : AppColors.textPrimary,
+                ),
+              ),
+              if (hasName && session.userEmail != null) ...[
+                const SizedBox(height: 1),
+                Text(
+                  session.userEmail!,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                  ),
+                ),
+              ] else if (hasName) ...[
+                const SizedBox(height: 1),
+                Text(
+                  session.userId,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         IconButton(
-          tooltip: 'Copy UID',
+          tooltip: 'Copy User ID',
           iconSize: 13,
           visualDensity: VisualDensity.compact,
           onPressed: () {
-            Clipboard.setData(ClipboardData(text: uid));
-            SnackbarHelper.success('Copied', 'UID copied to clipboard.');
+            Clipboard.setData(ClipboardData(text: session.userId));
+            SnackbarHelper.success('Copied', 'User ID copied to clipboard.');
           },
           icon: const Icon(Icons.copy_rounded, color: AppColors.textSecondary),
         ),
@@ -535,68 +656,131 @@ class _SessionUidCell extends StatelessWidget {
 }
 
 class _DeviceIdCell extends StatelessWidget {
-  const _DeviceIdCell({required this.deviceId});
-  final String deviceId;
+  const _DeviceIdCell({required this.session});
+  final SessionRow session;
 
   @override
   Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final hasDevice = session.deviceId.isNotEmpty;
+    final model = session.deviceModel;
+    final os = session.osVersion;
+
+    if (!hasDevice) {
+      return const Row(
+        children: [
+          Icon(Icons.lock_open_rounded, size: 14, color: AppColors.warning),
+          SizedBox(width: 6),
+          Text(
+            'Ready to pair',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.warning,
+            ),
+          ),
+        ],
+      );
+    }
+
     return Row(
       children: [
         const Icon(Icons.smartphone_rounded, size: 14, color: AppColors.textSecondary),
         const SizedBox(width: 6),
         Expanded(
-          child: Text(
-            deviceId,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 11.5,
-              color: AppColors.textSecondary,
-              fontFamily: 'monospace',
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                model != null && model.isNotEmpty
+                    ? (os != null && os.isNotEmpty ? '$model ($os)' : model)
+                    : session.deviceId,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: dark ? AppColors.white : AppColors.textPrimary,
+                ),
+              ),
+              if (model != null && model.isNotEmpty)
+                Text(
+                  session.deviceId,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+            ],
           ),
+        ),
+        IconButton(
+          tooltip: 'Copy Device ID',
+          iconSize: 13,
+          visualDensity: VisualDensity.compact,
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: session.deviceId));
+            SnackbarHelper.success('Copied', 'Device ID copied to clipboard.');
+          },
+          icon: const Icon(Icons.copy_rounded, color: AppColors.textSecondary),
         ),
       ],
     );
   }
 }
 
-class _TrialGaugeCell extends StatelessWidget {
-  const _TrialGaugeCell({required this.trial});
-  final int trial;
+class _LockStatusCell extends StatelessWidget {
+  const _LockStatusCell({required this.isLocked});
+  final bool isLocked;
 
   @override
   Widget build(BuildContext context) {
-    final color = trial >= 5
-        ? AppColors.success
-        : trial > 1
-            ? AppColors.warning
-            : AppColors.error;
+    final color = isLocked ? AppColors.success : AppColors.warning;
+    final label = isLocked ? 'LOCKED (1 DEVICE)' : 'READY TO PAIR';
+    final icon = isLocked ? Icons.smartphone_rounded : Icons.lock_open_rounded;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 6),
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 5),
           Text(
-            '$trial / 5 Tests',
+            label,
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+              fontSize: 10.5,
+              fontWeight: FontWeight.bold,
               color: color,
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _LastActiveCell extends StatelessWidget {
+  const _LastActiveCell({this.date});
+  final DateTime? date;
+
+  @override
+  Widget build(BuildContext context) {
+    if (date == null) {
+      return const Text(
+        'Never',
+        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+      );
+    }
+    return Text(
+      DateFormat('d MMM, HH:mm').format(date!),
+      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
     );
   }
 }

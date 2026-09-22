@@ -526,9 +526,12 @@ class _Pagination extends StatelessWidget {
           ),
         ),
       ),
-      child: Row(
-        children: [
-          Text(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 480;
+          final isVeryNarrow = constraints.maxWidth < 360;
+
+          final infoWidget = Text(
             totalCount == null
                 ? (rowCount == 0 ? 'No entries' : 'Showing $first–$last')
                 : (totalCount == 0
@@ -539,97 +542,125 @@ class _Pagination extends StatelessWidget {
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w500,
             ),
-          ),
-          const Spacer(),
-          // Previous button
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-              side: BorderSide(
-                color: page > 0
-                    ? borderColor
-                    : (dark ? Colors.white10 : Colors.black12),
-              ),
-            ),
-            onPressed: page > 0 ? () => onPageChanged(page - 1) : null,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.chevron_left_rounded,
-                  size: 16,
-                  color: page > 0 ? null : (dark ? Colors.white24 : Colors.black26),
-                ),
-                const SizedBox(width: 3),
-                Text(
-                  'Previous',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: page > 0 ? null : (dark ? Colors.white24 : Colors.black26),
+          );
+
+          final buttonsWidget = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Previous button
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  side: BorderSide(
+                    color: page > 0
+                        ? borderColor
+                        : (dark ? Colors.white10 : Colors.black12),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Current page indicator badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-            decoration: BoxDecoration(
-              color: dark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-              border: Border.all(color: borderColor),
-            ),
-            child: Text(
-              totalPages != null
-                  ? 'Page ${page + 1} of $totalPages'
-                  : 'Page ${page + 1}',
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
+                onPressed: page > 0 ? () => onPageChanged(page - 1) : null,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.chevron_left_rounded,
+                      size: 16,
+                      color: page > 0 ? null : (dark ? Colors.white24 : Colors.black26),
+                    ),
+                    if (!isVeryNarrow) ...[
+                      const SizedBox(width: 3),
+                      Text(
+                        'Previous',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: page > 0 ? null : (dark ? Colors.white24 : Colors.black26),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Next button
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-              side: BorderSide(
-                color: canGoForward
-                    ? borderColor
-                    : (dark ? Colors.white10 : Colors.black12),
-              ),
-            ),
-            onPressed: canGoForward ? () => onPageChanged(page + 1) : null,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Next',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: canGoForward ? null : (dark ? Colors.white24 : Colors.black26),
+              const SizedBox(width: 8),
+              // Current page indicator badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: dark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Text(
+                  totalPages != null
+                      ? 'Page ${page + 1} of $totalPages'
+                      : 'Page ${page + 1}',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(width: 3),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 16,
-                  color: canGoForward ? null : (dark ? Colors.white24 : Colors.black26),
+              ),
+              const SizedBox(width: 8),
+              // Next button
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  side: BorderSide(
+                    color: canGoForward
+                        ? borderColor
+                        : (dark ? Colors.white10 : Colors.black12),
+                  ),
                 ),
+                onPressed: canGoForward ? () => onPageChanged(page + 1) : null,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!isVeryNarrow) ...[
+                      Text(
+                        'Next',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: canGoForward ? null : (dark ? Colors.white24 : Colors.black26),
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                    ],
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 16,
+                      color: canGoForward ? null : (dark ? Colors.white24 : Colors.black26),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          if (isNarrow) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                infoWidget,
+                const SizedBox(height: 8),
+                buttonsWidget,
               ],
-            ),
-          ),
-        ],
+            );
+          }
+
+          return Row(
+            children: [
+              infoWidget,
+              const Spacer(),
+              buttonsWidget,
+            ],
+          );
+        },
       ),
     );
   }
