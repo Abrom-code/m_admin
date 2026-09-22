@@ -185,7 +185,10 @@ class UsersController extends GetxController {
       String? notifTitle;
       String? notifBody;
       if (status == 'active' && expiresAt != null) {
-        notifTitle = AdminSubscriptionPlan.buildGrantNotificationTitle(plan);
+        notifTitle = AdminSubscriptionPlan.buildGrantNotificationTitle(
+          plan,
+          expiresAt: expiresAt,
+        );
         notifBody = AdminSubscriptionPlan.buildGrantNotificationBody(
           planKey: plan,
           expiresAt: expiresAt,

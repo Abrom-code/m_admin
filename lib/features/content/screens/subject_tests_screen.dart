@@ -228,7 +228,7 @@ class SubjectTestsScreen extends StatelessWidget {
             onRetry: controller.loadTests,
             emptyTitle: 'No tests found',
             emptyMessage: 'Tap "Create Test" to add the first test for ${subject.name}.',
-            minWidth: 680,
+            minWidth: 820,
             columns: [
               AdminColumn<TestRow>(
                 label: 'TEST TITLE',
@@ -254,13 +254,16 @@ class SubjectTestsScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            row.title,
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
+                          Tooltip(
+                            message: row.title.isNotEmpty ? row.title : 'Untitled Test #${row.id}',
+                            child: Text(
+                              row.title.isNotEmpty ? row.title : 'Untitled Test #${row.id}',
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2,
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           if (row.description != null &&
@@ -278,32 +281,6 @@ class SubjectTestsScreen extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
-              ),
-              AdminColumn<TestRow>(
-                label: 'ACCESS',
-                width: 75,
-                cell: (_, row) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: row.isPremium
-                        ? Colors.amber.withValues(alpha: 0.12)
-                        : AppColors.success.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: row.isPremium
-                          ? Colors.amber.withValues(alpha: 0.3)
-                          : AppColors.success.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Text(
-                    row.isPremium ? 'PRO' : 'FREE',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: row.isPremium ? Colors.amber[800] : AppColors.success,
-                    ),
-                  ),
                 ),
               ),
               AdminColumn<TestRow>(

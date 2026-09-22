@@ -311,6 +311,79 @@ class UsersRepository {
     }
   }
 
+  /// Fetches the currently bound device session for [userId].
+  Future<Map<String, dynamic>?> fetchUserDevice(String userId) async {
+    try {
+      final row = await _sb
+          .from('user_sessions')
+          .select('user_id, device_id, device_model, os_version, last_active_at, updated_at')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      return row != null ? Map<String, dynamic>.from(row) : null;
+    } catch (e) {
+      debugPrint('[UsersRepository] fetchUserDevice error: $e');
+      return null;
+    }
+  }
+
+  /// Fetches device activity and audit history for [userId].
+  Future<List<Map<String, dynamic>>> fetchDeviceHistory(String userId) async {
+    try {
+      final rows = await _sb
+          .from('device_history')
+          .select('id, action, device_id, device_model, os_version, performed_by, note, created_at')
+          .eq('user_id', userId)
+          .order('created_at', ascending: false)
+          .limit(20);
+
+      return rows.map((r) => Map<String, dynamic>.from(r)).toList();
+    } catch (e) {
+      debugPrint('[UsersRepository] fetchDeviceHistory error: $e');
+      return [];
+    }
+  }
+
+  /// Resets the user's bound device so they can pair a new device on next login.
+  Future<bool> resetUserDevice(
+    String userId,
+    String adminUid, {
+    String? reason,
+  }) async {
+    try {
+      try {
+        await _sb.rpc('admin_reset_user_device', params: {
+          'p_user_id': userId,
+          'p_admin_uid': adminUid,
+          if (reason != null && reason.isNotEmpty) 'p_reason': reason,
+        });
+        return true;
+      } on PostgrestException catch (pe) {
+        debugPrint('[UsersRepository] admin_reset_user_device RPC fallback: $pe');
+      }
+
+      // Direct fallback
+      await _sb.from('user_sessions').update({
+        'device_id': null,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('user_id', userId);
+
+      // Attempt audit log write
+      try {
+        await _sb.from('device_history').insert({
+          'user_id': userId,
+          'action': 'ADMIN_RESET',
+          'performed_by': adminUid,
+          'note': reason ?? 'Admin reset device lock',
+        });
+      } catch (_) {}
+
+      return true;
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
   /// Escapes PostgREST `or()` metacharacters.
   static String _escapeFilterValue(String value) {
     return value

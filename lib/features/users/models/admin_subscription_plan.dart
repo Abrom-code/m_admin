@@ -120,8 +120,21 @@ class AdminSubscriptionPlan {
     }
   }
 
+  /// Formats date cleanly as "D Mon YYYY", e.g. "24 Oct 2026".
+  static String formatDate(DateTime date) =>
+      '${date.day} ${_monthName(date.month)} ${date.year}';
+
   /// Builds notification title for payment approval.
-  static String buildApprovalNotificationTitle(String? planKey) {
+  static String buildApprovalNotificationTitle(
+    String? planKey, {
+    DateTime? expiresAt,
+  }) {
+    if (planKey == 'custom' || byKey(planKey) == null) {
+      if (expiresAt != null) {
+        return 'Payment Approved! 🎉 (Until ${formatDate(expiresAt)})';
+      }
+      return 'Payment Approved! 🎉';
+    }
     final label = labelOf(planKey);
     return 'Payment Approved! 🎉 ($label)';
   }
@@ -133,18 +146,36 @@ class AdminSubscriptionPlan {
     String currency = 'ETB',
     required DateTime expiresAt,
   }) {
-    final label = labelOf(planKey);
-    final formattedDate = '${expiresAt.day} ${_monthName(expiresAt.month)} ${expiresAt.year}';
+    final formattedDate = formatDate(expiresAt);
     final diffDays = expiresAt.difference(DateTime.now()).inDays;
+    final timingText =
+        diffDays > 0 ? '$formattedDate ($diffDays days left)' : formattedDate;
+
+    if (planKey == 'custom' || byKey(planKey) == null) {
+      final amountPrefix = (amount != null && amount > 0)
+          ? 'Your payment of ${amount.toStringAsFixed(0)} $currency'
+          : 'Your subscription';
+      return '$amountPrefix has been approved! Premium access is active until $timingText. Enjoy full access to all exams!';
+    }
+
+    final label = labelOf(planKey);
     final amountPrefix = (amount != null && amount > 0)
         ? 'Your payment of ${amount.toStringAsFixed(0)} $currency for the $label plan'
         : 'Your $label subscription';
-    final timingText = diffDays > 0 ? '$formattedDate ($diffDays days left)' : formattedDate;
     return '$amountPrefix has been approved! Premium access is active until $timingText. Enjoy full access to all exams!';
   }
 
   /// Builds notification title for manual grant / extension.
-  static String buildGrantNotificationTitle(String? planKey) {
+  static String buildGrantNotificationTitle(
+    String? planKey, {
+    DateTime? expiresAt,
+  }) {
+    if (planKey == 'custom' || byKey(planKey) == null) {
+      if (expiresAt != null) {
+        return 'Premium Access Granted! 🎉 (Until ${formatDate(expiresAt)})';
+      }
+      return 'Premium Access Granted! 🎉';
+    }
     final label = labelOf(planKey);
     return 'Premium Access Granted! 🎉 ($label)';
   }
@@ -154,10 +185,16 @@ class AdminSubscriptionPlan {
     required String? planKey,
     required DateTime expiresAt,
   }) {
-    final label = labelOf(planKey);
-    final formattedDate = '${expiresAt.day} ${_monthName(expiresAt.month)} ${expiresAt.year}';
+    final formattedDate = formatDate(expiresAt);
     final diffDays = expiresAt.difference(DateTime.now()).inDays;
-    final timingText = diffDays > 0 ? '$formattedDate ($diffDays days left)' : formattedDate;
+    final timingText =
+        diffDays > 0 ? '$formattedDate ($diffDays days left)' : formattedDate;
+
+    if (planKey == 'custom' || byKey(planKey) == null) {
+      return 'You have been granted premium access valid until $timingText. Enjoy full access to all exams and features!';
+    }
+
+    final label = labelOf(planKey);
     return 'You have been granted $label premium access, valid until $timingText. Enjoy full access to all exams and features!';
   }
 

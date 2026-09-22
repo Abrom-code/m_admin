@@ -1,3 +1,4 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -30,11 +31,65 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   List<Map<String, dynamic>> _receipts = [];
   bool _loadingReceipts = true;
   _DetailAction _activeAction = _DetailAction.none;
+  Map<String, dynamic>? _userDevice;
+  List<Map<String, dynamic>> _deviceHistory = [];
+  bool _loadingDevice = true;
+  bool _resettingDevice = false;
 
   @override
   void initState() {
     super.initState();
     _loadReceipts();
+    _loadDevice();
+  }
+
+  Future<void> _loadDevice() async {
+    try {
+      final device = await _repo.fetchUserDevice(widget.user.id);
+      final history = await _repo.fetchDeviceHistory(widget.user.id);
+      if (mounted) {
+        setState(() {
+          _userDevice = device;
+          _deviceHistory = history;
+        });
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loadingDevice = false);
+    }
+  }
+
+  Future<void> _resetDevice() async {
+    final result = await AppDialogBoxes.confirmWithReason(
+      title: 'Reset Device Lock',
+      message: 'Are you sure you want to reset the device lock for ${_liveUser.displayName}? '
+          'This will allow them to bind a new device on their next login.',
+      confirmLabel: 'Reset Device',
+      reasonHint: 'Reason for reset (e.g. Lost phone, new device)',
+    );
+
+    if (result == null) return;
+
+    final adminUid = Supabase.instance.client.auth.currentUser?.id ?? 'admin';
+    setState(() => _resettingDevice = true);
+    try {
+      final success = await _repo.resetUserDevice(
+        widget.user.id,
+        adminUid,
+        reason: result,
+      );
+      if (success) {
+        SnackbarHelper.success(
+          'Device Reset',
+          'Device lock for ${_liveUser.displayName} has been cleared.',
+        );
+        await _loadDevice();
+      }
+    } catch (e) {
+      SnackbarHelper.error('Error', 'Failed to reset device: $e');
+    } finally {
+      if (mounted) setState(() => _resettingDevice = false);
+    }
   }
 
   Future<void> _loadReceipts() async {
@@ -68,7 +123,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
       await UsersController.instance.setSubscription(
         user,
         'active',
-        plan: result.planKey == 'custom' ? (user.subscriptionPlan ?? 'custom') : result.planKey,
+        plan: result.planKey,
         expiresAt: result.expiresAt,
       );
     } finally {
@@ -197,6 +252,16 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                 onChangePlan: () => _manageSubscription(user, isGranting: false),
                 onRevoke: () => _setStatus('inactive'),
                 onResetUploads: () => _resetUploadCount(user),
+              ),
+              const SizedBox(height: AppSizes.spaceBtwItems),
+
+              // ── 3. Device Management & History Card ───────────────────────
+              _DeviceManagementCard(
+                loading: _loadingDevice,
+                device: _userDevice,
+                history: _deviceHistory,
+                isResetting: _resettingDevice,
+                onResetDevice: _resetDevice,
               ),
               const SizedBox(height: AppSizes.spaceBtwItems),
 
@@ -878,6 +943,290 @@ class _DangerZoneCard extends StatelessWidget {
               ),
             );
           }),
+        ],
+      ),
+    );
+  }
+}
+
+
+// ── Device Management Card ──────────────────────────────────────────────────
+
+class _DeviceManagementCard extends StatelessWidget {
+  const _DeviceManagementCard({
+    required this.loading,
+    required this.device,
+    required this.history,
+    required this.isResetting,
+    required this.onResetDevice,
+  });
+
+  final bool loading;
+  final Map<String, dynamic>? device;
+  final List<Map<String, dynamic>> history;
+  final bool isResetting;
+  final VoidCallback onResetDevice;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
+    final isLocked = device != null && device!['device_id'] != null;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSizes.md),
+      decoration: BoxDecoration(
+        color: dark ? AppColors.darkSurface : AppColors.white,
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.phonelink_lock_rounded, size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              const Text(
+                'Device Lock & Session',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              if (!loading)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: (isLocked ? const Color(0xFF10B981) : const Color(0xFFF59E0B))
+                        .withValues(alpha: dark ? 0.2 : 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: (isLocked ? const Color(0xFF10B981) : const Color(0xFFF59E0B))
+                          .withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Text(
+                    isLocked ? 'LOCKED (1 DEVICE)' : 'READY TO PAIR',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: isLocked ? const Color(0xFF10B981) : const Color(0xFFD97706),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSizes.spaceBtwItems),
+
+          if (loading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else ...[
+            if (isLocked) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: dark ? AppColors.dark : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: dark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.phone_android_rounded, size: 18, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            device!['device_model'] ?? 'Android Phone',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'OS: ${device!['os_version'] ?? 'Android'}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                      ),
+                    ),
+                    if (device!['last_active_at'] != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Last Active: ${DateFormat.yMMMd().add_jm().format(DateTime.parse(device!['last_active_at']))}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Action button to reset
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: isResetting ? null : onResetDevice,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFEF4444),
+                    side: const BorderSide(color: Color(0xFFEF4444)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  icon: isResetting
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFEF4444)),
+                        )
+                      : const Icon(Icons.phonelink_erase_rounded, size: 16),
+                  label: const Text(
+                    'Reset Device Lock (Allow New Phone)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ),
+              ),
+            ] else ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: dark ? 0.1 : 0.06),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFFF59E0B)),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'No device currently locked. The student will bind their next phone automatically upon login.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // ── Device Activity / Audit Trail ──────────────────────────
+            if (history.isNotEmpty) ...[
+              const SizedBox(height: AppSizes.spaceBtwItems),
+              const Text(
+                'Device Audit Trail',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.3),
+              ),
+              const SizedBox(height: 8),
+              ...history.take(5).map((entry) {
+                final action = entry['action']?.toString() ?? '';
+                final isBlocked = action == 'BLOCKED_ATTEMPT';
+                final isReset = action == 'ADMIN_RESET';
+
+                IconData icon;
+                Color color;
+                String label;
+
+                if (isBlocked) {
+                  icon = Icons.block_rounded;
+                  color = const Color(0xFFEF4444);
+                  label = 'Blocked Unauthorized Login';
+                } else if (isReset) {
+                  icon = Icons.lock_open_rounded;
+                  color = const Color(0xFF8B5CF6);
+                  label = 'Device Reset by Admin';
+                } else {
+                  icon = Icons.check_circle_outline_rounded;
+                  color = const Color(0xFF10B981);
+                  label = 'Device Bound';
+                }
+
+                final timeStr = entry['created_at'] != null
+                    ? DateFormat.MMMd().add_jm().format(DateTime.parse(entry['created_at']))
+                    : '';
+                final model = entry['device_model']?.toString();
+                final note = entry['note']?.toString();
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(icon, size: 12, color: color),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  label,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: color,
+                                  ),
+                                ),
+                                Text(
+                                  timeStr,
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (model != null && model.isNotEmpty)
+                              Text(
+                                'Device: $model',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: dark ? AppColors.white : const Color(0xFF1E293B),
+                                ),
+                              ),
+                            if (note != null && note.isNotEmpty)
+                              Text(
+                                note,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic,
+                                  color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ],
         ],
       ),
     );

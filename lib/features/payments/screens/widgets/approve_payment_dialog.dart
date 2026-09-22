@@ -162,8 +162,10 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
   @override
   Widget build(BuildContext context) {
     final finalExpiry = _calculateFinalExpiry();
-    final notifTitle =
-        AdminSubscriptionPlan.buildApprovalNotificationTitle(_selectedPlanKey);
+    final notifTitle = AdminSubscriptionPlan.buildApprovalNotificationTitle(
+      _selectedPlanKey,
+      expiresAt: finalExpiry,
+    );
     final notifBody = AdminSubscriptionPlan.buildApprovalNotificationBody(
       planKey: _selectedPlanKey,
       amount: _currentAmount,
