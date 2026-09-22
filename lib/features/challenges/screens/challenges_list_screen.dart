@@ -42,7 +42,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
       behavior: HitTestBehavior.translucent,
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: AdminScaffold(
-        pageIndex: 5,
+        pageIndex: 6,
         scrollable: false,
         onRefresh: _ctrl.loadAll,
         body: Column(

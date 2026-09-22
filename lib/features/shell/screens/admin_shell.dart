@@ -1,3 +1,4 @@
+import 'package:m_admin/features/content/screens/question_reports_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -157,7 +158,9 @@ class _AdminBottomNavBar extends StatelessWidget {
 
     return Obx(() {
       final currentIdx = nav.selectedIndex.value;
-      final selectedDest = (currentIdx >= 1 && currentIdx <= 5) ? currentIdx - 1 : 0;
+      const bottomNavPages = [1, 2, 3, 4, 6];
+      final matchedIdx = bottomNavPages.indexOf(currentIdx);
+      final selectedDest = matchedIdx >= 0 ? matchedIdx : 0;
 
       return Container(
         decoration: BoxDecoration(
@@ -173,12 +176,12 @@ class _AdminBottomNavBar extends StatelessWidget {
           height: 62,
           elevation: 0,
           backgroundColor: Colors.transparent,
-          indicatorColor: (currentIdx >= 1 && currentIdx <= 5)
+          indicatorColor: matchedIdx >= 0
               ? AppColors.primary.withValues(alpha: 0.16)
               : Colors.transparent,
           selectedIndex: selectedDest,
           onDestinationSelected: (index) {
-            nav.changePage(index + 1);
+            nav.changePage(bottomNavPages[index]);
           },
           destinations: [
             NavigationDestination(
@@ -276,6 +279,7 @@ class _Pages extends StatelessWidget {
           const NotificationsScreen(),
           const UsersScreen(),
           const ContentScreen(),
+          const QuestionReportsScreen(),
           const ChallengesListScreen(),
           const SessionsScreen(),
           const SettingsScreen(),

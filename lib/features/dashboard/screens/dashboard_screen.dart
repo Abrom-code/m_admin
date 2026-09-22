@@ -1,3 +1,5 @@
+import 'package:m_admin/features/content/models/question_report_admin_model.dart';
+import 'package:m_admin/features/content/screens/test_editor_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -63,9 +65,10 @@ class DashboardScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ── 1. Top Header Bar (Clean, Minimal, No Welcome Box) ──
-            _DashboardTopBar(
+            Obx(() => _DashboardTopBar(
               pendingCount: stats.pendingPayments,
-            ),
+              pendingReportsCount: controller.pendingQuestionReportsCount.value,
+            )),
             const SizedBox(height: AppSizes.spaceBtwItems),
 
             // ── 2. Content-Driven KPI Metrics Row ──────────────────
@@ -103,6 +106,8 @@ class DashboardScreen extends StatelessWidget {
                           children: [
                             _RecentReceiptsQueue(rows: stats.recentReceipts),
                             const SizedBox(height: AppSizes.spaceBtwItems),
+                            const _QuestionReportsQueue(),
+                            const SizedBox(height: AppSizes.spaceBtwItems),
                             const FunnelCard(),
                             const SizedBox(height: AppSizes.spaceBtwItems),
                             const PaidUnpaidDonutCard(),
@@ -122,6 +127,8 @@ class DashboardScreen extends StatelessWidget {
                     const SignupChartCard(),
                     const SizedBox(height: AppSizes.spaceBtwItems),
                     _RecentReceiptsQueue(rows: stats.recentReceipts),
+                    const SizedBox(height: AppSizes.spaceBtwItems),
+                    const _QuestionReportsQueue(),
                     const SizedBox(height: AppSizes.spaceBtwItems),
                     const FunnelCard(),
                     const SizedBox(height: AppSizes.spaceBtwItems),
@@ -164,9 +171,11 @@ class DashboardScreen extends StatelessWidget {
 class _DashboardTopBar extends StatelessWidget {
   const _DashboardTopBar({
     required this.pendingCount,
+    this.pendingReportsCount = 0,
   });
 
   final int pendingCount;
+  final int pendingReportsCount;
 
   @override
   Widget build(BuildContext context) {
@@ -213,8 +222,11 @@ class _DashboardTopBar extends StatelessWidget {
           ],
         );
 
-        final actionsRow = pendingCount > 0
-            ? InkWell(
+        final actionsRow = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (pendingCount > 0)
+              InkWell(
                 onTap: () => AdminNavController.instance.changePage(1),
                 borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                 child: Container(
@@ -248,15 +260,54 @@ class _DashboardTopBar extends StatelessWidget {
                     ],
                   ),
                 ),
-              )
-            : const SizedBox.shrink();
+              ),
+            if (pendingCount > 0 && pendingReportsCount > 0)
+              const SizedBox(width: 8),
+            if (pendingReportsCount > 0)
+              InkWell(
+                onTap: () => AdminNavController.instance.changePage(5),
+                borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.12),
+                    borderRadius:
+                        BorderRadius.circular(AppSizes.borderRadiusSm),
+                    border: Border.all(
+                      color: AppColors.error.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Iconsax.flag_copy,
+                        size: 13,
+                        color: AppColors.error,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        '$pendingReportsCount Reports',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
 
         if (isNarrow) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               titleRow,
-              if (pendingCount > 0) ...[
+              if (pendingCount > 0 || pendingReportsCount > 0) ...[
                 const SizedBox(height: 6),
                 actionsRow,
               ],
@@ -938,6 +989,351 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+
+// ── 3b. Question Reports Queue ─────────────────────────────────────────────
+
+class _QuestionReportsQueue extends StatelessWidget {
+  const _QuestionReportsQueue();
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final controller = Get.find<DashboardController>();
+
+    return AdminCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'REPORTED QUESTIONS QUEUE',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.6,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Obx(() {
+                    final p = controller.pendingQuestionReportsCount.value;
+                    if (p <= 0) return const SizedBox.shrink();
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$p',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+              InkWell(
+                onTap: () => AdminNavController.instance.changePage(5),
+                child: const Text(
+                  'View All Reports ➔',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Sorted top-to-bottom by report count. Click "Fixed" to remove from database.',
+            style: TextStyle(
+              fontSize: 10.5,
+              color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSizes.sm),
+          Obx(() {
+            if (controller.isReportsLoading.value && controller.questionReportGroups.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              );
+            }
+
+            final groups = controller.questionReportGroups;
+            if (groups.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSizes.md),
+                child: Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.check_circle_outline_rounded, size: 16, color: AppColors.success),
+                      const SizedBox(width: 6),
+                      Text(
+                        'No pending question reports. All questions in good shape!',
+                        style: TextStyle(
+                          color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: groups.take(4).length,
+              separatorBuilder: (context, index) => Divider(
+                height: 16,
+                color: dark
+                    ? AppColors.darkGrey.withValues(alpha: 0.15)
+                    : AppColors.grey.withValues(alpha: 0.3),
+              ),
+              itemBuilder: (context, i) {
+                final group = groups[i];
+                return _ReportedQuestionItem(
+                  group: group,
+                  controller: controller,
+                  dark: dark,
+                );
+              },
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReportedQuestionItem extends StatelessWidget {
+  const _ReportedQuestionItem({
+    required this.group,
+    required this.controller,
+    required this.dark,
+  });
+
+  final QuestionReportGroupModel group;
+  final DashboardController controller;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = group.reportCount;
+    final isMultiple = count > 1;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Top row: Report count badge + Subject/Test info + Date
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: isMultiple
+                    ? AppColors.error.withValues(alpha: 0.15)
+                    : AppColors.warning.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: isMultiple
+                      ? AppColors.error.withValues(alpha: 0.4)
+                      : AppColors.warning.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Iconsax.flag_copy,
+                    size: 10,
+                    color: isMultiple ? AppColors.error : AppColors.warning,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    count == 1 ? '1 REPORT' : '$count REPORTS',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                      color: isMultiple ? AppColors.error : AppColors.warning,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            if (group.subjectName != null) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  group.subjectName!,
+                  style: const TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Expanded(
+              child: Text(
+                group.testTitle ?? '',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                ),
+              ),
+            ),
+            if (group.latestReportDate != null)
+              Text(
+                DateFormat('d MMM').format(group.latestReportDate!),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        // Question text snippet
+        Text(
+          group.questionText,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: dark ? AppColors.white : AppColors.textPrimary,
+            height: 1.3,
+          ),
+        ),
+        const SizedBox(height: 4),
+
+        // Student reason and comment
+        if (group.reports.isNotEmpty) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${group.primaryReason}: ',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.bold,
+                  color: dark ? Colors.amber[300] : const Color(0xFFB45309),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  group.reports.first.comment != null && group.reports.first.comment!.isNotEmpty
+                      ? '“${group.reports.first.comment}”'
+                      : 'Reported by ${group.reports.first.userName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontStyle: FontStyle.italic,
+                    color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 8),
+
+        // Action buttons: Edit Question + Fixed (Remove from DB)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            if (group.testId != null && group.subjectId != null) ...[
+              OutlinedButton.icon(
+                onPressed: () {
+                  Get.to(() => TestEditorScreen(
+                        subjectId: group.subjectId!,
+                        testId: group.testId,
+                        subjectName: group.subjectName ?? '',
+                      ));
+                },
+                icon: const Icon(Iconsax.edit_2_copy, size: 12),
+                label: const Text('Edit Question', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            ElevatedButton.icon(
+              onPressed: () => _confirmFixAndRemove(context),
+              icon: const Icon(Icons.check_circle_rounded, size: 12),
+              label: const Text('Fixed (Remove)', style: TextStyle(fontSize: 11)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _confirmFixAndRemove(BuildContext context) {
+    final count = group.reportCount;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Question Fixed?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Text(
+          'Marking this question as fixed will permanently remove ${count == 1 ? 'this report' : 'all $count reports for this question'} from the database.',
+          style: const TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              controller.fixAndRemoveQuestionGroup(group);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirm & Remove from DB'),
+          ),
+        ],
       ),
     );
   }

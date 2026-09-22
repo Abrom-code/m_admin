@@ -19,7 +19,7 @@ class QuestionReportsScreen extends StatelessWidget {
     final dark = AppHelperFunctions.isDark(context);
 
     return AdminScaffold(
-      pageIndex: 4,
+      pageIndex: 5,
       onRefresh: () async {
         await controller.loadReports();
         await controller.loadPendingCount();
@@ -28,15 +28,17 @@ class QuestionReportsScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Header Bar ──────────────────────────────────────────
-          _HeaderBar(controller: controller, dark: dark),
-          const SizedBox(height: AppSizes.spaceBtwItems),
+          // ── Header Bar (only if opened as a push route with back button) ──
+          if (Navigator.of(context).canPop()) ...[
+            _HeaderBar(controller: controller, dark: dark),
+            const SizedBox(height: AppSizes.xs),
+          ],
 
           // ── Filter & Search Bar ──────────────────────────────────
           _FilterSearchBar(controller: controller, dark: dark),
           const SizedBox(height: AppSizes.spaceBtwItems),
 
-          // ── Reports List ─────────────────────────────────────────
+          // ── Reports List (One-line questions with report count) ───
           Expanded(
             child: Obx(() {
               if (controller.isLoading.value) {
@@ -65,7 +67,9 @@ class QuestionReportsScreen extends StatelessWidget {
                 );
               }
 
-              if (controller.reports.isEmpty) {
+              final groups = controller.groupedReports;
+
+              if (groups.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -101,12 +105,12 @@ class QuestionReportsScreen extends StatelessWidget {
               }
 
               return ListView.separated(
-                itemCount: controller.reports.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                itemCount: groups.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (ctx, i) {
-                  final report = controller.reports[i];
-                  return _QuestionReportCard(
-                    report: report,
+                  final group = groups[i];
+                  return _QuestionReportRowItem(
+                    group: group,
                     controller: controller,
                     dark: dark,
                   );
@@ -133,50 +137,6 @@ class _HeaderBar extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_rounded, size: 20),
           onPressed: () => Navigator.of(context).maybePop(),
           tooltip: 'Back',
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text(
-                    'Question Reports',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(width: 10),
-                  Obx(() {
-                    final p = controller.pendingCount.value;
-                    if (p <= 0) return const SizedBox.shrink();
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.error,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '$p PENDING',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Review and resolve student error reports on questions and choices.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: dark ? AppColors.darkGrey : AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
         ),
       ],
     );
@@ -241,28 +201,70 @@ class _FilterSearchBar extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // Search Field
-          Container(
-            height: 36,
-            decoration: BoxDecoration(
-              color: dark
-                  ? AppColors.darkGrey.withValues(alpha: 0.3)
-                  : AppColors.grey.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-            ),
-            child: TextField(
-              controller: controller.searchController,
-              onChanged: controller.onSearchChanged,
-              style: const TextStyle(fontSize: 12.5),
-              decoration: const InputDecoration(
-                isDense: true,
-                hintText: 'Search by question, student name, or comment...',
-                hintStyle: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                prefixIcon: Icon(Iconsax.search_normal_copy, size: 16, color: AppColors.textSecondary),
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          // Search Field + Sort Controls
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: dark
+                        ? AppColors.darkGrey.withValues(alpha: 0.3)
+                        : AppColors.grey.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                  ),
+                  child: TextField(
+                    controller: controller.searchController,
+                    onChanged: controller.onSearchChanged,
+                    style: const TextStyle(fontSize: 12.5),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      hintText: 'Search by question, student name, or comment...',
+                      hintStyle: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      prefixIcon: Icon(Iconsax.search_normal_copy, size: 16, color: AppColors.textSecondary),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+
+              // Sort Dropdown (Top-to-Bottom by Report Count)
+              Obx(() => Container(
+                    height: 36,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: dark ? AppColors.darkSurface : AppColors.white,
+                      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: controller.sortBy.value,
+                        isDense: true,
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'count_desc',
+                            child: Text('Most Reported (Top)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          ),
+                          DropdownMenuItem(
+                            value: 'date_desc',
+                            child: Text('Newest First', style: TextStyle(fontSize: 12)),
+                          ),
+                          DropdownMenuItem(
+                            value: 'date_asc',
+                            child: Text('Oldest First', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) controller.changeSortBy(v);
+                        },
+                      ),
+                    ),
+                  )),
+            ],
           ),
         ],
       ),
@@ -318,10 +320,10 @@ class _StatusTab extends StatelessWidget {
                 ),
                 child: Text(
                   '$count',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.white : Colors.white,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -333,19 +335,613 @@ class _StatusTab extends StatelessWidget {
   }
 }
 
-class _QuestionReportCard extends StatelessWidget {
-  const _QuestionReportCard({
-    required this.report,
+/// ── One-Line Question Row: Question Text + Number of Reports ──
+class _QuestionReportRowItem extends StatelessWidget {
+  const _QuestionReportRowItem({
+    required this.group,
     required this.controller,
     required this.dark,
   });
 
-  final QuestionReportAdminModel report;
+  final QuestionReportGroupModel group;
   final QuestionReportsController controller;
   final bool dark;
 
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
+    final count = group.reportCount;
+    final isMultiple = count > 1;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: dark ? AppColors.darkSurface : AppColors.white,
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(
+          color: isMultiple
+              ? (dark ? AppColors.error.withValues(alpha: 0.45) : AppColors.error.withValues(alpha: 0.28))
+              : borderColor,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: dark ? 0.15 : 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showDetailDialog(context),
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                // Subject Tag
+                if (group.subjectName != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      group.subjectName!,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+
+                // Question Text (Strictly 1 line with ellipsis)
+                Expanded(
+                  child: Text(
+                    group.questionText.replaceAll(RegExp(r'\s+'), ' ').trim(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: dark ? AppColors.white : const Color(0xFF1E293B),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Number of reports in the line
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isMultiple
+                        ? AppColors.error.withValues(alpha: 0.12)
+                        : AppColors.warning.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isMultiple
+                          ? AppColors.error.withValues(alpha: 0.3)
+                          : AppColors.warning.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Iconsax.flag_copy,
+                        size: 11,
+                        color: isMultiple ? AppColors.error : AppColors.warning,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        count == 1 ? '1 Report' : '$count Reports',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isMultiple ? AppColors.error : AppColors.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+
+                // Click hint arrow
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 12,
+                  color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDetailDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _QuestionReportDetailDialog(
+        group: group,
+        controller: controller,
+        dark: dark,
+      ),
+    );
+  }
+}
+
+/// ── Full Detail Modal: Triggered upon clicking any question ──
+class _QuestionReportDetailDialog extends StatelessWidget {
+  const _QuestionReportDetailDialog({
+    required this.group,
+    required this.controller,
+    required this.dark,
+  });
+
+  final QuestionReportGroupModel group;
+  final QuestionReportsController controller;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = group.reportCount;
+    final isMultiple = count > 1;
+
+    final hasEn = group.explanationEn != null && group.explanationEn!.trim().isNotEmpty;
+    final hasAm = group.explanationAm != null && group.explanationAm!.trim().isNotEmpty;
+    final fallbackExpl = group.explanation != null && group.explanation!.trim().isNotEmpty;
+
+    return Dialog(
+      backgroundColor: dark ? AppColors.darkCard : AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
+      ),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxWidth: 680, maxHeight: 820),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Dialog Header (Overflow-Proof with Wrap) ──────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isMultiple
+                                ? AppColors.error.withValues(alpha: 0.15)
+                                : AppColors.warning.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Iconsax.flag_copy,
+                                size: 12,
+                                color: isMultiple ? AppColors.error : AppColors.warning,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                count == 1 ? '1 STUDENT REPORT' : '$count STUDENT REPORTS',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: isMultiple ? AppColors.error : AppColors.warning,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (group.subjectName != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              group.subjectName!,
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        if (group.testTitle != null)
+                          Text(
+                            group.testTitle!,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    tooltip: 'Close',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+
+            // ── Scrollable Body ───────────────────────────────────
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Question text
+                    const Text(
+                      'QUESTION',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      group.questionText,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.4),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Choices
+                    if (group.choiceA != null) ...[
+                      const Text(
+                        'ANSWER CHOICES',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      _ChoicePreviewRow(letter: 'A', text: group.choiceA!, isCorrect: group.correctChoice == 'A', dark: dark),
+                      _ChoicePreviewRow(letter: 'B', text: group.choiceB!, isCorrect: group.correctChoice == 'B', dark: dark),
+                      if (group.choiceC != null)
+                        _ChoicePreviewRow(letter: 'C', text: group.choiceC!, isCorrect: group.correctChoice == 'C', dark: dark),
+                      if (group.choiceD != null)
+                        _ChoicePreviewRow(letter: 'D', text: group.choiceD!, isCorrect: group.correctChoice == 'D', dark: dark),
+                      const SizedBox(height: 14),
+                    ],
+
+                    // ── Both Explanations (EN & AM) ──────────────────────
+                    if (hasEn || hasAm || fallbackExpl) ...[
+                      const Text(
+                        'EXPLANATIONS',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+
+                      // English Explanation Card
+                      if (hasEn)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: dark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: dark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'EN',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  const Text(
+                                    'English Explanation',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                group.explanationEn!,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  height: 1.4,
+                                  color: dark ? AppColors.white : const Color(0xFF1E293B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // Amharic Explanation Card
+                      if (hasAm)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: dark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: dark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.success.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'አማ',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.success,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  const Text(
+                                    'Amharic Explanation',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                group.explanationAm!,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  height: 1.4,
+                                  color: dark ? AppColors.white : const Color(0xFF1E293B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // Fallback single explanation if neither specific was set
+                      if (!hasEn && !hasAm && fallbackExpl)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: dark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: dark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Text(
+                            group.explanation!,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              height: 1.4,
+                              color: dark ? AppColors.white : const Color(0xFF1E293B),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                    ],
+
+                    // Student Reports
+                    const Text(
+                      'STUDENT FEEDBACK & COMMENTS',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...group.reports.map((report) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: dark ? AppColors.darkSurface : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: dark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    _ReasonBadge(reason: report.reason, label: report.reasonLabel),
+                                    Text(
+                                      report.userName.isNotEmpty && report.userName != 'Anonymous Student'
+                                          ? '${report.userName} (${report.userEmail})'
+                                          : report.userEmail,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: dark ? AppColors.white : const Color(0xFF334155),
+                                      ),
+                                    ),
+                                    if (report.createdAt != null)
+                                      Text(
+                                        '• ${DateFormat('d MMM, HH:mm').format(report.createdAt!)}',
+                                        style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                      ),
+                                  ],
+                                ),
+                                if (report.comment != null && report.comment!.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '“${report.comment}”',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontStyle: FontStyle.italic,
+                                      color: dark ? Colors.amber[200] : const Color(0xFF92400E),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        )),
+                  ],
+                ),
+              ),
+            ),
+
+            const Divider(height: 1),
+
+            // ── Dialog Footer Actions (Wrap to avoid overflow) ────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                  if (group.testId != null && group.subjectId != null)
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Get.to(() => TestEditorScreen(
+                              subjectId: group.subjectId!,
+                              testId: group.testId,
+                              subjectName: group.subjectName ?? '',
+                            ));
+                      },
+                      icon: const Icon(Iconsax.edit_2_copy, size: 14),
+                      label: const Text('Edit in Test Editor', style: TextStyle(fontSize: 12)),
+                    ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _confirmFixAndRemove(context);
+                    },
+                    icon: const Icon(Icons.check_circle_rounded, size: 14),
+                    label: Text(
+                      count > 1 ? 'Fixed (Remove $count from DB)' : 'Fixed (Remove from DB)',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmFixAndRemove(BuildContext context) {
+    final count = group.reportCount;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Question Fixed & Ready to Remove?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Text(
+          'Marking this question as fixed will permanently remove ${count == 1 ? 'this student report' : 'all $count student reports for this question'} from the database.',
+          style: const TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              controller.fixAndRemoveQuestionGroup(group);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, foregroundColor: Colors.white),
+            child: const Text('Confirm & Delete from DB'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReasonBadge extends StatelessWidget {
+  const _ReasonBadge({required this.reason, required this.label});
+  final String reason;
+  final String label;
+
   Color _reasonColor() {
-    switch (report.reason) {
+    switch (reason) {
       case 'wrong_answer':
         return AppColors.error;
       case 'typo':
@@ -363,274 +959,16 @@ class _QuestionReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
     final rColor = _reasonColor();
-
     return Container(
-      padding: const EdgeInsets.all(AppSizes.md),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: dark ? AppColors.darkSurface : AppColors.white,
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: dark ? 0.2 : 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: rColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Top Header Row ──────────────────────────────────────
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: rColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  report.reasonLabel.toUpperCase(),
-                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: rColor),
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (report.subjectName != null) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    report.subjectName!,
-                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppColors.primary),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-              const Spacer(),
-              if (report.createdAt != null)
-                Text(
-                  DateFormat('d MMM yyyy · HH:mm').format(report.createdAt!),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: dark ? AppColors.darkGrey : AppColors.textSecondary,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // ── Student Feedback / Comment Box ──────────────────────
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: dark ? AppColors.darkSurface : const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: dark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Iconsax.user_copy, size: 14, color: dark ? AppColors.darkGrey : AppColors.textSecondary),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Reported by: ${report.userName} (${report.userEmail})',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: dark ? AppColors.darkGrey : AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-                if (report.comment != null && report.comment!.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    '“${report.comment}”',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontStyle: FontStyle.italic,
-                      fontWeight: FontWeight.w500,
-                      color: dark ? Colors.amber[200] : const Color(0xFF92400E),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // ── Question Preview ────────────────────────────────────
-          Text(
-            report.testTitle != null ? 'Test: ${report.testTitle}' : 'Question Preview:',
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            report.questionText,
-            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, height: 1.4),
-          ),
-          const SizedBox(height: 10),
-
-          // Choices Preview
-          if (report.choiceA != null) ...[
-            _ChoicePreviewRow(letter: 'A', text: report.choiceA!, isCorrect: report.correctChoice == 'A', dark: dark),
-            _ChoicePreviewRow(letter: 'B', text: report.choiceB!, isCorrect: report.correctChoice == 'B', dark: dark),
-            if (report.choiceC != null)
-              _ChoicePreviewRow(letter: 'C', text: report.choiceC!, isCorrect: report.correctChoice == 'C', dark: dark),
-            if (report.choiceD != null)
-              _ChoicePreviewRow(letter: 'D', text: report.choiceD!, isCorrect: report.correctChoice == 'D', dark: dark),
-            const SizedBox(height: 8),
-          ],
-
-          if (report.explanation != null && report.explanation!.isNotEmpty) ...[
-            Text(
-              'Explanation: ${report.explanation}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 11.5, color: dark ? AppColors.darkGrey : AppColors.textSecondary),
-            ),
-            const SizedBox(height: 12),
-          ],
-
-          // ── Resolution Notes if already resolved ────────────────
-          if (!report.isPending && report.adminNotes != null && report.adminNotes!.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: (report.isResolved ? AppColors.success : AppColors.darkGrey).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                'Admin Note: ${report.adminNotes}',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w500,
-                  color: report.isResolved ? AppColors.success : AppColors.textSecondary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-
-          // ── Actions Row ─────────────────────────────────────────
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (report.testId != null && report.subjectId != null) ...[
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Get.to(() => TestEditorScreen(
-                          subjectId: report.subjectId!,
-                          testId: report.testId,
-                          subjectName: report.subjectName ?? '',
-                        ));
-                  },
-                  icon: const Icon(Iconsax.edit_2_copy, size: 14),
-                  label: const Text('Edit Test Questions', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-              if (report.isPending) ...[
-                OutlinedButton(
-                  onPressed: () => _showActionDialog(
-                    context,
-                    title: 'Dismiss Report?',
-                    confirmLabel: 'Dismiss',
-                    confirmColor: AppColors.darkGrey,
-                    onConfirm: (note) => controller.dismissReport(report, notes: note),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textSecondary,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  child: const Text('Dismiss', style: TextStyle(fontSize: 12)),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: () => _showActionDialog(
-                    context,
-                    title: 'Resolve Question Report?',
-                    confirmLabel: 'Mark Resolved',
-                    confirmColor: AppColors.success,
-                    onConfirm: (note) => controller.resolveReport(report, notes: note),
-                  ),
-                  icon: const Icon(Icons.check_circle_rounded, size: 14),
-                  label: const Text('Resolve', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showActionDialog(
-    BuildContext context, {
-    required String title,
-    required String confirmLabel,
-    required Color confirmColor,
-    required ValueChanged<String?> onConfirm,
-  }) {
-    final noteCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Add optional notes explaining what was fixed or why it was dismissed:',
-              style: TextStyle(fontSize: 12.5),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: noteCtrl,
-              maxLines: 2,
-              style: const TextStyle(fontSize: 13),
-              decoration: const InputDecoration(
-                hintText: 'e.g. Corrected choice B in question editor',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              onConfirm(noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim());
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: confirmColor, foregroundColor: Colors.white),
-            child: Text(confirmLabel),
-          ),
-        ],
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: rColor),
       ),
     );
   }
@@ -652,8 +990,9 @@ class _ChoicePreviewRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 2.5),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 20,

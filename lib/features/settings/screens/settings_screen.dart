@@ -277,7 +277,7 @@ class SettingsScreen extends StatelessWidget {
     final controller = Get.put(SettingsController());
 
     return AdminScaffold(
-      pageIndex: 6,
+      pageIndex: 8,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

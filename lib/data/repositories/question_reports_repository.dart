@@ -18,13 +18,11 @@ class QuestionReportsRepository {
         reason, comment, status, admin_notes, created_at, resolved_at, resolved_by,
         users(first_name, last_name, full_name, email),
         questions(
-          id, test_id, question_text, choice_a, choice_b, choice_c, choice_d,
-          correct_choice, explanation,
+          id, test_id, question_text, options, correct_option_index, explanation_en, explanation_am,
           tests(id, title, subject_id, subjects(id, name))
         ),
         challenge_questions(
-          id, question_text, choice_a, choice_b, choice_c, choice_d,
-          correct_choice, explanation, challenge_id
+          id, question_text, choices, correct_choice, explanation, explanation_en, explanation_am, challenge_id
         )
       ''');
 
@@ -92,6 +90,41 @@ class QuestionReportsRepository {
           })
           .eq('id', reportId)
           .timeout(const Duration(seconds: 15));
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  Future<void> deleteReport(String reportId) async {
+    try {
+      await _sb
+          .from('question_reports')
+          .delete()
+          .eq('id', reportId)
+          .timeout(const Duration(seconds: 15));
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  Future<void> deleteReportsForQuestion({
+    int? questionId,
+    String? challengeQuestionId,
+  }) async {
+    try {
+      if (questionId != null) {
+        await _sb
+            .from('question_reports')
+            .delete()
+            .eq('question_id', questionId)
+            .timeout(const Duration(seconds: 15));
+      } else if (challengeQuestionId != null) {
+        await _sb
+            .from('question_reports')
+            .delete()
+            .eq('challenge_question_id', challengeQuestionId)
+            .timeout(const Duration(seconds: 15));
+      }
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }

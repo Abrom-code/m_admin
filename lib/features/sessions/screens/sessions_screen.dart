@@ -186,7 +186,7 @@ class SessionsScreen extends StatelessWidget {
     final controller = Get.put(SessionsController());
 
     return AdminScaffold(
-      pageIndex: 5,
+      pageIndex: 7,
       onRefresh: controller.load,
       scrollable: false,
       body: Column(
