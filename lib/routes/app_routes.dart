@@ -11,6 +11,7 @@ import 'package:m_admin/features/challenges/screens/subject_challenges_screen.da
 import 'package:m_admin/features/content/screens/content_screen.dart';
 import 'package:m_admin/features/content/screens/subject_tests_screen.dart';
 import 'package:m_admin/features/content/screens/test_editor_screen.dart';
+import 'package:m_admin/features/content/screens/question_reports_screen.dart';
 import 'package:m_admin/features/dashboard/screens/dashboard_screen.dart';
 import 'package:m_admin/features/notifications/screens/notifications_screen.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
@@ -147,6 +148,11 @@ class AdminAppRoutes {
           subjectName: args['subject_name']?.toString() ?? '',
         );
       },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.questionReports,
+      page: () => const QuestionReportsScreen(),
       middlewares: [AdminAuthMiddleware()],
     ),
     GetPage(
