@@ -34,6 +34,14 @@ class AdminRoutes {
   static const challengeScheduler = '/challenges/scheduler';
   static const challengeLeaderboard = '/challenges/leaderboard';
 
+  static const notes = '/notes';
+  static const noteEditor = '/notes/editor';
+
+  static const pilotExams = '/pilot-exams';
+  static const pilotExamEditor = '/pilot-exams/editor';
+
+  static const auditLog = '/audit-log';
+
   static const sessions = '/sessions';
   static const settings = '/settings';
 }

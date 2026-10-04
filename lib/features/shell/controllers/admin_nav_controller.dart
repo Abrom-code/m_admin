@@ -48,6 +48,8 @@ class AdminNavController extends GetxController {
     ),
     AdminNavItem(label: 'Users', icon: Iconsax.people_copy),
     AdminNavItem(label: 'Content', icon: Iconsax.book_copy),
+    AdminNavItem(label: 'Notes', icon: Iconsax.document_copy),
+    AdminNavItem(label: 'Pilot Exams', icon: Iconsax.award_copy),
     AdminNavItem(
       label: 'Reported Questions',
       icon: Iconsax.flag_copy,
@@ -55,6 +57,11 @@ class AdminNavController extends GetxController {
     ),
     AdminNavItem(label: 'Challenges', icon: Iconsax.cup_copy),
     AdminNavItem(label: 'Sessions', icon: Iconsax.mobile_copy),
+    AdminNavItem(
+      label: 'Audit Log',
+      icon: Iconsax.document_text_1_copy,
+      superAdminOnly: true,
+    ),
     AdminNavItem(label: 'Settings', icon: Iconsax.setting_2_copy),
   ];
 

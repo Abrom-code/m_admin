@@ -9,6 +9,7 @@ import 'package:m_admin/features/challenges/screens/challenge_scheduler_screen.d
 import 'package:m_admin/features/challenges/screens/challenges_list_screen.dart';
 import 'package:m_admin/features/challenges/screens/subject_challenges_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
+import 'package:m_admin/features/content/screens/subject_chapters_screen.dart';
 import 'package:m_admin/features/content/screens/subject_tests_screen.dart';
 import 'package:m_admin/features/content/screens/test_editor_screen.dart';
 import 'package:m_admin/features/content/screens/question_reports_screen.dart';
@@ -23,6 +24,15 @@ import 'package:m_admin/features/shell/screens/admin_shell.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
 import 'package:m_admin/features/users/screens/user_detail_screen.dart';
 import 'package:m_admin/features/users/screens/users_screen.dart';
+import 'package:m_admin/features/audit_log/screens/audit_log_screen.dart';
+import 'package:m_admin/features/notes/models/admin_note_model.dart';
+import 'package:m_admin/features/notes/screens/note_editor_screen.dart';
+import 'package:m_admin/features/notes/screens/notes_screen.dart';
+import 'package:m_admin/features/notifications/controllers/notifications_controller.dart';
+import 'package:m_admin/features/notifications/screens/notification_compose_screen.dart';
+import 'package:m_admin/features/pilot_exams/models/admin_pilot_exam_model.dart';
+import 'package:m_admin/features/pilot_exams/screens/pilot_exam_editor_screen.dart';
+import 'package:m_admin/features/pilot_exams/screens/pilot_exams_screen.dart';
 import 'package:m_admin/routes/admin_middleware.dart';
 import 'package:m_admin/routes/routes.dart';
 
@@ -84,10 +94,12 @@ class AdminAppRoutes {
     ),
     GetPage(
       name: AdminRoutes.notificationCompose,
-      page: () => const PlaceholderScreen(
-        title: 'Compose',
-        phase: 'Use dialog/sheet from NotificationsScreen',
-      ),
+      page: () {
+        final ctrl = Get.isRegistered<NotificationsController>()
+            ? Get.find<NotificationsController>()
+            : Get.put(NotificationsController());
+        return NotificationComposeScreen(controller: ctrl);
+      },
       middlewares: [AdminAuthMiddleware()],
     ),
     GetPage(
@@ -134,8 +146,17 @@ class AdminAppRoutes {
     ),
     GetPage(
       name: AdminRoutes.contentChapter,
-      page: () =>
-          const PlaceholderScreen(title: 'Chapter', phase: 'Phase 10'),
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>? ?? {};
+        final subject = args['subject'] as SubjectRow?;
+        if (subject == null) {
+          return const PlaceholderScreen(
+            title: 'Chapters',
+            phase: 'Missing subject argument',
+          );
+        }
+        return SubjectChaptersScreen(subject: subject);
+      },
       middlewares: [AdminAuthMiddleware()],
     ),
     GetPage(
@@ -219,6 +240,45 @@ class AdminAppRoutes {
           challengeTitle: args['title']?.toString(),
         );
       },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+
+    // ── Notes ──────────────────────────────────────────────────────────
+    GetPage(
+      name: AdminRoutes.notes,
+      page: () => const NotesScreen(),
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.noteEditor,
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>? ?? {};
+        final note = args['note'] as AdminNoteModel?;
+        return NoteEditorScreen(note: note);
+      },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+
+    // ── Pilot Exams ────────────────────────────────────────────────────
+    GetPage(
+      name: AdminRoutes.pilotExams,
+      page: () => const PilotExamsScreen(),
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.pilotExamEditor,
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>? ?? {};
+        final exam = args['exam'] as AdminPilotExamModel?;
+        return PilotExamEditorScreen(exam: exam);
+      },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+
+    // ── Audit Log ──────────────────────────────────────────────────────
+    GetPage(
+      name: AdminRoutes.auditLog,
+      page: () => const AuditLogScreen(),
       middlewares: [AdminAuthMiddleware()],
     ),
 

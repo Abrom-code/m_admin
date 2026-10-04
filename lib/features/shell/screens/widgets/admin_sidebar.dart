@@ -55,8 +55,11 @@ class AdminSidebar extends StatelessWidget {
                 itemCount: AdminNavController.items.length,
                 itemBuilder: (context, index) {
                   final item = AdminNavController.items[index];
-                  return Obx(
-                    () => _SidebarItem(
+                  return Obx(() {
+                    if (item.superAdminOnly && !AdminSessionService.instance.isSuperAdmin) {
+                      return const SizedBox.shrink();
+                    }
+                    return _SidebarItem(
                       item: item,
                       selected: nav.selectedIndex.value == index,
                       badgeCount: nav.badgeFor(item.badgeSource),
@@ -64,8 +67,8 @@ class AdminSidebar extends StatelessWidget {
                         nav.changePage(index);
                         onNavigate?.call();
                       },
-                    ),
-                  );
+                    );
+                  });
                 },
               ),
             ),

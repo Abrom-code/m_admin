@@ -4,11 +4,14 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
+import 'package:m_admin/features/audit_log/screens/audit_log_screen.dart';
 import 'package:m_admin/features/challenges/screens/challenges_list_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
 import 'package:m_admin/features/dashboard/screens/dashboard_screen.dart';
+import 'package:m_admin/features/notes/screens/notes_screen.dart';
 import 'package:m_admin/features/notifications/screens/notifications_screen.dart';
 import 'package:m_admin/features/payments/screens/payments_screen.dart';
+import 'package:m_admin/features/pilot_exams/screens/pilot_exams_screen.dart';
 import 'package:m_admin/features/sessions/screens/sessions_screen.dart';
 import 'package:m_admin/features/settings/screens/settings_screen.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
@@ -158,7 +161,7 @@ class _AdminBottomNavBar extends StatelessWidget {
 
     return Obx(() {
       final currentIdx = nav.selectedIndex.value;
-      const bottomNavPages = [1, 2, 3, 4, 6];
+      const bottomNavPages = [1, 2, 3, 4, 8];
       final matchedIdx = bottomNavPages.indexOf(currentIdx);
       final selectedDest = matchedIdx >= 0 ? matchedIdx : 0;
 
@@ -279,9 +282,12 @@ class _Pages extends StatelessWidget {
           const NotificationsScreen(),
           const UsersScreen(),
           const ContentScreen(),
+          const NotesScreen(),
+          const PilotExamsScreen(),
           const QuestionReportsScreen(),
           const ChallengesListScreen(),
           const SessionsScreen(),
+          const AuditLogScreen(),
           const SettingsScreen(),
         ],
       ),
