@@ -76,18 +76,19 @@ class SettingsController extends GetxController {
   // Payment config – 3 official built-in methods (matching student app)
   final isSavingPayment = false.obs;
   final telebirr = TextEditingController(text: '0960586811');
-  final telebirrHolder = TextEditingController(text: 'Abham Teramed');
+  final telebirrHolder = TextEditingController(text: 'Abrham Teramed');
   final cbeBirr = TextEditingController(text: '1000435011237');
-  final cbeBirrHolder = TextEditingController(text: 'Abham Teramed');
+  final cbeBirrHolder = TextEditingController(text: 'Abrham Teramed');
   final abyssinia = TextEditingController(text: '165093089');
-  final abyssiniaHolder = TextEditingController(text: 'Abham Teramed');
+  final abyssiniaHolder = TextEditingController(text: 'Abrham Teramed');
 
   // Extra accounts
   final extraAccounts = <ExtraPaymentAccount>[].obs;
 
   // Webhook
   final isSavingWebhook = false.obs;
-  final webhookSecret = TextEditingController();
+  final webhookSecret = TextEditingController(
+      text: 'c00133849321c6b406e2dba06da9a8876b906fa10253277c005a1b6f00bff4ab');
   final showSecret = false.obs;
 
   // App config & Subscription plan pricing (Single 1-year 200 ETB plan)
@@ -97,11 +98,10 @@ class SettingsController extends GetxController {
       TextEditingController(text: 'https://t.me/matericetbot');
   final telegramChannelLink =
       TextEditingController(text: 'https://t.me/MatricET');
-  final shareLink = TextEditingController(
-      text: 'https://play.google.com/store/apps/details?id=com.abopia.matricet');
+  final shareLink = TextEditingController(text: 'https://t.me/matricet');
   final supportEmail = TextEditingController(text: 'abopiatech@gmail.com');
-  final privacyPolicyUrl = TextEditingController(
-      text: 'https://abopia.github.io/matricmate/privacy_policy.html');
+  final privacyPolicyUrl =
+      TextEditingController(text: 'https://matricet-privacy.vercel.app/');
 
   @override
   void onInit() {
@@ -177,44 +177,67 @@ class SettingsController extends GetxController {
       for (final row in rows) {
         final key = row['key']?.toString() ?? '';
         final value = row['value']?.toString() ?? '';
-        cfg[key] = value;
-        switch (key) {
-          case 'payment_cbe_birr':
-          case 'payment_cbe':
-            if (value.isNotEmpty) cbeBirr.text = value;
-          case 'payment_cbe_birr_holder':
-            if (value.isNotEmpty) cbeBirrHolder.text = value;
-          case 'payment_telebirr':
-            if (value.isNotEmpty) telebirr.text = value;
-          case 'payment_telebirr_holder':
-            if (value.isNotEmpty) telebirrHolder.text = value;
-          case 'payment_abyssinia':
-            if (value.isNotEmpty) abyssinia.text = value;
-          case 'payment_abyssinia_holder':
-            if (value.isNotEmpty) abyssiniaHolder.text = value;
-          case 'webhook_secret':
-            webhookSecret.text = value;
-          case 'subscription_price':
-          case 'plan_price_1_year':
-          case 'price_1_year':
-            if (value.isNotEmpty) planPrice1Year.text = value;
-          case 'telegram_support_link':
-          case 'telegram_link':
-            if (value.isNotEmpty) telegramSupportLink.text = value;
-          case 'telegram_channel_link':
-          case 'telegram_community_link':
-            if (value.isNotEmpty) telegramChannelLink.text = value;
-          case 'share_link':
-            if (value.isNotEmpty) shareLink.text = value;
-          case 'support_email':
-            if (value.isNotEmpty) supportEmail.text = value;
-          case 'privacy_policy_url':
-            if (value.isNotEmpty) privacyPolicyUrl.text = value;
-          case 'payment_extra_accounts':
-            _parseExtraAccounts(value);
-        }
+        if (key.isNotEmpty) cfg[key] = value;
       }
 
+      // Accounts & Holders loaded directly from Supabase app_config
+      if (cfg['payment_telebirr']?.isNotEmpty == true) {
+        telebirr.text = cfg['payment_telebirr']!;
+      }
+      if (cfg['payment_telebirr_holder']?.isNotEmpty == true) {
+        telebirrHolder.text = cfg['payment_telebirr_holder']!;
+      }
+
+      final cbeAcc = cfg['payment_cbe_birr'] ?? cfg['payment_cbe'];
+      if (cbeAcc != null && cbeAcc.isNotEmpty) {
+        cbeBirr.text = cbeAcc;
+      }
+      if (cfg['payment_cbe_birr_holder']?.isNotEmpty == true) {
+        cbeBirrHolder.text = cfg['payment_cbe_birr_holder']!;
+      }
+
+      if (cfg['payment_abyssinia']?.isNotEmpty == true) {
+        abyssinia.text = cfg['payment_abyssinia']!;
+      }
+      if (cfg['payment_abyssinia_holder']?.isNotEmpty == true) {
+        abyssiniaHolder.text = cfg['payment_abyssinia_holder']!;
+      }
+
+      if (cfg['webhook_secret']?.isNotEmpty == true) {
+        webhookSecret.text = cfg['webhook_secret']!;
+      }
+
+      // Subscription price (1-year plan priority, fallback subscription_price)
+      final price = cfg['plan_price_1_year'] ??
+          cfg['price_1_year'] ??
+          cfg['subscription_price'];
+      if (price != null && price.isNotEmpty) {
+        planPrice1Year.text = price;
+      }
+
+      // Official links from Supabase
+      final supLink = cfg['telegram_support_link'] ?? cfg['telegram_link'];
+      if (supLink != null && supLink.isNotEmpty) {
+        telegramSupportLink.text = supLink;
+      }
+
+      final chanLink =
+          cfg['telegram_channel_link'] ?? cfg['telegram_community_link'];
+      if (chanLink != null && chanLink.isNotEmpty) {
+        telegramChannelLink.text = chanLink;
+      }
+
+      if (cfg['share_link']?.isNotEmpty == true) {
+        shareLink.text = cfg['share_link']!;
+      }
+      if (cfg['support_email']?.isNotEmpty == true) {
+        supportEmail.text = cfg['support_email']!;
+      }
+      if (cfg['privacy_policy_url']?.isNotEmpty == true) {
+        privacyPolicyUrl.text = cfg['privacy_policy_url']!;
+      }
+
+      _parseExtraAccounts(cfg['payment_extra_accounts'] ?? '');
       PaymentMethodInfo.loadFromConfig(cfg);
     } catch (e) {
       SnackbarHelper.error('Load error', AppExceptionHandler.handle(e).message);
@@ -242,19 +265,19 @@ class SettingsController extends GetxController {
             : '0960586811',
         'payment_telebirr_holder': telebirrHolder.text.trim().isNotEmpty
             ? telebirrHolder.text.trim()
-            : 'Abham Teramed',
+            : 'Abrham Teramed',
         'payment_cbe_birr': cbeBirr.text.trim().isNotEmpty
             ? cbeBirr.text.trim()
             : '1000435011237',
         'payment_cbe_birr_holder': cbeBirrHolder.text.trim().isNotEmpty
             ? cbeBirrHolder.text.trim()
-            : 'Abham Teramed',
+            : 'Abrham Teramed',
         'payment_abyssinia': abyssinia.text.trim().isNotEmpty
             ? abyssinia.text.trim()
             : '165093089',
         'payment_abyssinia_holder': abyssiniaHolder.text.trim().isNotEmpty
             ? abyssiniaHolder.text.trim()
-            : 'Abham Teramed',
+            : 'Abrham Teramed',
         'payment_extra_accounts':
             jsonEncode(extraAccounts.map((e) => e.toJson()).toList()),
       });
@@ -1173,7 +1196,7 @@ class _BuiltInMethodRow extends StatelessWidget {
                 style: const TextStyle(fontSize: 12.5),
                 decoration: const InputDecoration(
                   labelText: 'Beneficiary Holder Name',
-                  hintText: 'e.g. Abham Teramed',
+                  hintText: 'e.g. Abrham Teramed',
                   isDense: true,
                   prefixIcon: Icon(Iconsax.user_copy, size: 15),
                 ),
