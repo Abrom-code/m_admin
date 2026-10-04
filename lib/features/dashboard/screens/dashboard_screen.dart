@@ -1090,11 +1090,14 @@ class _QuestionReportsQueue extends StatelessWidget {
                     children: [
                       const Icon(Icons.check_circle_outline_rounded, size: 16, color: AppColors.success),
                       const SizedBox(width: 6),
-                      Text(
-                        'No pending question reports. All questions in good shape!',
-                        style: TextStyle(
-                          color: dark ? AppColors.darkGrey : AppColors.textSecondary,
-                          fontSize: 12,
+                      Flexible(
+                        child: Text(
+                          'No pending question reports. All questions in good shape!',
+                          style: TextStyle(
+                            color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     ],
