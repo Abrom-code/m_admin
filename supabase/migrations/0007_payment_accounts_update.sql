@@ -8,10 +8,10 @@ WHERE key = 'payment_awash';
 
 INSERT INTO public.app_config (key, value)
 VALUES
-  ('payment_cbe_birr_holder', 'Beshasha Desmon'),
-  ('payment_telebirr_holder', 'Beshasha Desmon'),
-  ('payment_abyssinia_holder', 'Beshasha Desmon'),
-  ('payment_mpesa_holder', 'Beshasha Desmon')
+  ('payment_cbe_birr_holder', 'Abham Teramed'),
+  ('payment_telebirr_holder', 'Abham Teramed'),
+  ('payment_abyssinia_holder', 'Abham Teramed'),
+  ('payment_mpesa_holder', 'Abham Teramed')
 ON CONFLICT (key) DO NOTHING;
 
 -- ── Add payment_extra_accounts for dynamic additional accounts ─────────

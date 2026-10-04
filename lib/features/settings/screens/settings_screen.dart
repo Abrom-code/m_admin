@@ -76,11 +76,11 @@ class SettingsController extends GetxController {
   // Payment config – 3 official built-in methods (matching student app)
   final isSavingPayment = false.obs;
   final telebirr = TextEditingController(text: '0960586811');
-  final telebirrHolder = TextEditingController(text: 'Beshasha Desmon');
+  final telebirrHolder = TextEditingController(text: 'Abham Teramed');
   final cbeBirr = TextEditingController(text: '1000435011237');
-  final cbeBirrHolder = TextEditingController(text: 'Beshasha Desmon');
+  final cbeBirrHolder = TextEditingController(text: 'Abham Teramed');
   final abyssinia = TextEditingController(text: '165093089');
-  final abyssiniaHolder = TextEditingController(text: 'Beshasha Desmon');
+  final abyssiniaHolder = TextEditingController(text: 'Abham Teramed');
 
   // Extra accounts
   final extraAccounts = <ExtraPaymentAccount>[].obs;
@@ -92,7 +92,6 @@ class SettingsController extends GetxController {
 
   // App config & Subscription plan pricing (Single 1-year 200 ETB plan)
   final isSavingApp = false.obs;
-  final trialCount = TextEditingController(text: '5');
   final planPrice1Year = TextEditingController(text: '200');
   final telegramSupportLink =
       TextEditingController(text: 'https://t.me/matericetbot');
@@ -120,7 +119,6 @@ class SettingsController extends GetxController {
     abyssinia.dispose();
     abyssiniaHolder.dispose();
     webhookSecret.dispose();
-    trialCount.dispose();
     planPrice1Year.dispose();
     telegramSupportLink.dispose();
     telegramChannelLink.dispose();
@@ -196,8 +194,6 @@ class SettingsController extends GetxController {
             if (value.isNotEmpty) abyssiniaHolder.text = value;
           case 'webhook_secret':
             webhookSecret.text = value;
-          case 'trial_count':
-            if (value.isNotEmpty) trialCount.text = value;
           case 'subscription_price':
           case 'plan_price_1_year':
           case 'price_1_year':
@@ -246,19 +242,19 @@ class SettingsController extends GetxController {
             : '0960586811',
         'payment_telebirr_holder': telebirrHolder.text.trim().isNotEmpty
             ? telebirrHolder.text.trim()
-            : 'Beshasha Desmon',
+            : 'Abham Teramed',
         'payment_cbe_birr': cbeBirr.text.trim().isNotEmpty
             ? cbeBirr.text.trim()
             : '1000435011237',
         'payment_cbe_birr_holder': cbeBirrHolder.text.trim().isNotEmpty
             ? cbeBirrHolder.text.trim()
-            : 'Beshasha Desmon',
+            : 'Abham Teramed',
         'payment_abyssinia': abyssinia.text.trim().isNotEmpty
             ? abyssinia.text.trim()
             : '165093089',
         'payment_abyssinia_holder': abyssiniaHolder.text.trim().isNotEmpty
             ? abyssiniaHolder.text.trim()
-            : 'Beshasha Desmon',
+            : 'Abham Teramed',
         'payment_extra_accounts':
             jsonEncode(extraAccounts.map((e) => e.toJson()).toList()),
       });
@@ -293,11 +289,8 @@ class SettingsController extends GetxController {
       final price = planPrice1Year.text.trim().isEmpty
           ? '200'
           : planPrice1Year.text.trim();
-      final trial =
-          trialCount.text.trim().isEmpty ? '5' : trialCount.text.trim();
 
       await _upsertMany({
-        'trial_count': trial,
         'plan_price_1_year': price,
         'subscription_price': price,
         'telegram_support_link': telegramSupportLink.text.trim(),
@@ -308,7 +301,7 @@ class SettingsController extends GetxController {
         'privacy_policy_url': privacyPolicyUrl.text.trim(),
       });
       SnackbarHelper.success(
-          'Saved', 'Subscription pricing and app configuration updated.');
+          'Saved', 'Subscription pricing and official links updated.');
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
     } finally {
@@ -410,18 +403,9 @@ class _DatabaseOverviewSection extends StatelessWidget {
                   ),
                   const SizedBox(width: AppSizes.sm),
                   const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Supabase & Database Infrastructure',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          'Live cloud database health, telemetry, table records, and console shortcuts.',
-                          style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                        ),
-                      ],
+                    child: Text(
+                      'Supabase & Database',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
@@ -805,18 +789,9 @@ class _StudentAppSection extends StatelessWidget {
               ),
               const SizedBox(width: AppSizes.sm),
               const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'MatricMate Student Mobile App',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      'Target client bundle, public share link, and student Telegram channel.',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                    ),
-                  ],
+                child: Text(
+                  'MatricMate Student App',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ),
               Container(
@@ -865,15 +840,6 @@ class _StudentAppSection extends StatelessWidget {
                   value: 'ETB ${c.planPrice1Year.text.isEmpty ? "200" : c.planPrice1Year.text}',
                   icon: Iconsax.verify_copy,
                   color: AppColors.primary,
-                ),
-              ),
-              AnimatedBuilder(
-                animation: c.trialCount,
-                builder: (context, _) => _AppInfoBadge(
-                  label: 'Free Questions Limit',
-                  value: '${c.trialCount.text.isEmpty ? "5" : c.trialCount.text} Questions',
-                  icon: Iconsax.shield_tick_copy,
-                  color: Colors.orange,
                 ),
               ),
               const _AppInfoBadge(
@@ -1040,18 +1006,9 @@ class _PaymentSection extends StatelessWidget {
               ),
               const SizedBox(width: AppSizes.sm),
               const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Payment Receiving Accounts',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      'Account numbers and holder names displayed to students during checkout.',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                    ),
-                  ],
+                child: Text(
+                  'Payment Receiving Accounts',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -1216,7 +1173,7 @@ class _BuiltInMethodRow extends StatelessWidget {
                 style: const TextStyle(fontSize: 12.5),
                 decoration: const InputDecoration(
                   labelText: 'Beneficiary Holder Name',
-                  hintText: 'e.g. Matric Mate / Abebe Kebede',
+                  hintText: 'e.g. Abham Teramed',
                   isDense: true,
                   prefixIcon: Icon(Iconsax.user_copy, size: 15),
                 ),
@@ -1385,18 +1342,9 @@ class _AppConfigSection extends StatelessWidget {
               ),
               const SizedBox(width: AppSizes.sm),
               const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Subscription Pricing & MatricMate App Configuration',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      'Single active subscription plan (200 ETB) and official student channels.',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                    ),
-                  ],
+                child: Text(
+                  'Subscription Pricing',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -1442,67 +1390,27 @@ class _AppConfigSection extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     const Text(
-                      '1-Year Full Access Subscription',
+                      '1-Year Subscription',
                       style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'The MatricMate student app operates on a single 1-year unlimited access subscription (default 200 ETB). Setting this value synchronizes both "plan_price_1_year" and "subscription_price" in Supabase app_config.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                ),
                 const SizedBox(height: AppSizes.md),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isNarrow = constraints.maxWidth < 600;
-
-                    final priceField = TextFormField(
-                      controller: c.planPrice1Year,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                      decoration: const InputDecoration(
-                        labelText: '1-Year Subscription Price (ETB)',
-                        hintText: '200',
-                        suffixText: 'ETB',
-                        isDense: true,
-                        prefixIcon: Icon(Iconsax.empty_wallet_copy, size: 16),
-                      ),
-                    );
-
-                    final trialField = TextFormField(
-                      controller: c.trialCount,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                      decoration: const InputDecoration(
-                        labelText: 'Free Practice Questions Trial Limit',
-                        hintText: '5',
-                        suffixText: 'Questions',
-                        isDense: true,
-                        prefixIcon: Icon(Iconsax.task_square_copy, size: 16),
-                      ),
-                    );
-
-                    if (isNarrow) {
-                      return Column(
-                        children: [
-                          priceField,
-                          const SizedBox(height: AppSizes.sm),
-                          trialField,
-                        ],
-                      );
-                    }
-
-                    return Row(
-                      children: [
-                        Expanded(child: priceField),
-                        const SizedBox(width: AppSizes.md),
-                        Expanded(child: trialField),
-                      ],
-                    );
-                  },
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  child: TextFormField(
+                    controller: c.planPrice1Year,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    decoration: const InputDecoration(
+                      labelText: 'Subscription Price (ETB)',
+                      hintText: '200',
+                      suffixText: 'ETB',
+                      isDense: true,
+                      prefixIcon: Icon(Iconsax.empty_wallet_copy, size: 16),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1511,13 +1419,8 @@ class _AppConfigSection extends StatelessWidget {
 
           // ── Support & Official Channels ─────────────────────────────
           const Text(
-            'Official Student Support & App Links',
+            'Official Links & Support',
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: AppSizes.xs),
-          const Text(
-            'These links and contact details match what students see in the MatricMate mobile app for help, Telegram communities, and Play Store installation.',
-            style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppSizes.sm),
 
@@ -1635,7 +1538,7 @@ class _AppConfigSection extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.save_rounded, size: 16),
-                label: const Text('Save Pricing & App Configuration', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const Text('Save Settings', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ),
@@ -1679,18 +1582,9 @@ class _WebhookSection extends StatelessWidget {
               ),
               const SizedBox(width: AppSizes.sm),
               const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Push Notification Webhook Security',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      'Secret token shared with edge functions to securely authenticate push notifications.',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                    ),
-                  ],
+                child: Text(
+                  'Webhook Security',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -1747,7 +1641,7 @@ class _WebhookSection extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.save_rounded, size: 16),
-                label: const Text('Update Webhook Secret', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const Text('Save Webhook Secret', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ),

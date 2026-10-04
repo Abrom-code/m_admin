@@ -169,7 +169,7 @@ class PaymentMethodInfo {
   final String account;
   final String holder;
 
-  static const _defaultHolder = 'Beshasha Desmon';
+  static const _defaultHolder = 'Abham Teramed';
 
   static const Map<String, PaymentMethodInfo> _defaults = {
     'telebirr': PaymentMethodInfo(
