@@ -72,7 +72,7 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
     }
 
     final defaultPriceForPlan =
-        AdminSubscriptionPlan.byKey(_selectedPlanKey)?.defaultPrice ?? 250;
+        AdminSubscriptionPlan.byKey(_selectedPlanKey)?.defaultPrice ?? 200;
     final resolvedAmount = initialAmount ?? defaultPriceForPlan;
     _amountController =
         TextEditingController(text: resolvedAmount.toStringAsFixed(0));
@@ -91,7 +91,7 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
 
   num get _currentAmount =>
       num.tryParse(_amountController.text.trim()) ??
-      (AdminSubscriptionPlan.byKey(_selectedPlanKey)?.defaultPrice ?? 250);
+      (AdminSubscriptionPlan.byKey(_selectedPlanKey)?.defaultPrice ?? 200);
 
   DateTime _calculateFinalExpiry() {
     if (_isCustom) {

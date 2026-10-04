@@ -73,14 +73,14 @@ class SettingsController extends GetxController {
     }
   }
 
-  // Payment config – built-in methods
+  // Payment config – 3 official built-in methods (matching student app)
   final isSavingPayment = false.obs;
-  final cbeBirr = TextEditingController();
-  final cbeBirrHolder = TextEditingController();
-  final telebirr = TextEditingController();
-  final telebirrHolder = TextEditingController();
-  final abyssinia = TextEditingController();
-  final abyssiniaHolder = TextEditingController();
+  final telebirr = TextEditingController(text: '0960586811');
+  final telebirrHolder = TextEditingController(text: 'Beshasha Desmon');
+  final cbeBirr = TextEditingController(text: '1000435011237');
+  final cbeBirrHolder = TextEditingController(text: 'Beshasha Desmon');
+  final abyssinia = TextEditingController(text: '165093089');
+  final abyssiniaHolder = TextEditingController(text: 'Beshasha Desmon');
 
   // Extra accounts
   final extraAccounts = <ExtraPaymentAccount>[].obs;
@@ -90,17 +90,19 @@ class SettingsController extends GetxController {
   final webhookSecret = TextEditingController();
   final showSecret = false.obs;
 
-  // App config & Subscription plan pricing
+  // App config & Subscription plan pricing (Single 1-year 200 ETB plan)
   final isSavingApp = false.obs;
   final trialCount = TextEditingController(text: '5');
-  final subscriptionPrice = TextEditingController(text: '250');
-  final planPrice6Months = TextEditingController(text: '150');
-  final planPrice1Year = TextEditingController(text: '250');
-  final planPrice2Years = TextEditingController(text: '400');
-  final planPrice3Years = TextEditingController(text: '550');
-  final planPrice4Years = TextEditingController(text: '650');
-  final telegramLink = TextEditingController();
-  final shareLink = TextEditingController();
+  final planPrice1Year = TextEditingController(text: '200');
+  final telegramSupportLink =
+      TextEditingController(text: 'https://t.me/matericetbot');
+  final telegramChannelLink =
+      TextEditingController(text: 'https://t.me/MatricET');
+  final shareLink = TextEditingController(
+      text: 'https://play.google.com/store/apps/details?id=com.abopia.matricet');
+  final supportEmail = TextEditingController(text: 'abopiatech@gmail.com');
+  final privacyPolicyUrl = TextEditingController(
+      text: 'https://abopia.github.io/matricmate/privacy_policy.html');
 
   @override
   void onInit() {
@@ -119,14 +121,12 @@ class SettingsController extends GetxController {
     abyssiniaHolder.dispose();
     webhookSecret.dispose();
     trialCount.dispose();
-    subscriptionPrice.dispose();
-    planPrice6Months.dispose();
     planPrice1Year.dispose();
-    planPrice2Years.dispose();
-    planPrice3Years.dispose();
-    planPrice4Years.dispose();
-    telegramLink.dispose();
+    telegramSupportLink.dispose();
+    telegramChannelLink.dispose();
     shareLink.dispose();
+    supportEmail.dispose();
+    privacyPolicyUrl.dispose();
     super.onClose();
   }
 
@@ -182,39 +182,38 @@ class SettingsController extends GetxController {
         cfg[key] = value;
         switch (key) {
           case 'payment_cbe_birr':
-            cbeBirr.text = value;
+          case 'payment_cbe':
+            if (value.isNotEmpty) cbeBirr.text = value;
           case 'payment_cbe_birr_holder':
-            cbeBirrHolder.text = value;
+            if (value.isNotEmpty) cbeBirrHolder.text = value;
           case 'payment_telebirr':
-            telebirr.text = value;
+            if (value.isNotEmpty) telebirr.text = value;
           case 'payment_telebirr_holder':
-            telebirrHolder.text = value;
+            if (value.isNotEmpty) telebirrHolder.text = value;
           case 'payment_abyssinia':
-            abyssinia.text = value;
+            if (value.isNotEmpty) abyssinia.text = value;
           case 'payment_abyssinia_holder':
-            abyssiniaHolder.text = value;
+            if (value.isNotEmpty) abyssiniaHolder.text = value;
           case 'webhook_secret':
             webhookSecret.text = value;
           case 'trial_count':
-            trialCount.text = value;
+            if (value.isNotEmpty) trialCount.text = value;
           case 'subscription_price':
-            subscriptionPrice.text = value;
-            if (planPrice1Year.text == '250') planPrice1Year.text = value;
-          case 'plan_price_6_months':
-            planPrice6Months.text = value;
           case 'plan_price_1_year':
-            planPrice1Year.text = value;
-            subscriptionPrice.text = value;
-          case 'plan_price_2_years':
-            planPrice2Years.text = value;
-          case 'plan_price_3_years':
-            planPrice3Years.text = value;
-          case 'plan_price_4_years':
-            planPrice4Years.text = value;
+          case 'price_1_year':
+            if (value.isNotEmpty) planPrice1Year.text = value;
+          case 'telegram_support_link':
           case 'telegram_link':
-            telegramLink.text = value;
+            if (value.isNotEmpty) telegramSupportLink.text = value;
+          case 'telegram_channel_link':
+          case 'telegram_community_link':
+            if (value.isNotEmpty) telegramChannelLink.text = value;
           case 'share_link':
-            shareLink.text = value;
+            if (value.isNotEmpty) shareLink.text = value;
+          case 'support_email':
+            if (value.isNotEmpty) supportEmail.text = value;
+          case 'privacy_policy_url':
+            if (value.isNotEmpty) privacyPolicyUrl.text = value;
           case 'payment_extra_accounts':
             _parseExtraAccounts(value);
         }
@@ -242,12 +241,24 @@ class SettingsController extends GetxController {
     try {
       isSavingPayment.value = true;
       await _upsertMany({
-        'payment_cbe_birr': cbeBirr.text.trim(),
-        'payment_cbe_birr_holder': cbeBirrHolder.text.trim(),
-        'payment_telebirr': telebirr.text.trim(),
-        'payment_telebirr_holder': telebirrHolder.text.trim(),
-        'payment_abyssinia': abyssinia.text.trim(),
-        'payment_abyssinia_holder': abyssiniaHolder.text.trim(),
+        'payment_telebirr': telebirr.text.trim().isNotEmpty
+            ? telebirr.text.trim()
+            : '0960586811',
+        'payment_telebirr_holder': telebirrHolder.text.trim().isNotEmpty
+            ? telebirrHolder.text.trim()
+            : 'Beshasha Desmon',
+        'payment_cbe_birr': cbeBirr.text.trim().isNotEmpty
+            ? cbeBirr.text.trim()
+            : '1000435011237',
+        'payment_cbe_birr_holder': cbeBirrHolder.text.trim().isNotEmpty
+            ? cbeBirrHolder.text.trim()
+            : 'Beshasha Desmon',
+        'payment_abyssinia': abyssinia.text.trim().isNotEmpty
+            ? abyssinia.text.trim()
+            : '165093089',
+        'payment_abyssinia_holder': abyssiniaHolder.text.trim().isNotEmpty
+            ? abyssiniaHolder.text.trim()
+            : 'Beshasha Desmon',
         'payment_extra_accounts':
             jsonEncode(extraAccounts.map((e) => e.toJson()).toList()),
       });
@@ -279,18 +290,25 @@ class SettingsController extends GetxController {
   Future<void> saveAppConfig() async {
     try {
       isSavingApp.value = true;
+      final price = planPrice1Year.text.trim().isEmpty
+          ? '200'
+          : planPrice1Year.text.trim();
+      final trial =
+          trialCount.text.trim().isEmpty ? '5' : trialCount.text.trim();
+
       await _upsertMany({
-        'trial_count': trialCount.text.trim(),
-        'plan_price_6_months': planPrice6Months.text.trim(),
-        'plan_price_1_year': planPrice1Year.text.trim(),
-        'plan_price_2_years': planPrice2Years.text.trim(),
-        'plan_price_3_years': planPrice3Years.text.trim(),
-        'plan_price_4_years': planPrice4Years.text.trim(),
-        'subscription_price': planPrice1Year.text.trim(),
-        'telegram_link': telegramLink.text.trim(),
+        'trial_count': trial,
+        'plan_price_1_year': price,
+        'subscription_price': price,
+        'telegram_support_link': telegramSupportLink.text.trim(),
+        'telegram_link': telegramSupportLink.text.trim(),
+        'telegram_channel_link': telegramChannelLink.text.trim(),
         'share_link': shareLink.text.trim(),
+        'support_email': supportEmail.text.trim(),
+        'privacy_policy_url': privacyPolicyUrl.text.trim(),
       });
-      SnackbarHelper.success('Saved', 'App configuration and pricing updated.');
+      SnackbarHelper.success(
+          'Saved', 'Subscription pricing and app configuration updated.');
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
     } finally {
@@ -824,9 +842,15 @@ class _StudentAppSection extends StatelessWidget {
             children: [
               const _AppInfoBadge(
                 label: 'Platform',
-                value: 'Android App',
+                value: 'Android (Google Play)',
                 icon: Icons.android_rounded,
                 color: Colors.green,
+              ),
+              const _AppInfoBadge(
+                label: 'Package ID',
+                value: 'com.abopia.matricet',
+                icon: Iconsax.mobile_copy,
+                color: Colors.teal,
               ),
               const _AppInfoBadge(
                 label: 'Audience',
@@ -834,17 +858,23 @@ class _StudentAppSection extends StatelessWidget {
                 icon: Iconsax.book_1_copy,
                 color: Colors.blue,
               ),
-              _AppInfoBadge(
+              Obx(() => _AppInfoBadge(
+                label: '1-Year Subscription',
+                value: 'ETB ${c.planPrice1Year.text.isEmpty ? "200" : c.planPrice1Year.text}',
+                icon: Iconsax.verify_copy,
+                color: AppColors.primary,
+              )),
+              Obx(() => _AppInfoBadge(
                 label: 'Free Questions Limit',
                 value: '${c.trialCount.text.isEmpty ? "5" : c.trialCount.text} Questions',
                 icon: Iconsax.shield_tick_copy,
                 color: Colors.orange,
-              ),
-              _AppInfoBadge(
-                label: '1-Year Subscription',
-                value: 'ETB ${c.planPrice1Year.text.isEmpty ? "250" : c.planPrice1Year.text}',
-                icon: Iconsax.verify_copy,
-                color: AppColors.primary,
+              )),
+              const _AppInfoBadge(
+                label: 'Payment Methods',
+                value: '3 Active (Telebirr, CBE, Abyssinia)',
+                icon: Iconsax.wallet_3_copy,
+                color: Colors.indigo,
               ),
             ],
           ),
@@ -865,7 +895,7 @@ class _StudentAppSection extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Icons.open_in_new_rounded, size: 14),
-                label: const Text('Open App Share Link', style: TextStyle(fontSize: 11.5)),
+                label: const Text('Play Store / Share Link', style: TextStyle(fontSize: 11.5)),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   visualDensity: VisualDensity.compact,
@@ -873,7 +903,23 @@ class _StudentAppSection extends StatelessWidget {
               ),
               OutlinedButton.icon(
                 onPressed: () {
-                  final t = c.telegramLink.text.trim();
+                  final t = c.telegramSupportLink.text.trim();
+                  if (t.isNotEmpty) {
+                    AppHelperFunctions.openUrl(t);
+                  } else {
+                    SnackbarHelper.warning('Missing', 'No Telegram support bot link configured.');
+                  }
+                },
+                icon: const Icon(Iconsax.message_copy, size: 14),
+                label: const Text('Support Bot (@matericetbot)', style: TextStyle(fontSize: 11.5)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () {
+                  final t = c.telegramChannelLink.text.trim();
                   if (t.isNotEmpty) {
                     AppHelperFunctions.openUrl(t);
                   } else {
@@ -881,7 +927,23 @@ class _StudentAppSection extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Iconsax.send_1_copy, size: 14),
-                label: const Text('Open Telegram Channel', style: TextStyle(fontSize: 11.5)),
+                label: const Text('Channel (@MatricET)', style: TextStyle(fontSize: 11.5)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () {
+                  final p = c.privacyPolicyUrl.text.trim();
+                  if (p.isNotEmpty) {
+                    AppHelperFunctions.openUrl(p);
+                  } else {
+                    SnackbarHelper.warning('Missing', 'No privacy policy URL configured.');
+                  }
+                },
+                icon: const Icon(Icons.policy_outlined, size: 14),
+                label: const Text('Privacy Policy', style: TextStyle(fontSize: 11.5)),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   visualDensity: VisualDensity.compact,
@@ -1000,7 +1062,7 @@ class _PaymentSection extends StatelessWidget {
           const _Divider(),
           _BuiltInMethodRow(
             icon: Iconsax.bank_copy,
-            label: 'Commercial Bank of Ethiopia (CBE Birr)',
+            label: 'Commercial Bank of Ethiopia (CBE)',
             color: const Color(0xFF7A187B),
             accountController: c.cbeBirr,
             holderController: c.cbeBirrHolder,
@@ -1321,11 +1383,11 @@ class _AppConfigSection extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Subscription Pricing & App Configuration',
+                      'Subscription Pricing & MatricMate App Configuration',
                       style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      'Dynamic subscription pricing in Ethiopian Birr (ETB) and mobile app links.',
+                      'Single active subscription plan (200 ETB) and official student channels.',
                       style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
                     ),
                   ],
@@ -1335,146 +1397,121 @@ class _AppConfigSection extends StatelessWidget {
           ),
           const SizedBox(height: AppSizes.lg),
 
-          const Text(
-            'Subscription Plan Rates (ETB)',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: AppSizes.sm),
-
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 650;
-
-              final plan6m = TextFormField(
-                controller: c.planPrice6Months,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(fontSize: 12.5),
-                decoration: const InputDecoration(
-                  labelText: '6 Months Plan',
-                  suffixText: 'ETB',
-                  isDense: true,
-                  prefixIcon: Icon(Iconsax.calendar_1_copy, size: 15),
-                ),
-              );
-
-              final plan1y = TextFormField(
-                controller: c.planPrice1Year,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(fontSize: 12.5),
-                decoration: const InputDecoration(
-                  labelText: '1 Year Plan (Featured)',
-                  suffixText: 'ETB',
-                  isDense: true,
-                  prefixIcon: Icon(Iconsax.star_1_copy, size: 15),
-                ),
-              );
-
-              final plan2y = TextFormField(
-                controller: c.planPrice2Years,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(fontSize: 12.5),
-                decoration: const InputDecoration(
-                  labelText: '2 Years Plan',
-                  suffixText: 'ETB',
-                  isDense: true,
-                  prefixIcon: Icon(Iconsax.calendar_copy, size: 15),
-                ),
-              );
-
-              final plan3y = TextFormField(
-                controller: c.planPrice3Years,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(fontSize: 12.5),
-                decoration: const InputDecoration(
-                  labelText: '3 Years Plan',
-                  suffixText: 'ETB',
-                  isDense: true,
-                  prefixIcon: Icon(Iconsax.calendar_copy, size: 15),
-                ),
-              );
-
-              final plan4y = TextFormField(
-                controller: c.planPrice4Years,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(fontSize: 12.5),
-                decoration: const InputDecoration(
-                  labelText: '4 Years Plan',
-                  suffixText: 'ETB',
-                  isDense: true,
-                  prefixIcon: Icon(Iconsax.calendar_copy, size: 15),
-                ),
-              );
-
-              final trialField = TextFormField(
-                controller: c.trialCount,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(fontSize: 12.5),
-                decoration: const InputDecoration(
-                  labelText: 'Free Trial Questions Count',
-                  hintText: '5',
-                  isDense: true,
-                  prefixIcon: Icon(Iconsax.task_square_copy, size: 15),
-                ),
-              );
-
-              if (isNarrow) {
-                return Column(
+          // ── Active Subscription Plan Card ───────────────────────────
+          Container(
+            padding: const EdgeInsets.all(AppSizes.md),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: dark ? 0.08 : 0.04),
+              borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.25),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    plan6m,
-                    const SizedBox(height: AppSizes.sm),
-                    plan1y,
-                    const SizedBox(height: AppSizes.sm),
-                    plan2y,
-                    const SizedBox(height: AppSizes.sm),
-                    plan3y,
-                    const SizedBox(height: AppSizes.sm),
-                    plan4y,
-                    const SizedBox(height: AppSizes.sm),
-                    trialField,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Iconsax.star_1_copy, size: 12, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            'CURRENT PLAN',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      '1-Year Full Access Subscription',
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+                    ),
                   ],
-                );
-              }
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'The MatricMate student app operates on a single 1-year unlimited access subscription (default 200 ETB). Setting this value synchronizes both "plan_price_1_year" and "subscription_price" in Supabase app_config.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: AppSizes.md),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 600;
 
-              return Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(child: plan6m),
-                      const SizedBox(width: AppSizes.md),
-                      Expanded(child: plan1y),
-                    ],
-                  ),
-                  const SizedBox(height: AppSizes.sm),
-                  Row(
-                    children: [
-                      Expanded(child: plan2y),
-                      const SizedBox(width: AppSizes.md),
-                      Expanded(child: plan3y),
-                    ],
-                  ),
-                  const SizedBox(height: AppSizes.sm),
-                  Row(
-                    children: [
-                      Expanded(child: plan4y),
-                      const SizedBox(width: AppSizes.md),
-                      Expanded(child: trialField),
-                    ],
-                  ),
-                ],
-              );
-            },
+                    final priceField = TextFormField(
+                      controller: c.planPrice1Year,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      decoration: const InputDecoration(
+                        labelText: '1-Year Subscription Price (ETB)',
+                        hintText: '200',
+                        suffixText: 'ETB',
+                        isDense: true,
+                        prefixIcon: Icon(Iconsax.empty_wallet_copy, size: 16),
+                      ),
+                    );
+
+                    final trialField = TextFormField(
+                      controller: c.trialCount,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      decoration: const InputDecoration(
+                        labelText: 'Free Practice Questions Trial Limit',
+                        hintText: '5',
+                        suffixText: 'Questions',
+                        isDense: true,
+                        prefixIcon: Icon(Iconsax.task_square_copy, size: 16),
+                      ),
+                    );
+
+                    if (isNarrow) {
+                      return Column(
+                        children: [
+                          priceField,
+                          const SizedBox(height: AppSizes.sm),
+                          trialField,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(child: priceField),
+                        const SizedBox(width: AppSizes.md),
+                        Expanded(child: trialField),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: AppSizes.lg),
 
+          // ── Support & Official Channels ─────────────────────────────
           const Text(
-            'Support & App Links',
+            'Official Student Support & App Links',
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: AppSizes.xs),
+          const Text(
+            'These links and contact details match what students see in the MatricMate mobile app for help, Telegram communities, and Play Store installation.',
+            style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppSizes.sm),
 
@@ -1482,12 +1519,23 @@ class _AppConfigSection extends StatelessWidget {
             builder: (context, constraints) {
               final isNarrow = constraints.maxWidth < 650;
 
-              final telegram = TextFormField(
-                controller: c.telegramLink,
+              final telegramSupport = TextFormField(
+                controller: c.telegramSupportLink,
                 style: const TextStyle(fontSize: 12.5),
                 decoration: const InputDecoration(
-                  labelText: 'Telegram Support Link',
-                  hintText: 'https://t.me/matric_mate',
+                  labelText: 'Telegram Support Bot',
+                  hintText: 'https://t.me/matericetbot',
+                  isDense: true,
+                  prefixIcon: Icon(Iconsax.message_copy, size: 15),
+                ),
+              );
+
+              final telegramChannel = TextFormField(
+                controller: c.telegramChannelLink,
+                style: const TextStyle(fontSize: 12.5),
+                decoration: const InputDecoration(
+                  labelText: 'Telegram Community Channel',
+                  hintText: 'https://t.me/MatricET',
                   isDense: true,
                   prefixIcon: Icon(Iconsax.send_1_copy, size: 15),
                 ),
@@ -1497,28 +1545,70 @@ class _AppConfigSection extends StatelessWidget {
                 controller: c.shareLink,
                 style: const TextStyle(fontSize: 12.5),
                 decoration: const InputDecoration(
-                  labelText: 'App Share Link',
-                  hintText: 'https://matricmate.com/...',
+                  labelText: 'Play Store / App Share Link',
+                  hintText: 'https://play.google.com/store/apps/details?id=com.abopia.matricet',
                   isDense: true,
                   prefixIcon: Icon(Iconsax.share_copy, size: 15),
+                ),
+              );
+
+              final email = TextFormField(
+                controller: c.supportEmail,
+                style: const TextStyle(fontSize: 12.5),
+                decoration: const InputDecoration(
+                  labelText: 'Official Support Email',
+                  hintText: 'abopiatech@gmail.com',
+                  isDense: true,
+                  prefixIcon: Icon(Icons.email_outlined, size: 15),
+                ),
+              );
+
+              final privacy = TextFormField(
+                controller: c.privacyPolicyUrl,
+                style: const TextStyle(fontSize: 12.5),
+                decoration: const InputDecoration(
+                  labelText: 'Privacy Policy URL',
+                  hintText: 'https://abopia.github.io/matricmate/privacy_policy.html',
+                  isDense: true,
+                  prefixIcon: Icon(Icons.policy_outlined, size: 15),
                 ),
               );
 
               if (isNarrow) {
                 return Column(
                   children: [
-                    telegram,
+                    telegramSupport,
+                    const SizedBox(height: AppSizes.sm),
+                    telegramChannel,
                     const SizedBox(height: AppSizes.sm),
                     share,
+                    const SizedBox(height: AppSizes.sm),
+                    email,
+                    const SizedBox(height: AppSizes.sm),
+                    privacy,
                   ],
                 );
               }
 
-              return Row(
+              return Column(
                 children: [
-                  Expanded(child: telegram),
-                  const SizedBox(width: AppSizes.md),
-                  Expanded(child: share),
+                  Row(
+                    children: [
+                      Expanded(child: telegramSupport),
+                      const SizedBox(width: AppSizes.md),
+                      Expanded(child: telegramChannel),
+                    ],
+                  ),
+                  const SizedBox(height: AppSizes.sm),
+                  Row(
+                    children: [
+                      Expanded(child: share),
+                      const SizedBox(width: AppSizes.md),
+                      Expanded(child: email),
+                    ],
+                  ),
+                  const SizedBox(height: AppSizes.sm),
+                  privacy,
                 ],
               );
             },
@@ -1539,7 +1629,7 @@ class _AppConfigSection extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.save_rounded, size: 16),
-                label: const Text('Save Pricing & Links', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const Text('Save Pricing & App Configuration', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ),

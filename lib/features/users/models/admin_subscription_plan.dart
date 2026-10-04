@@ -45,7 +45,7 @@ class AdminSubscriptionPlan {
       key: '1_year',
       title: '1 Year',
       durationMonths: 12,
-      defaultPrice: 250,
+      defaultPrice: 200,
       subtitle: 'Full exam prep',
       isFeatured: true,
       badgeText: '⭐ Best Value',
@@ -113,6 +113,9 @@ class AdminSubscriptionPlan {
   static AdminSubscriptionPlan? matchByAmount(num? amount) {
     if (amount == null || amount <= 0) return null;
     final intAmount = amount.round();
+    if (intAmount == 200 || intAmount == 250) {
+      return defaultPlan;
+    }
     try {
       return all.firstWhere((p) => p.defaultPrice == intAmount);
     } catch (_) {
