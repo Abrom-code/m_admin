@@ -6,10 +6,19 @@ import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 class TestEditorController extends GetxController {
-  TestEditorController({this.testId, required this.subjectId});
+  TestEditorController({
+    this.testId,
+    required this.subjectId,
+    this.initialType,
+    this.initialGrade,
+    this.initialChapterId,
+  });
 
   final int? testId; // null = create new
   final int subjectId;
+  final String? initialType;
+  final int? initialGrade;
+  final int? initialChapterId;
 
   final _repo = ContentRepository();
 
@@ -35,6 +44,15 @@ class TestEditorController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    if (initialType != null && validTypes.contains(initialType)) {
+      typeValue.value = initialType!;
+    }
+    if (initialGrade != null && initialGrade! > 0) {
+      gradeCtrl.text = initialGrade.toString();
+    }
+    if (initialChapterId != null && initialChapterId! > 0) {
+      selectedChapterId.value = initialChapterId;
+    }
     _loadChapters();
     if (testId != null) _loadTest();
   }

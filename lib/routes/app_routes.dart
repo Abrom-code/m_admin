@@ -167,6 +167,9 @@ class AdminAppRoutes {
           subjectId: (args['subject_id'] as num?)?.toInt() ?? 0,
           testId: (args['test_id'] as num?)?.toInt(),
           subjectName: args['subject_name']?.toString() ?? '',
+          initialType: args['initial_type']?.toString(),
+          initialGrade: (args['initial_grade'] as num?)?.toInt(),
+          initialChapterId: (args['initial_chapter_id'] as num?)?.toInt(),
         );
       },
       middlewares: [AdminAuthMiddleware()],

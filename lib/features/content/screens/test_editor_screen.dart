@@ -14,11 +14,17 @@ class TestEditorScreen extends StatefulWidget {
     required this.subjectId,
     this.testId,
     this.subjectName = '',
+    this.initialType,
+    this.initialGrade,
+    this.initialChapterId,
   });
 
   final int subjectId;
   final int? testId;
   final String subjectName;
+  final String? initialType;
+  final int? initialGrade;
+  final int? initialChapterId;
 
   @override
   State<TestEditorScreen> createState() => _TestEditorScreenState();
@@ -33,8 +39,13 @@ class _TestEditorScreenState extends State<TestEditorScreen> {
     super.initState();
     _editorCtrl = Get.put(
       TestEditorController(
-          testId: widget.testId, subjectId: widget.subjectId),
-      tag: 'test_editor_${widget.testId ?? 'new'}',
+        testId: widget.testId,
+        subjectId: widget.subjectId,
+        initialType: widget.initialType,
+        initialGrade: widget.initialGrade,
+        initialChapterId: widget.initialChapterId,
+      ),
+      tag: 'test_editor_${widget.testId ?? 'new_${DateTime.now().millisecondsSinceEpoch}'}',
     );
   }
 
