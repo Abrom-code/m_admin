@@ -858,18 +858,24 @@ class _StudentAppSection extends StatelessWidget {
                 icon: Iconsax.book_1_copy,
                 color: Colors.blue,
               ),
-              Obx(() => _AppInfoBadge(
-                label: '1-Year Subscription',
-                value: 'ETB ${c.planPrice1Year.text.isEmpty ? "200" : c.planPrice1Year.text}',
-                icon: Iconsax.verify_copy,
-                color: AppColors.primary,
-              )),
-              Obx(() => _AppInfoBadge(
-                label: 'Free Questions Limit',
-                value: '${c.trialCount.text.isEmpty ? "5" : c.trialCount.text} Questions',
-                icon: Iconsax.shield_tick_copy,
-                color: Colors.orange,
-              )),
+              AnimatedBuilder(
+                animation: c.planPrice1Year,
+                builder: (context, _) => _AppInfoBadge(
+                  label: '1-Year Subscription',
+                  value: 'ETB ${c.planPrice1Year.text.isEmpty ? "200" : c.planPrice1Year.text}',
+                  icon: Iconsax.verify_copy,
+                  color: AppColors.primary,
+                ),
+              ),
+              AnimatedBuilder(
+                animation: c.trialCount,
+                builder: (context, _) => _AppInfoBadge(
+                  label: 'Free Questions Limit',
+                  value: '${c.trialCount.text.isEmpty ? "5" : c.trialCount.text} Questions',
+                  icon: Iconsax.shield_tick_copy,
+                  color: Colors.orange,
+                ),
+              ),
               const _AppInfoBadge(
                 label: 'Payment Methods',
                 value: '3 Active (Telebirr, CBE, Abyssinia)',
