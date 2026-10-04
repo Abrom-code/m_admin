@@ -233,25 +233,31 @@ class ContentRepository {
   }
 
   Future<List<Map<String, dynamic>>> fetchChaptersForSubject(
-    int subjectId,
-  ) async {
+    int subjectId, {
+    int? grade,
+  }) async {
     try {
-      final rows = await _sb
-          .from('chapters')
-          .select('id, title, grade, chapter_number')
-          .eq('subject_id', subjectId)
-          .order('grade')
-          .order('chapter_number');
-
-      return rows.map((r) => Map<String, dynamic>.from(r)).toList();
+      var query = _sb.from('chapters').select().eq('subject_id', subjectId);
+      if (grade != null && grade > 0) {
+        query = query.eq('grade', grade);
+      }
+      final rows = await query
+          .order('grade', ascending: true)
+          .order('chapter_number', ascending: true);
+      return List<Map<String, dynamic>>.from(rows);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
   }
 
-  Future<void> upsertChapter(Map<String, dynamic> data) async {
+  Future<Map<String, dynamic>> upsertChapter(Map<String, dynamic> data) async {
     try {
-      await _sb.from('chapters').upsert(data);
+      final payload = Map<String, dynamic>.from(data);
+      if (payload['id'] == null || payload['id'] == 0) {
+        payload.remove('id');
+      }
+      final row = await _sb.from('chapters').upsert(payload).select().single();
+      return Map<String, dynamic>.from(row);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
@@ -351,4 +357,5 @@ class ContentRepository {
       throw AppExceptionHandler.handle(e);
     }
   }
+
 }

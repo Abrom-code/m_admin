@@ -193,25 +193,55 @@ class SubjectTestsScreen extends StatelessWidget {
                 final isCompact = MediaQuery.sizeOf(context).width < 500;
 
                 if (isCompact) {
-                  return IconButton.filled(
-                    style: IconButton.styleFrom(backgroundColor: AppColors.primary),
-                    onPressed: () => openTest(null),
-                    icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
-                    tooltip: 'Create Test',
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        onPressed: () => Get.toNamed(
+                          AdminRoutes.contentChapter,
+                          arguments: {'subject': subject},
+                        ),
+                        icon: const Icon(Iconsax.folder_2_copy, size: 18),
+                        tooltip: 'Chapters',
+                      ),
+                      IconButton.filled(
+                        style: IconButton.styleFrom(backgroundColor: AppColors.primary),
+                        onPressed: () => openTest(null),
+                        icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
+                        tooltip: 'Create Test',
+                      ),
+                    ],
                   );
                 }
 
-                return FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  ),
-                  onPressed: () => openTest(null),
-                  icon: const Icon(Icons.add_rounded, size: 16),
-                  label: const Text(
-                    'Create Test',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      onPressed: () => Get.toNamed(
+                        AdminRoutes.contentChapter,
+                        arguments: {'subject': subject},
+                      ),
+                      icon: const Icon(Iconsax.folder_2_copy, size: 15),
+                      label: const Text('Chapters', style: TextStyle(fontSize: 12)),
+                    ),
+                    const SizedBox(width: AppSizes.sm),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      ),
+                      onPressed: () => openTest(null),
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: const Text(
+                        'Create Test',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
