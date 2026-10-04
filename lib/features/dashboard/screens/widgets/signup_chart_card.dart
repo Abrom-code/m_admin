@@ -21,6 +21,7 @@ class SignupChartCard extends StatefulWidget {
 
 class _SignupChartCardState extends State<SignupChartCard> {
   ChartMetricMode _metricMode = ChartMetricMode.signups;
+  int? _selectedIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -51,13 +52,17 @@ class _SignupChartCardState extends State<SignupChartCard> {
                       label: 'Student Signups',
                       isSelected: _metricMode == ChartMetricMode.signups,
                       activeColor: AppColors.info,
-                      onTap: () => setState(() => _metricMode = ChartMetricMode.signups),
+                      onTap: () => setState(() {
+                        _metricMode = ChartMetricMode.signups;
+                      }),
                     ),
                     _TabPill(
                       label: 'Gross Revenue',
                       isSelected: _metricMode == ChartMetricMode.revenue,
                       activeColor: AppColors.success,
-                      onTap: () => setState(() => _metricMode = ChartMetricMode.revenue),
+                      onTap: () => setState(() {
+                        _metricMode = ChartMetricMode.revenue;
+                      }),
                     ),
                   ],
                 ),
@@ -72,8 +77,10 @@ class _SignupChartCardState extends State<SignupChartCard> {
                     ButtonSegment(value: 90, label: Text('90d')),
                   ],
                   selected: {controller.rangeDays.value},
-                  onSelectionChanged: (s) =>
-                      controller.rangeDays.value = s.first,
+                  onSelectionChanged: (s) {
+                    controller.rangeDays.value = s.first;
+                    setState(() => _selectedIndex = null);
+                  },
                   style: ButtonStyle(
                     visualDensity: VisualDensity.compact,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -138,6 +145,61 @@ class _SignupChartCardState extends State<SignupChartCard> {
                 LinePoint(i / (series.length - 1), series[i].value),
             ];
 
+            // If selectedIndex is out of bounds, clamp it
+            if (_selectedIndex != null && _selectedIndex! >= series.length) {
+              _selectedIndex = series.length - 1;
+            }
+
+            Widget? tooltipWidget;
+            if (_selectedIndex != null && _selectedIndex! < series.length) {
+              final selPoint = series[_selectedIndex!];
+              final formattedAmount = isSignups
+                  ? '${NumberFormat('#,##0').format(selPoint.value.round())} students'
+                  : 'ETB ${NumberFormat('#,##0.00').format(selPoint.value)}';
+              final formattedDate = DateFormat('MMM d, yyyy').format(selPoint.day);
+
+              tooltipWidget = Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: dark ? AppColors.darkSurface : AppColors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: chartColor.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: dark ? 0.35 : 0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      formattedDate,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      formattedAmount,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: chartColor,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -171,6 +233,17 @@ class _SignupChartCardState extends State<SignupChartCard> {
                       unit: 'per day pace',
                       color: AppColors.textSecondary,
                     ),
+                    if (_selectedIndex != null && _selectedIndex! < series.length)
+                      _SelectedDayCard(
+                        date: DateFormat('EEE, MMM d').format(series[_selectedIndex!].day),
+                        value: isSignups
+                            ? '${NumberFormat('#,##0').format(series[_selectedIndex!].value.round())} students'
+                            : 'ETB ${NumberFormat('#,##0.00').format(series[_selectedIndex!].value)}',
+                        color: chartColor,
+                        onClear: () => setState(() => _selectedIndex = null),
+                      )
+                    else
+                      const _ClickHintBadge(),
                   ],
                 ),
                 const SizedBox(height: AppSizes.md),
@@ -180,6 +253,11 @@ class _SignupChartCardState extends State<SignupChartCard> {
                   points: points,
                   color: chartColor,
                   height: 175,
+                  selectedIndex: _selectedIndex,
+                  onPointSelected: (idx) {
+                    setState(() => _selectedIndex = idx);
+                  },
+                  tooltipContent: tooltipWidget,
                 ),
                 const SizedBox(height: 6),
 
@@ -344,6 +422,103 @@ class _XAxisLabels extends StatelessWidget {
             ),
           )
           .toList(),
+    );
+  }
+}
+
+// ── Selected Day Card & Hint Badge ──────────────────────────────────────────
+
+class _SelectedDayCard extends StatelessWidget {
+  const _SelectedDayCard({
+    required this.date,
+    required this.value,
+    required this.color,
+    required this.onClear,
+  });
+
+  final String date;
+  final String value;
+  final Color color;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1.2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.touch_app_rounded, size: 15, color: color),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'SELECTED: $date',
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: dark ? AppColors.white : AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          InkWell(
+            onTap: onClear,
+            borderRadius: BorderRadius.circular(10),
+            child: const Padding(
+              padding: EdgeInsets.all(2.0),
+              child: Icon(Icons.close_rounded,
+                  size: 14, color: AppColors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClickHintBadge extends StatelessWidget {
+  const _ClickHintBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.textSecondary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.touch_app_outlined,
+              size: 12, color: AppColors.textSecondary),
+          SizedBox(width: 4),
+          Text(
+            'Click graph to inspect day',
+            style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+          ),
+        ],
+      ),
     );
   }
 }
