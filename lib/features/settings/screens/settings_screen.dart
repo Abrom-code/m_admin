@@ -376,34 +376,40 @@ class _DatabaseOverviewSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Section header
-          Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                ),
-                child: const Icon(Icons.dns_rounded, size: 16, color: AppColors.primary),
-              ),
-              const SizedBox(width: AppSizes.sm),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Supabase & Database Infrastructure',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 540;
+              final headerInfo = Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                     ),
-                    Text(
-                      'Live cloud database health, telemetry, table records, and console shortcuts.',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                    child: const Icon(Icons.dns_rounded, size: 16, color: AppColors.primary),
+                  ),
+                  const SizedBox(width: AppSizes.sm),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Supabase & Database Infrastructure',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          'Live cloud database health, telemetry, table records, and console shortcuts.',
+                          style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              Obx(
+                  ),
+                ],
+              );
+
+              final pingButton = Obx(
                 () => OutlinedButton.icon(
                   onPressed: c.isCheckingDb.value ? null : c.checkDatabaseHealth,
                   icon: c.isCheckingDb.value
@@ -418,8 +424,27 @@ class _DatabaseOverviewSection extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                   ),
                 ),
-              ),
-            ],
+              );
+
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    headerInfo,
+                    const SizedBox(height: AppSizes.sm),
+                    pingButton,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: headerInfo),
+                  const SizedBox(width: AppSizes.sm),
+                  pingButton,
+                ],
+              );
+            },
           ),
           const SizedBox(height: AppSizes.md),
 
@@ -439,52 +464,91 @@ class _DatabaseOverviewSection extends StatelessWidget {
                     : (ping >= 0 ? 'Connected & Operational (${ping}ms latency)' : 'Not checked'));
 
             return Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 8),
               decoration: BoxDecoration(
                 color: statusColor.withValues(alpha: dark ? 0.12 : 0.07),
                 borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                 border: Border.all(color: statusColor.withValues(alpha: 0.3)),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: statusColor,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    statusLabel,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: statusColor,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    'Ref: ${c.supabaseProjectRef}',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontFamily: 'monospace',
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    tooltip: 'Copy Project Reference',
-                    icon: const Icon(Icons.copy_rounded, size: 14),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: c.supabaseProjectRef));
-                      SnackbarHelper.success('Copied', 'Project reference copied.');
-                    },
-                  ),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isCompact = constraints.maxWidth < 540;
+
+                  final statusWidget = Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          statusLabel,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: statusColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  );
+
+                  final refWidget = Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Ref: ${c.supabaseProjectRef}',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: 'Copy Project Reference',
+                        icon: const Icon(Icons.copy_rounded, size: 14),
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: c.supabaseProjectRef));
+                          SnackbarHelper.success('Copied', 'Project reference copied.');
+                        },
+                      ),
+                    ],
+                  );
+
+                  if (isCompact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        statusWidget,
+                        const SizedBox(height: 6),
+                        refWidget,
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: statusWidget),
+                      const SizedBox(width: AppSizes.sm),
+                      refWidget,
+                    ],
+                  );
+                },
               ),
             );
           }),
@@ -787,7 +851,9 @@ class _StudentAppSection extends StatelessWidget {
           const SizedBox(height: AppSizes.md),
 
           // Action buttons to test student links
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               FilledButton.icon(
                 onPressed: () {
@@ -805,7 +871,6 @@ class _StudentAppSection extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                 ),
               ),
-              const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: () {
                   final t = c.telegramLink.text.trim();
