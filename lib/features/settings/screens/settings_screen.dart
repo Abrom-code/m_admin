@@ -739,40 +739,47 @@ class _TableCountPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: dark ? AppColors.darkCard : AppColors.lightContainer,
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-        border: Border.all(color: dark ? AppColors.darkBorder : AppColors.borderSecondary),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
-              shape: BoxShape.circle,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 220),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: dark ? AppColors.darkCard : AppColors.lightContainer,
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+          border: Border.all(color: dark ? AppColors.darkBorder : AppColors.borderSecondary),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 13, color: color),
             ),
-            child: Icon(icon, size: 13, color: color),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    count == null ? '—' : '$count rows',
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-              Text(
-                count == null ? '—' : '$count rows',
-                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -969,27 +976,32 @@ class _AppInfoBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: dark ? AppColors.darkCard : AppColors.lightContainer,
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-        border: Border.all(color: dark ? AppColors.darkBorder : AppColors.borderSecondary),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label, style: const TextStyle(fontSize: 9.5, color: AppColors.textSecondary)),
-              Text(value, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-            ],
-          ),
-        ],
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 260),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: dark ? AppColors.darkCard : AppColors.lightContainer,
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+          border: Border.all(color: dark ? AppColors.darkBorder : AppColors.borderSecondary),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: const TextStyle(fontSize: 9.5, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
+                  Text(value, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1412,9 +1424,12 @@ class _AppConfigSection extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      '1-Year Subscription',
-                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+                    const Flexible(
+                      child: Text(
+                        '1-Year Subscription',
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),

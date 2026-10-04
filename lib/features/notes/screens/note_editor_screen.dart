@@ -12,7 +12,6 @@ import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   const NoteEditorScreen({super.key, this.note});
@@ -167,26 +166,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         (_existingFileKey != null && _existingFileKey!.trim().isNotEmpty);
   }
 
-  String? get _resolvedFileUrl {
-    if (_existingFileUrl != null &&
-        _existingFileUrl!.trim().isNotEmpty &&
-        _existingFileUrl!.startsWith('http')) {
-      return _existingFileUrl!.trim();
-    }
-    if (_existingFileKey != null && _existingFileKey!.trim().isNotEmpty) {
-      if (_existingFileKey!.startsWith('http')) {
-        return _existingFileKey!.trim();
-      }
-      try {
-        return Supabase.instance.client.storage
-            .from('notes')
-            .getPublicUrl(_existingFileKey!.trim());
-      } catch (_) {
-        return null;
-      }
-    }
-    return null;
-  }
 
   void _viewPdf() {
     if (!_canViewPdf) {
@@ -207,7 +186,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             (_existingFileKey != null
                 ? _existingFileKey!.split('/').last
                 : 'document.pdf'),
-        fileUrl: _resolvedFileUrl,
+        fileUrl: _existingFileUrl,
         pdfBytes: _pickedBytes,
         fileKey: _existingFileKey,
         fileSizeBytes: _fileSizeBytes,

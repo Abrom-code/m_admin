@@ -107,14 +107,45 @@ class NotesRepository {
             ),
           );
 
-      final publicUrl = _sb.storage.from('notes').getPublicUrl(path);
+      String fileUrl;
+      try {
+        fileUrl = await _sb.storage.from('notes').createSignedUrl(path, 60 * 60 * 24 * 365);
+      } catch (_) {
+        fileUrl = _sb.storage.from('notes').getPublicUrl(path);
+      }
 
       return {
         'file_key': path,
-        'file_url': publicUrl,
+        'file_url': fileUrl,
       };
     } catch (e) {
       throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Extracts the clean storage path for a file in the 'notes' bucket.
+  static String extractStoragePath(String keyOrUrl) {
+    var path = keyOrUrl.trim();
+    if (path.isEmpty) return '';
+    if (path.contains('/storage/v1/object/public/notes/')) {
+      path = path.split('/storage/v1/object/public/notes/').last;
+    } else if (path.contains('/storage/v1/object/sign/notes/')) {
+      path = path.split('/storage/v1/object/sign/notes/').last.split('?').first;
+    } else if (path.contains('/notes/')) {
+      path = path.split('/notes/').last.split('?').first;
+    }
+    return Uri.decodeComponent(path);
+  }
+
+  /// Generates an authenticated signed URL for a private note PDF file.
+  Future<String> getSignedPdfUrl(String fileKeyOrUrl, {int expiresIn = 7200}) async {
+    try {
+      final path = extractStoragePath(fileKeyOrUrl);
+      if (path.isEmpty) return fileKeyOrUrl;
+      return await _sb.storage.from('notes').createSignedUrl(path, expiresIn);
+    } catch (_) {
+      final path = extractStoragePath(fileKeyOrUrl);
+      return _sb.storage.from('notes').getPublicUrl(path);
     }
   }
 

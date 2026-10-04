@@ -179,7 +179,9 @@ class AdminLineChart extends StatelessWidget {
           if (points.length < 2 || width <= 0) return;
           final ratio = (localPosition.dx / width).clamp(0.0, 1.0);
           final index = (ratio * (points.length - 1)).round().clamp(0, points.length - 1);
-          onPointSelected?.call(index);
+          if (index != selectedIndex) {
+            onPointSelected?.call(index);
+          }
         }
 
         // Calculate tooltip position
@@ -192,7 +194,7 @@ class AdminLineChart extends StatelessWidget {
           final ratio = points[selectedIndex!].x;
           final x = ratio * width;
 
-          const tooltipWidth = 140.0;
+          const tooltipWidth = 135.0;
           double left = x - (tooltipWidth / 2);
           if (left < 6) left = 6;
           if (left + tooltipWidth > width - 6) left = width - tooltipWidth - 6;
@@ -201,21 +203,19 @@ class AdminLineChart extends StatelessWidget {
             left: left,
             top: 2,
             width: tooltipWidth,
-            child: IgnorePointer(
-              child: tooltipContent,
-            ),
+            child: tooltipContent!,
           );
         }
 
         return SizedBox(
           height: height,
-          child: GestureDetector(
+          child: Listener(
             behavior: HitTestBehavior.opaque,
-            onTapDown: (details) => handlePosition(details.localPosition),
-            onPanUpdate: (details) => handlePosition(details.localPosition),
+            onPointerDown: (event) => handlePosition(event.localPosition),
+            onPointerMove: (event) => handlePosition(event.localPosition),
+            onPointerHover: (event) => handlePosition(event.localPosition),
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
-              onHover: (event) => handlePosition(event.localPosition),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [

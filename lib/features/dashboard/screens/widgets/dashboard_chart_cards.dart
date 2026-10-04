@@ -224,7 +224,7 @@ class FunnelCard extends StatelessWidget {
               ),
               SizedBox(width: 4),
               Text(
-                'Registration to Paid',
+                'Signups, Inactives, Actives & Submitted',
                 style: TextStyle(
                   fontSize: 10.5,
                   color: AppColors.textSecondary,
@@ -328,7 +328,7 @@ class FunnelCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(3),
             child: LinearProgressIndicator(
               minHeight: 5,
-              value: topCount > 0 ? (count / topCount) : 0,
+              value: topCount > 0 ? (count / topCount).clamp(0.0, 1.0) : 0,
               backgroundColor: dark
                   ? AppColors.darkSurface
                   : AppColors.grey.withValues(alpha: 0.35),
@@ -343,13 +343,15 @@ class FunnelCard extends StatelessWidget {
   Color _stageColor(int index) {
     switch (index) {
       case 0:
-        return AppColors.info;
+        return AppColors.info; // 1. Signups
       case 1:
-        return AppColors.amberAccent;
+        return AppColors.warning; // 2. Inactives
       case 2:
-        return AppColors.primary;
+        return AppColors.success; // 3. Actives
+      case 3:
+        return AppColors.primary; // 4. Submitted
       default:
-        return AppColors.success;
+        return AppColors.primary;
     }
   }
 }

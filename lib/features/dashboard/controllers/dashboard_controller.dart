@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/dashboard_repository.dart';
 import 'package:m_admin/data/repositories/question_reports_repository.dart';
@@ -25,28 +26,72 @@ class DashboardController extends GetxController {
   final isReportsLoading = false.obs;
 
   final isLoading = false.obs;
+  final isChartLoading = false.obs;
   final errorMessage = RxnString();
   final rangeDays = 30.obs;
+  final customDateRange = Rxn<DateTimeRange>();
 
   @override
   void onInit() {
     super.onInit();
     load();
-    ever(rangeDays, (_) => load());
+  }
+
+  void setPresetDays(int days) {
+    customDateRange.value = null;
+    rangeDays.value = days;
+    reloadChartSeries();
+  }
+
+  void setCustomDateRange(DateTimeRange range) {
+    customDateRange.value = range;
+    final diff = range.end.difference(range.start).inDays + 1;
+    rangeDays.value = diff;
+    reloadChartSeries();
+  }
+
+  Future<void> reloadChartSeries() async {
+    try {
+      isChartLoading.value = true;
+      final range = customDateRange.value;
+      final Future<List<DailyPoint>> signupsFuture = range != null
+          ? _repo.fetchSignupsDaily(null, range.start, range.end)
+          : _repo.fetchSignupsDaily(rangeDays.value);
+
+      final Future<List<DailyPoint>> revenueFuture = range != null
+          ? _repo.fetchRevenueDaily(null, range.start, range.end)
+          : _repo.fetchRevenueDaily(rangeDays.value);
+
+      final results = await Future.wait([signupsFuture, revenueFuture]);
+      signupSeries.value = results[0];
+      revenueSeries.value = results[1];
+    } catch (e) {
+      errorMessage.value = AppExceptionHandler.handle(e).message;
+    } finally {
+      isChartLoading.value = false;
+    }
   }
 
   Future<void> load() async {
     try {
       isLoading.value = true;
+      isChartLoading.value = true;
       errorMessage.value = null;
 
-      final days = rangeDays.value;
+      final range = customDateRange.value;
+      final Future<List<DailyPoint>> signupsFuture = range != null
+          ? _repo.fetchSignupsDaily(null, range.start, range.end)
+          : _repo.fetchSignupsDaily(rangeDays.value);
+
+      final Future<List<DailyPoint>> revenueFuture = range != null
+          ? _repo.fetchRevenueDaily(null, range.start, range.end)
+          : _repo.fetchRevenueDaily(rangeDays.value);
 
       // Fan out all queries in parallel.
       final results = await Future.wait([
         _repo.fetchStats(),
-        _repo.fetchSignupsDaily(days),
-        _repo.fetchRevenueDaily(days),
+        signupsFuture,
+        revenueFuture,
         _repo.fetchSubjectTestCounts(),
         _repo.fetchSubscriptionFunnel(),
         _repo.fetchStreamSplit(),
@@ -70,6 +115,7 @@ class DashboardController extends GetxController {
       errorMessage.value = AppExceptionHandler.handle(e).message;
     } finally {
       isLoading.value = false;
+      isChartLoading.value = false;
     }
   }
 

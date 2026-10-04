@@ -8,7 +8,6 @@ import 'package:m_admin/features/notes/controllers/notes_controller.dart';
 import 'package:m_admin/features/notes/models/admin_note_model.dart';
 import 'package:m_admin/features/notes/screens/note_pdf_preview_screen.dart';
 import 'package:m_admin/routes/routes.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
@@ -64,12 +63,15 @@ class NotesScreen extends StatelessWidget {
                 ];
 
                 if (isNarrow) {
+                  final isVeryNarrow = constraints.maxWidth < 360;
                   return Wrap(
                     spacing: AppSizes.sm,
                     runSpacing: AppSizes.sm,
                     children: cards
                         .map((c) => SizedBox(
-                              width: (constraints.maxWidth - AppSizes.sm) / 2,
+                              width: isVeryNarrow
+                                  ? constraints.maxWidth
+                                  : (constraints.maxWidth - AppSizes.sm) / 2,
                               child: c,
                             ))
                         .toList(),
@@ -355,6 +357,8 @@ class _StatTile extends StatelessWidget {
               children: [
                 Text(
                   value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -362,6 +366,8 @@ class _StatTile extends StatelessWidget {
                 ),
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -416,21 +422,62 @@ class _NoteTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: dark ? AppColors.darkSurface : AppColors.lightGrey,
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-        border: Border.all(
-          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Document icon with grade badge
-          Stack(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 560;
+
+        Widget buildBadge() {
+          return InkWell(
+            onTap: () => controller.togglePremium(note),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 7,
+                vertical: 2,
+              ),
+              decoration: BoxDecoration(
+                color: note.isPremium
+                    ? AppColors.warning.withValues(alpha: 0.14)
+                    : AppColors.success.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: note.isPremium
+                      ? AppColors.warning
+                      : AppColors.success,
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    note.isPremium
+                        ? Iconsax.crown_copy
+                        : Iconsax.unlock_copy,
+                    size: 11,
+                    color: note.isPremium
+                        ? AppColors.warning
+                        : AppColors.success,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    note.isPremium ? 'PREMIUM' : 'FREE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: note.isPremium
+                          ? AppColors.warning
+                          : AppColors.success,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        Widget buildDocIcon() {
+          return Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
@@ -447,10 +494,11 @@ class _NoteTile extends StatelessWidget {
                 ),
               ),
               Positioned(
-                right: -4,
-                bottom: -4,
+                right: -2,
+                bottom: -2,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 0.5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 3, vertical: 0.5),
                   decoration: BoxDecoration(
                     color: AppColors.primary,
                     borderRadius: BorderRadius.circular(3),
@@ -466,197 +514,221 @@ class _NoteTile extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-          const SizedBox(width: AppSizes.sm + 2),
+          );
+        }
 
-          // Title, Chapter, Metadata
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        note.title,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+        List<Widget> buildActions() {
+          return [
+            if (note.fileKey.isNotEmpty ||
+                (note.fileUrl != null && note.fileUrl!.isNotEmpty))
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.all(5),
+                constraints:
+                    const BoxConstraints(minWidth: 32, minHeight: 32),
+                tooltip: 'View PDF',
+                icon: const Icon(Icons.visibility_outlined, size: 18),
+                onPressed: () {
+                  Get.to(
+                    () => NotePdfPreviewScreen(
+                      title: note.title,
+                      fileName: note.fileKey.isNotEmpty
+                          ? note.fileKey.split('/').last
+                          : 'document.pdf',
+                      fileUrl: note.fileUrl,
+                      fileKey: note.fileKey,
+                      fileSizeBytes: note.fileSizeBytes,
+                      pageCount: note.pageCount,
+                      grade: note.grade,
+                      subjectName: note.subjectName,
+                      chapterNumber: note.chapterNumber,
+                      isPremium: note.isPremium,
                     ),
-                    const SizedBox(width: AppSizes.sm),
-                    // Premium / Free badge
-                    InkWell(
-                      onTap: () => controller.togglePremium(note),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: note.isPremium
-                              ? AppColors.warning.withValues(alpha: 0.14)
-                              : AppColors.success.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: note.isPremium
-                                ? AppColors.warning
-                                : AppColors.success,
-                            width: 0.8,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              note.isPremium
-                                  ? Iconsax.crown_copy
-                                  : Iconsax.unlock_copy,
-                              size: 11,
-                              color: note.isPremium
-                                  ? AppColors.warning
-                                  : AppColors.success,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              note.isPremium ? 'PREMIUM' : 'FREE',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: note.isPremium
-                                    ? AppColors.warning
-                                    : AppColors.success,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                  );
+                },
+              ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.all(5),
+              constraints:
+                  const BoxConstraints(minWidth: 32, minHeight: 32),
+              tooltip: 'Edit note',
+              icon: const Icon(Iconsax.edit_2_copy, size: 18),
+              onPressed: () => Get.toNamed(
+                AdminRoutes.noteEditor,
+                arguments: {'note': note},
+              ),
+            ),
+            Obx(() {
+              final isDeleting = controller.isDeleting[note.id] == true;
+              if (isDeleting) {
+                return const SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Padding(
+                    padding: EdgeInsets.all(6),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                );
+              }
+
+              return IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.all(5),
+                constraints:
+                    const BoxConstraints(minWidth: 32, minHeight: 32),
+                tooltip: 'Delete note',
+                icon: const Icon(
+                  Iconsax.trash_copy,
+                  size: 18,
+                  color: AppColors.error,
                 ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 4,
-                  children: [
-                    _MetaItem(
-                      icon: Iconsax.folder_2_copy,
-                      label: 'Chapter ${note.chapterNumber}',
-                    ),
-                    _MetaItem(
-                      icon: Iconsax.document_upload_copy,
-                      label: note.formattedSize,
-                    ),
-                    if (note.pageCount > 0)
-                      _MetaItem(
-                        icon: Iconsax.book_1_copy,
-                        label: note.formattedPages,
-                      ),
-                    if (note.orderIndex > 0)
-                      _MetaItem(
-                        icon: Iconsax.sort_copy,
-                        label: 'Order: ${note.orderIndex}',
-                      ),
-                  ],
-                ),
-                if (note.description != null && note.description!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
+                onPressed: () async {
+                  final confirmed = await AppDialogBoxes.confirm(
+                    title: 'Delete Note',
+                    message:
+                        'Are you sure you want to delete "${note.title}"?\n'
+                        'This will also remove the PDF file from storage.',
+                    confirmLabel: 'Delete',
+                    isDestructive: true,
+                  );
+                  if (confirmed) {
+                    controller.deleteNote(note);
+                  }
+                },
+              );
+            }),
+          ];
+        }
+
+        final metaWrap = Wrap(
+          spacing: 10,
+          runSpacing: 4,
+          children: [
+            _MetaItem(
+              icon: Iconsax.folder_2_copy,
+              label: 'Chapter ${note.chapterNumber}',
+            ),
+            _MetaItem(
+              icon: Iconsax.document_upload_copy,
+              label: note.formattedSize,
+            ),
+            if (note.pageCount > 0)
+              _MetaItem(
+                icon: Iconsax.book_1_copy,
+                label: note.formattedPages,
+              ),
+            if (note.orderIndex > 0)
+              _MetaItem(
+                icon: Iconsax.sort_copy,
+                label: 'Order: ${note.orderIndex}',
+              ),
+          ],
+        );
+
+        final descWidget =
+            (note.description != null && note.description!.isNotEmpty)
+                ? Text(
                     note.description!,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,
                     ),
-                  ),
-                ],
-              ],
+                  )
+                : null;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: dark ? AppColors.darkSurface : AppColors.lightGrey,
+            borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+            border: Border.all(
+              color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
             ),
           ),
-          const SizedBox(width: AppSizes.md),
-
-          // Actions: View PDF, Edit and Delete
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (note.fileKey.isNotEmpty || (note.fileUrl != null && note.fileUrl!.isNotEmpty))
-                IconButton(
-                  tooltip: 'View PDF',
-                  icon: const Icon(Icons.visibility_outlined, size: 18),
-                  onPressed: () {
-                    final url = (note.fileUrl != null && note.fileUrl!.trim().isNotEmpty && note.fileUrl!.startsWith('http'))
-                        ? note.fileUrl!.trim()
-                        : (note.fileKey.isNotEmpty
-                            ? (note.fileKey.startsWith('http')
-                                ? note.fileKey
-                                : Supabase.instance.client.storage.from('notes').getPublicUrl(note.fileKey))
-                            : null);
-                    Get.to(
-                      () => NotePdfPreviewScreen(
-                        title: note.title,
-                        fileName: note.fileKey.isNotEmpty ? note.fileKey.split('/').last : 'document.pdf',
-                        fileUrl: url,
-                        fileKey: note.fileKey,
-                        fileSizeBytes: note.fileSizeBytes,
-                        pageCount: note.pageCount,
-                        grade: note.grade,
-                        subjectName: note.subjectName,
-                        chapterNumber: note.chapterNumber,
-                        isPremium: note.isPremium,
-                      ),
-                    );
-                  },
-                ),
-              IconButton(
-                tooltip: 'Edit note',
-                icon: const Icon(Iconsax.edit_2_copy, size: 18),
-                onPressed: () => Get.toNamed(
-                  AdminRoutes.noteEditor,
-                  arguments: {'note': note},
-                ),
-              ),
-              Obx(() {
-                final isDeleting = controller.isDeleting[note.id] == true;
-                if (isDeleting) {
-                  return const SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: Padding(
-                      padding: EdgeInsets.all(6),
-                      child: CircularProgressIndicator(strokeWidth: 2),
+          child: isNarrow
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        buildDocIcon(),
+                        const SizedBox(width: AppSizes.sm),
+                        Expanded(
+                          child: Text(
+                            note.title,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        buildBadge(),
+                      ],
                     ),
-                  );
-                }
-
-                return IconButton(
-                  tooltip: 'Delete note',
-                  icon: const Icon(
-                    Iconsax.trash_copy,
-                    size: 18,
-                    color: AppColors.error,
-                  ),
-                  onPressed: () async {
-                    final confirmed = await AppDialogBoxes.confirm(
-                      title: 'Delete Note',
-                      message: 'Are you sure you want to delete "${note.title}"?\n'
-                          'This will also remove the PDF file from storage.',
-                      confirmLabel: 'Delete',
-                      isDestructive: true,
-                    );
-                    if (confirmed) {
-                      controller.deleteNote(note);
-                    }
-                  },
-                );
-              }),
-            ],
-          ),
-        ],
-      ),
+                    const SizedBox(height: 6),
+                    metaWrap,
+                    if (descWidget != null) ...[
+                      const SizedBox(height: 4),
+                      descWidget,
+                    ],
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: buildActions(),
+                    ),
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    buildDocIcon(),
+                    const SizedBox(width: AppSizes.sm + 2),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  note.title,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: AppSizes.sm),
+                              buildBadge(),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          metaWrap,
+                          if (descWidget != null) ...[
+                            const SizedBox(height: 4),
+                            descWidget,
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSizes.sm),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: buildActions(),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }

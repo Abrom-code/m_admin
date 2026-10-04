@@ -780,8 +780,11 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
 
     try {
       final repo = DashboardRepository();
-      final days = _selectedRange!.end.difference(_selectedRange!.start).inDays;
-      final revenueData = await repo.fetchRevenueDaily(days);
+      final revenueData = await repo.fetchRevenueDaily(
+        null,
+        _selectedRange!.start,
+        _selectedRange!.end,
+      );
       final total =
           revenueData.fold<double>(0, (sum, point) => sum + point.value);
 

@@ -3,12 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/data/repositories/notes_repository.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
-class NotePdfPreviewScreen extends StatelessWidget {
+class NotePdfPreviewScreen extends StatefulWidget {
   const NotePdfPreviewScreen({
     super.key,
     required this.title,
@@ -36,6 +37,49 @@ class NotePdfPreviewScreen extends StatelessWidget {
   final int? chapterNumber;
   final bool isPremium;
 
+  @override
+  State<NotePdfPreviewScreen> createState() => _NotePdfPreviewScreenState();
+}
+
+class _NotePdfPreviewScreenState extends State<NotePdfPreviewScreen> {
+  final _repo = NotesRepository();
+  String? _resolvedUrl;
+  bool _isLoadingUrl = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveUrl();
+  }
+
+  Future<void> _resolveUrl({bool forceRefresh = false}) async {
+    final key = widget.fileKey?.trim();
+    final url = widget.fileUrl?.trim();
+    final candidate = (key != null && key.isNotEmpty) ? key : url;
+    if (candidate == null || candidate.isEmpty) return;
+
+    setState(() {
+      _isLoadingUrl = true;
+    });
+
+    try {
+      final signedUrl = await _repo.getSignedPdfUrl(candidate, expiresIn: 7200);
+      if (mounted) {
+        setState(() {
+          _resolvedUrl = signedUrl;
+          _isLoadingUrl = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _resolvedUrl = url;
+          _isLoadingUrl = false;
+        });
+      }
+    }
+  }
+
   String _formatBytes(int bytes) {
     if (bytes <= 0) return '0 B';
     final mb = bytes / (1024 * 1024);
@@ -45,28 +89,44 @@ class NotePdfPreviewScreen extends StatelessWidget {
     return '${mb.toStringAsFixed(2)} MB';
   }
 
-  void _openPdf() {
-    if (fileUrl != null && fileUrl!.trim().isNotEmpty) {
-      AppHelperFunctions.openUrl(fileUrl!.trim());
+  Future<void> _openPdf() async {
+    if (_isLoadingUrl) {
+      SnackbarHelper.info('Generating link', 'Please wait while we generate a secure signed URL...');
+      return;
+    }
+    final url = _resolvedUrl ?? widget.fileUrl;
+    if (url != null && url.trim().isNotEmpty) {
+      try {
+        await AppHelperFunctions.openUrl(url.trim());
+      } catch (e) {
+        SnackbarHelper.error('Error', 'Could not open PDF: $e');
+      }
     } else {
-      SnackbarHelper.info(
-        'Local File',
-        'This file is currently in memory. Save the note to upload and view via cloud URL.',
-      );
+      if (widget.pdfBytes != null) {
+        SnackbarHelper.info(
+          'Local File',
+          'This file is currently in memory. Save the note to upload and view via cloud URL.',
+        );
+      } else {
+        SnackbarHelper.warning('No PDF', 'No valid PDF link available.');
+      }
     }
   }
 
   void _copyUrl(BuildContext context) {
-    if (fileUrl != null && fileUrl!.trim().isNotEmpty) {
-      Clipboard.setData(ClipboardData(text: fileUrl!.trim()));
-      SnackbarHelper.success('Copied', 'PDF URL copied to clipboard.');
+    final url = _resolvedUrl ?? widget.fileUrl;
+    if (url != null && url.trim().isNotEmpty) {
+      Clipboard.setData(ClipboardData(text: url.trim()));
+      SnackbarHelper.success('Copied', 'Authenticated PDF URL copied to clipboard.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
-    final hasRemoteUrl = fileUrl != null && fileUrl!.trim().isNotEmpty;
+    final hasRemoteUrl = (_resolvedUrl != null && _resolvedUrl!.isNotEmpty) ||
+        (widget.fileUrl != null && widget.fileUrl!.trim().isNotEmpty) ||
+        (widget.fileKey != null && widget.fileKey!.trim().isNotEmpty);
 
     return Scaffold(
       appBar: AppBar(
@@ -155,7 +215,7 @@ class NotePdfPreviewScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                title.isNotEmpty ? title : 'Untitled Note',
+                                widget.title.isNotEmpty ? widget.title : 'Untitled Note',
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -172,7 +232,7 @@ class NotePdfPreviewScreen extends StatelessWidget {
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
-                                      fileName,
+                                      widget.fileName,
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontFamily: 'monospace',
@@ -198,40 +258,45 @@ class NotePdfPreviewScreen extends StatelessWidget {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        if (grade != null)
+                        if (widget.grade != null)
                           _Badge(
-                            label: 'Grade $grade',
+                            label: 'Grade ${widget.grade}',
                             icon: Iconsax.teacher_copy,
                             color: AppColors.primary,
                           ),
-                        if (subjectName != null && subjectName!.isNotEmpty)
+                        if (widget.subjectName != null && widget.subjectName!.isNotEmpty)
                           _Badge(
-                            label: subjectName!,
+                            label: widget.subjectName!,
                             icon: Iconsax.book_1_copy,
                             color: Colors.teal,
                           ),
-                        if (chapterNumber != null)
+                        if (widget.chapterNumber != null)
                           _Badge(
-                            label: 'Chapter $chapterNumber',
+                            label: 'Chapter ${widget.chapterNumber}',
                             icon: Iconsax.folder_2_copy,
                             color: Colors.indigo,
                           ),
-                        if (pageCount > 0)
+                        if (widget.pageCount > 0)
                           _Badge(
-                            label: '$pageCount pages',
+                            label: '${widget.pageCount} pages',
                             icon: Iconsax.book_copy,
                             color: Colors.orange,
                           ),
-                        if (fileSizeBytes > 0)
+                        if (widget.fileSizeBytes > 0)
                           _Badge(
-                            label: _formatBytes(fileSizeBytes),
+                            label: _formatBytes(widget.fileSizeBytes),
                             icon: Iconsax.document_upload_copy,
                             color: Colors.purple,
                           ),
                         _Badge(
-                          label: isPremium ? 'PREMIUM' : 'FREE',
-                          icon: isPremium ? Iconsax.crown_copy : Iconsax.unlock_copy,
-                          color: isPremium ? AppColors.warning : AppColors.success,
+                          label: widget.isPremium ? 'PREMIUM' : 'FREE',
+                          icon: widget.isPremium ? Iconsax.crown_copy : Iconsax.unlock_copy,
+                          color: widget.isPremium ? AppColors.warning : AppColors.success,
+                        ),
+                        const _Badge(
+                          label: 'PRIVATE & SECURE',
+                          icon: Iconsax.shield_tick_copy,
+                          color: AppColors.info,
                         ),
                       ],
                     ),
@@ -264,8 +329,8 @@ class NotePdfPreviewScreen extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       hasRemoteUrl
-                          ? 'This PDF document is hosted in Supabase Storage. You can launch it directly in your browser or copy its public URL.'
-                          : 'This PDF document is loaded in the editor from your computer and will be uploaded to Supabase Storage upon saving.',
+                          ? 'This PDF document is stored securely in private Supabase Storage. A temporary authenticated signed link is generated automatically for previewing and downloading.'
+                          : 'This PDF document is loaded in the editor from your computer and will be uploaded to private Supabase Storage upon saving.',
                       style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.textSecondary,
@@ -296,24 +361,43 @@ class NotePdfPreviewScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: AppSizes.sm),
                             Expanded(
-                              child: SelectableText(
-                                fileUrl!,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontFamily: 'monospace',
-                                ),
-                                maxLines: 1,
-                              ),
+                              child: _isLoadingUrl
+                                  ? const Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Generating secure authenticated link...',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : SelectableText(
+                                      _resolvedUrl ?? widget.fileUrl ?? 'No URL generated',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontFamily: 'monospace',
+                                      ),
+                                      maxLines: 1,
+                                    ),
                             ),
                             const SizedBox(width: AppSizes.sm),
-                            TextButton.icon(
-                              onPressed: () => _copyUrl(context),
-                              icon: const Icon(Iconsax.copy_copy, size: 14),
-                              label: const Text('Copy'),
-                              style: TextButton.styleFrom(
-                                visualDensity: VisualDensity.compact,
+                            if (!_isLoadingUrl && (_resolvedUrl != null || widget.fileUrl != null))
+                              TextButton.icon(
+                                onPressed: () => _copyUrl(context),
+                                icon: const Icon(Iconsax.copy_copy, size: 14),
+                                label: const Text('Copy'),
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                ),
                               ),
-                            ),
                           ],
                         ),
                       ),
@@ -342,6 +426,17 @@ class NotePdfPreviewScreen extends StatelessWidget {
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _isLoadingUrl ? null : () => _resolveUrl(forceRefresh: true),
+                            icon: const Icon(Icons.refresh_rounded, size: 16),
+                            label: const Text('Refresh Link'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
                                 vertical: 12,
                               ),
                             ),
@@ -380,7 +475,7 @@ class NotePdfPreviewScreen extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Size: ${_formatBytes(fileSizeBytes)} • Return to the editor and tap "Update Note" or "Create Note" to complete the cloud upload.',
+                                    'Size: ${_formatBytes(widget.fileSizeBytes)} • Return to the editor and tap "Update Note" or "Create Note" to complete the cloud upload.',
                                     style: const TextStyle(
                                       fontSize: 12,
                                       color: AppColors.textSecondary,
@@ -420,35 +515,38 @@ class NotePdfPreviewScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: AppSizes.md),
-                    _DetailRow(label: 'Document Title', value: title.isNotEmpty ? title : '—'),
-                    _DetailRow(label: 'File Name', value: fileName),
+                    _DetailRow(
+                      label: 'Document Title',
+                      value: widget.title.isNotEmpty ? widget.title : '—',
+                    ),
+                    _DetailRow(label: 'File Name', value: widget.fileName),
                     _DetailRow(
                       label: 'Grade Level',
-                      value: grade != null ? 'Grade $grade' : '—',
+                      value: widget.grade != null ? 'Grade ${widget.grade}' : '—',
                     ),
                     _DetailRow(
                       label: 'Subject',
-                      value: subjectName ?? '—',
+                      value: widget.subjectName ?? '—',
                     ),
                     _DetailRow(
                       label: 'Chapter Number',
-                      value: chapterNumber != null ? 'Chapter $chapterNumber' : '—',
+                      value: widget.chapterNumber != null ? 'Chapter ${widget.chapterNumber}' : '—',
                     ),
                     _DetailRow(
                       label: 'Page Count',
-                      value: pageCount > 0 ? '$pageCount pages' : '—',
+                      value: widget.pageCount > 0 ? '${widget.pageCount} pages' : '—',
                     ),
                     _DetailRow(
                       label: 'File Size',
-                      value: _formatBytes(fileSizeBytes),
+                      value: _formatBytes(widget.fileSizeBytes),
                     ),
                     _DetailRow(
                       label: 'Access Level',
-                      value: isPremium ? 'Premium (Subscribers only)' : 'Free (Open access)',
+                      value: widget.isPremium ? 'Premium (Subscribers only)' : 'Free (Open access)',
                     ),
-                    if (fileKey != null && fileKey!.isNotEmpty)
-                      _DetailRow(label: 'Storage Path', value: fileKey!),
-                    const _DetailRow(label: 'Storage Bucket', value: 'notes'),
+                    if (widget.fileKey != null && widget.fileKey!.isNotEmpty)
+                      _DetailRow(label: 'Storage Path', value: widget.fileKey!),
+                    const _DetailRow(label: 'Storage Bucket', value: 'notes (Private - Authenticated)'),
                   ],
                 ),
               ),

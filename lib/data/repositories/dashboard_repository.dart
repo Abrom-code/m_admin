@@ -206,39 +206,61 @@ class DashboardRepository {
     }
   }
 
-  /// Daily signup counts for the last [days] days.
-  Future<List<DailyPoint>> fetchSignupsDaily(int days) async {
+  /// Daily signup counts for the given date range or last [days] days.
+  Future<List<DailyPoint>> fetchSignupsDaily([
+    int? days,
+    DateTime? startDate,
+    DateTime? endDate,
+  ]) async {
     try {
-      final since = DateTime.now()
-          .subtract(Duration(days: days))
-          .toUtc()
-          .toIso8601String();
+      final DateTime start;
+      final DateTime end;
+      if (startDate != null && endDate != null) {
+        start = DateTime(startDate.year, startDate.month, startDate.day);
+        end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59, 999);
+      } else {
+        final d = days ?? 30;
+        end = DateTime.now();
+        start = end.subtract(Duration(days: d - 1));
+      }
 
       final rows = await _sb
           .from('users')
           .select('created_at')
-          .gte('created_at', since)
+          .gte('created_at', start.toUtc().toIso8601String())
+          .lte('created_at', end.toUtc().toIso8601String())
           .order('created_at');
 
-      return _groupByDay(rows, 'created_at', days);
+      return _groupByDayRange(rows, 'created_at', start, end);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
   }
 
-  /// Daily approved-payment totals.
-  Future<List<DailyPoint>> fetchRevenueDaily(int days) async {
+  /// Daily approved-payment totals for the given date range or last [days] days.
+  Future<List<DailyPoint>> fetchRevenueDaily([
+    int? days,
+    DateTime? startDate,
+    DateTime? endDate,
+  ]) async {
     try {
-      final since = DateTime.now()
-          .subtract(Duration(days: days))
-          .toUtc()
-          .toIso8601String();
+      final DateTime start;
+      final DateTime end;
+      if (startDate != null && endDate != null) {
+        start = DateTime(startDate.year, startDate.month, startDate.day);
+        end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59, 999);
+      } else {
+        final d = days ?? 30;
+        end = DateTime.now();
+        start = end.subtract(Duration(days: d - 1));
+      }
 
       final rows = await _sb
           .from('payment_receipts')
           .select('reviewed_at, amount')
           .eq('status', 'approved')
-          .gte('reviewed_at', since)
+          .gte('reviewed_at', start.toUtc().toIso8601String())
+          .lte('reviewed_at', end.toUtc().toIso8601String())
           .order('reviewed_at');
 
       final Map<String, double> totals = {};
@@ -250,7 +272,7 @@ class DashboardRepository {
         totals[day] = (totals[day] ?? 0) + amt;
       }
 
-      return _buildSeries(totals, days);
+      return _buildSeriesRange(totals, start, end);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
@@ -309,32 +331,32 @@ class DashboardRepository {
     }
   }
 
-  /// Conversion funnel: signups → payment submitted → approved.
+  /// Conversion funnel: Signups, Inactives, Actives, and Submitted.
   Future<List<FunnelPoint>> fetchSubscriptionFunnel() async {
     try {
       final results = await Future.wait<dynamic>([
-        _sb.from('users').select('id').count(CountOption.exact),           // 0: total signups
+        _sb.from('users').select('id').count(CountOption.exact), // 0: total signups
         _sb
             .from('users')
             .select('id')
-            .not('subscription_status', 'eq', 'inactive')
-            .count(CountOption.exact),                                      // 1: non-inactive
-        _sb
-            .from('payment_receipts')
-            .select('id')
-            .count(CountOption.exact),                                      // 2: submitted
+            .neq('subscription_status', 'active')
+            .count(CountOption.exact), // 1: inactives
         _sb
             .from('users')
             .select('id')
             .eq('subscription_status', 'active')
-            .count(CountOption.exact),                                      // 3: currently active
+            .count(CountOption.exact), // 2: actives
+        _sb
+            .from('payment_receipts')
+            .select('id')
+            .count(CountOption.exact), // 3: submitted
       ]);
 
       return [
-        FunnelPoint(label: 'Signups',           count: (results[0] as dynamic).count as int),
-        FunnelPoint(label: 'Non-inactive',       count: (results[1] as dynamic).count as int),
-        FunnelPoint(label: 'Submitted payment',  count: (results[2] as dynamic).count as int),
-        FunnelPoint(label: 'Active',             count: (results[3] as dynamic).count as int),
+        FunnelPoint(label: 'Signups',   count: (results[0] as dynamic).count as int),
+        FunnelPoint(label: 'Inactives', count: (results[1] as dynamic).count as int),
+        FunnelPoint(label: 'Actives',   count: (results[2] as dynamic).count as int),
+        FunnelPoint(label: 'Submitted', count: (results[3] as dynamic).count as int),
       ];
     } catch (e) {
       throw AppExceptionHandler.handle(e);
@@ -366,10 +388,11 @@ class DashboardRepository {
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
-  List<DailyPoint> _groupByDay(
+  List<DailyPoint> _groupByDayRange(
     List<Map<String, dynamic>> rows,
     String tsField,
-    int days,
+    DateTime start,
+    DateTime end,
   ) {
     final Map<String, int> counts = {};
     for (final r in rows) {
@@ -378,17 +401,26 @@ class DashboardRepository {
       final day = ts.substring(0, 10);
       counts[day] = (counts[day] ?? 0) + 1;
     }
-    return _buildSeries(counts.map((k, v) => MapEntry(k, v.toDouble())), days);
+    return _buildSeriesRange(
+      counts.map((k, v) => MapEntry(k, v.toDouble())),
+      start,
+      end,
+    );
   }
 
-  List<DailyPoint> _buildSeries(Map<String, double> totals, int days) {
+  List<DailyPoint> _buildSeriesRange(
+    Map<String, double> totals,
+    DateTime start,
+    DateTime end,
+  ) {
     final result = <DailyPoint>[];
-    final now = DateTime.now();
-    for (int i = days - 1; i >= 0; i--) {
-      final day = now.subtract(Duration(days: i));
+    var current = DateTime(start.year, start.month, start.day);
+    final endDay = DateTime(end.year, end.month, end.day);
+    while (!current.isAfter(endDay)) {
       final key =
-          '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-      result.add(DailyPoint(day: day, value: totals[key] ?? 0));
+          '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}';
+      result.add(DailyPoint(day: current, value: totals[key] ?? 0));
+      current = current.add(const Duration(days: 1));
     }
     return result;
   }
