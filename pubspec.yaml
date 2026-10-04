@@ -34,6 +34,7 @@ dependencies:
   # Local OS notifications for the admin device.
   # Used to alert the admin when a new pending payment arrives via Realtime.
   flutter_local_notifications: ^18.0.1
+  file_picker: ^13.1.0
 
   # Deliberately ABSENT — see ADMIN_APP_PROMPT.md Phase 3:
   #   sqflite            no offline cache; an admin tool must never show stale money
