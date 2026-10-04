@@ -81,8 +81,6 @@ class SettingsController extends GetxController {
   final telebirrHolder = TextEditingController();
   final abyssinia = TextEditingController();
   final abyssiniaHolder = TextEditingController();
-  final mpesa = TextEditingController();
-  final mpesaHolder = TextEditingController();
 
   // Extra accounts
   final extraAccounts = <ExtraPaymentAccount>[].obs;
@@ -119,8 +117,6 @@ class SettingsController extends GetxController {
     telebirrHolder.dispose();
     abyssinia.dispose();
     abyssiniaHolder.dispose();
-    mpesa.dispose();
-    mpesaHolder.dispose();
     webhookSecret.dispose();
     trialCount.dispose();
     subscriptionPrice.dispose();
@@ -197,10 +193,6 @@ class SettingsController extends GetxController {
             abyssinia.text = value;
           case 'payment_abyssinia_holder':
             abyssiniaHolder.text = value;
-          case 'payment_mpesa':
-            mpesa.text = value;
-          case 'payment_mpesa_holder':
-            mpesaHolder.text = value;
           case 'webhook_secret':
             webhookSecret.text = value;
           case 'trial_count':
@@ -256,8 +248,6 @@ class SettingsController extends GetxController {
         'payment_telebirr_holder': telebirrHolder.text.trim(),
         'payment_abyssinia': abyssinia.text.trim(),
         'payment_abyssinia_holder': abyssiniaHolder.text.trim(),
-        'payment_mpesa': mpesa.text.trim(),
-        'payment_mpesa_holder': mpesaHolder.text.trim(),
         'payment_extra_accounts':
             jsonEncode(extraAccounts.map((e) => e.toJson()).toList()),
       });
@@ -940,7 +930,7 @@ class _PaymentSection extends StatelessWidget {
             color: const Color(0xFF005691),
             accountController: c.telebirr,
             holderController: c.telebirrHolder,
-            accountHint: '09xxxxxxxx',
+            accountHint: '0960586811',
           ),
           const _Divider(),
           _BuiltInMethodRow(
@@ -949,7 +939,7 @@ class _PaymentSection extends StatelessWidget {
             color: const Color(0xFF7A187B),
             accountController: c.cbeBirr,
             holderController: c.cbeBirrHolder,
-            accountHint: '1000xxxxxxxx',
+            accountHint: '1000435011237',
           ),
           const _Divider(),
           _BuiltInMethodRow(
@@ -958,16 +948,7 @@ class _PaymentSection extends StatelessWidget {
             color: const Color(0xFFE89005),
             accountController: c.abyssinia,
             holderController: c.abyssiniaHolder,
-            accountHint: '1800xxxxxxxx',
-          ),
-          const _Divider(),
-          _BuiltInMethodRow(
-            icon: Iconsax.mobile_copy,
-            label: 'M-Pesa Safaricom',
-            color: const Color(0xFF00A344),
-            accountController: c.mpesa,
-            holderController: c.mpesaHolder,
-            accountHint: '07xxxxxxxx',
+            accountHint: '165093089',
           ),
           const SizedBox(height: AppSizes.lg),
 

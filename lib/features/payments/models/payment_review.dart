@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 /// A payment receipt joined to the student who submitted it.
 class PaymentReview {
@@ -38,7 +38,7 @@ class PaymentReview {
   final String receiptUrl;
   final String verificationUrl;
 
-  /// `'telebirr' | 'cbe' | 'abyssinia' | 'mpesa'`
+  /// `'telebirr' | 'cbe' | 'abyssinia'`
   final String paymentMethod;
 
   final num? amount;
@@ -174,22 +174,17 @@ class PaymentMethodInfo {
   static const Map<String, PaymentMethodInfo> _defaults = {
     'telebirr': PaymentMethodInfo(
       label: 'Telebirr',
-      account: '0983878287',
+      account: '0960586811',
       holder: _defaultHolder,
     ),
     'cbe': PaymentMethodInfo(
       label: 'CBE',
-      account: '1000786878626',
+      account: '1000435011237',
       holder: _defaultHolder,
     ),
     'abyssinia': PaymentMethodInfo(
       label: 'Abyssinia',
-      account: '187978686',
-      holder: _defaultHolder,
-    ),
-    'mpesa': PaymentMethodInfo(
-      label: 'M-PESA',
-      account: '0783738782',
+      account: '165093089',
       holder: _defaultHolder,
     ),
   };
@@ -221,8 +216,6 @@ class PaymentMethodInfo {
           'payment_cbe_birr', 'payment_cbe_birr_holder'),
       'abyssinia': merge('abyssinia', 'Abyssinia',
           'payment_abyssinia', 'payment_abyssinia_holder'),
-      'mpesa': merge('mpesa', 'M-PESA',
-          'payment_mpesa', 'payment_mpesa_holder'),
     };
 
     final extraRaw = cfg['payment_extra_accounts'] ?? '';
