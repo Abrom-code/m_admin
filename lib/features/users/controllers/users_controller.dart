@@ -193,21 +193,19 @@ class UsersController extends GetxController {
           planKey: plan,
           expiresAt: expiresAt,
         );
-      } else if (status == 'inactive') {
-        notifTitle = 'Subscription Update';
-        notifBody = (reason != null && reason.isNotEmpty)
-            ? 'Your premium access has been deactivated: $reason'
-            : 'Your premium access has been deactivated.';
       }
 
-      // Send push notification (best-effort — must not fail the action).
-      await _repo.sendSubscriptionPush(
-        userId: user.id,
-        status: status,
-        title: notifTitle,
-        body: notifBody,
-        reason: reason,
-      );
+      // Send push notification only for activation (not revocation).
+      // Revocation is handled silently via Supabase DB update only.
+      if (status == 'active' && notifTitle != null && notifBody != null) {
+        await _repo.sendSubscriptionPush(
+          userId: user.id,
+          status: status,
+          title: notifTitle,
+          body: notifBody,
+          reason: reason,
+        );
+      }
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
     } finally {

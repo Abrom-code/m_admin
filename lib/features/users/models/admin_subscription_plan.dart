@@ -158,14 +158,14 @@ class AdminSubscriptionPlan {
       final amountPrefix = (amount != null && amount > 0)
           ? 'Your payment of ${amount.toStringAsFixed(0)} $currency'
           : 'Your subscription';
-      return '$amountPrefix has been approved! Premium access is active until $timingText. Enjoy full access to all exams!';
+      return '$amountPrefix has been approved! Premium access is active until $timingText. Enjoy full access to all exams! Please close and reopen the app to activate your premium features.';
     }
 
     final label = labelOf(planKey);
     final amountPrefix = (amount != null && amount > 0)
         ? 'Your payment of ${amount.toStringAsFixed(0)} $currency for the $label plan'
         : 'Your $label subscription';
-    return '$amountPrefix has been approved! Premium access is active until $timingText. Enjoy full access to all exams!';
+    return '$amountPrefix has been approved! Premium access is active until $timingText. Enjoy full access to all exams! Please close and reopen the app to activate your premium features.';
   }
 
   /// Builds notification title for manual grant / extension.
@@ -194,11 +194,11 @@ class AdminSubscriptionPlan {
         diffDays > 0 ? '$formattedDate ($diffDays days left)' : formattedDate;
 
     if (planKey == 'custom' || byKey(planKey) == null) {
-      return 'You have been granted premium access valid until $timingText. Enjoy full access to all exams and features!';
+      return 'You have been granted premium access valid until $timingText. Enjoy full access to all exams and features! Please close and reopen the app to activate your premium features.';
     }
 
     final label = labelOf(planKey);
-    return 'You have been granted $label premium access, valid until $timingText. Enjoy full access to all exams and features!';
+    return 'You have been granted $label premium access, valid until $timingText. Enjoy full access to all exams and features! Please close and reopen the app to activate your premium features.';
   }
 
   static String _monthName(int month) => switch (month) {
