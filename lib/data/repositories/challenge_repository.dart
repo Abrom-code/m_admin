@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
+import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:m_admin/features/challenges/models/challenge_leaderboard_entry.dart';
 import 'package:m_admin/features/challenges/models/challenge_model.dart';
 import 'package:m_admin/features/challenges/models/challenge_question_model.dart';
@@ -485,5 +486,62 @@ class ChallengeRepository {
   Future<List<Map<String, dynamic>>> fetchSubjects() async {
     final rows = await _sb.from('subjects').select('id, name, is_natural, is_common').order('name');
     return (rows as List).cast<Map<String, dynamic>>();
+  }
+
+  // ── Question Sets ─────────────────────────────────────────────────────────
+
+  Future<List<ChallengeQuestionSetModel>> fetchQuestionSetsForSubject(int subjectId) async {
+    try {
+      final rows = await _sb
+          .from('challenge_question_sets')
+          .select('*, subjects(name), challenge_questions(id)')
+          .eq('subject_id', subjectId)
+          .order('created_at', ascending: false);
+
+      return (rows as List)
+          .map((r) => ChallengeQuestionSetModel.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      try {
+        final rows = await _sb
+            .from('challenge_question_sets')
+            .select()
+            .eq('subject_id', subjectId)
+            .order('created_at', ascending: false);
+
+        return (rows as List)
+            .map((r) => ChallengeQuestionSetModel.fromJson(r as Map<String, dynamic>))
+            .toList();
+      } catch (e) {
+        throw AppExceptionHandler.handle(e);
+      }
+    }
+  }
+
+  Future<ChallengeQuestionSetModel> upsertQuestionSet(Map<String, dynamic> data) async {
+    try {
+      final payload = Map<String, dynamic>.from(data);
+      if (payload['id'] == null || payload['id'].toString().isEmpty) {
+        payload.remove('id');
+      }
+
+      final row = await _sb
+          .from('challenge_question_sets')
+          .upsert(payload)
+          .select('*, subjects(name), challenge_questions(id)')
+          .single();
+
+      return ChallengeQuestionSetModel.fromJson(row);
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  Future<void> deleteQuestionSet(String setId) async {
+    try {
+      await _sb.from('challenge_question_sets').delete().eq('id', setId);
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
   }
 }

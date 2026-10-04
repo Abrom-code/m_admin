@@ -488,6 +488,27 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                   ),
                                 ),
                               ],
+                              const SizedBox(height: 16),
+                              Obx(
+                                () => SwitchListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  value: _ctrl.isPremium.value,
+                                  onChanged: (val) => _ctrl.isPremium.value = val,
+                                  title: const Text(
+                                    'Premium Challenge',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                  ),
+                                  subtitle: const Text(
+                                    'When enabled, only subscribed students can participate in this challenge round.',
+                                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                  ),
+                                  secondary: Icon(
+                                    Iconsax.crown_copy,
+                                    color: _ctrl.isPremium.value ? AppColors.warning : AppColors.textSecondary,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
