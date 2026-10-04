@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/routes/routes.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
@@ -625,11 +626,19 @@ class _ContentReportsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => Get.toNamed(AdminRoutes.questionReports),
-      borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          if (Get.isRegistered<AdminNavController>()) {
+            AdminNavController.instance.changePage(7);
+          } else {
+            Get.toNamed(AdminRoutes.questionReports);
+          }
+        },
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: AppColors.error.withValues(alpha: dark ? 0.15 : 0.08),
           borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
@@ -668,6 +677,7 @@ class _ContentReportsCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

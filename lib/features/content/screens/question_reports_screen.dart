@@ -17,8 +17,9 @@ class QuestionReportsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = Get.put(QuestionReportsController());
     final dark = AppHelperFunctions.isDark(context);
+    final canPop = Navigator.of(context).canPop();
 
-    return AdminScaffold(
+    final content = AdminScaffold(
       pageIndex: 7,
       onRefresh: () async {
         await controller.loadReports();
@@ -29,7 +30,7 @@ class QuestionReportsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ── Header Bar (only if opened as a push route with back button) ──
-          if (Navigator.of(context).canPop()) ...[
+          if (canPop) ...[
             _HeaderBar(controller: controller, dark: dark),
             const SizedBox(height: AppSizes.xs),
           ],
@@ -120,6 +121,18 @@ class QuestionReportsScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    if (canPop) {
+      return Scaffold(
+        backgroundColor: dark ? AppColors.dark : AppColors.light,
+        body: SafeArea(child: content),
+      );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: content,
     );
   }
 }
