@@ -7,10 +7,12 @@ import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/data/repositories/notes_repository.dart';
 import 'package:m_admin/features/notes/controllers/notes_controller.dart';
 import 'package:m_admin/features/notes/models/admin_note_model.dart';
+import 'package:m_admin/features/notes/screens/note_pdf_preview_screen.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   const NoteEditorScreen({super.key, this.note});
@@ -157,6 +159,67 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       return '${(bytes / 1024).toStringAsFixed(0)} KB';
     }
     return '${mb.toStringAsFixed(2)} MB';
+  }
+
+  bool get _canViewPdf {
+    return _pickedBytes != null ||
+        (_existingFileUrl != null && _existingFileUrl!.trim().isNotEmpty) ||
+        (_existingFileKey != null && _existingFileKey!.trim().isNotEmpty);
+  }
+
+  String? get _resolvedFileUrl {
+    if (_existingFileUrl != null &&
+        _existingFileUrl!.trim().isNotEmpty &&
+        _existingFileUrl!.startsWith('http')) {
+      return _existingFileUrl!.trim();
+    }
+    if (_existingFileKey != null && _existingFileKey!.trim().isNotEmpty) {
+      if (_existingFileKey!.startsWith('http')) {
+        return _existingFileKey!.trim();
+      }
+      try {
+        return Supabase.instance.client.storage
+            .from('notes')
+            .getPublicUrl(_existingFileKey!.trim());
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  void _viewPdf() {
+    if (!_canViewPdf) {
+      SnackbarHelper.warning('No PDF', 'Please select or upload a PDF first.');
+      return;
+    }
+
+    final String? subjectName = _subjects.firstWhereOrNull(
+      (s) => s['id'] == _selectedSubjectId,
+    )?['name']?.toString() ?? widget.note?.subjectName;
+
+    Get.to(
+      () => NotePdfPreviewScreen(
+        title: _titleCtrl.text.trim().isNotEmpty
+            ? _titleCtrl.text.trim()
+            : (widget.note?.title ?? 'PDF Document'),
+        fileName: _pickedFileName ??
+            (_existingFileKey != null
+                ? _existingFileKey!.split('/').last
+                : 'document.pdf'),
+        fileUrl: _resolvedFileUrl,
+        pdfBytes: _pickedBytes,
+        fileKey: _existingFileKey,
+        fileSizeBytes: _fileSizeBytes,
+        pageCount: int.tryParse(_pageCountCtrl.text.trim()) ??
+            (widget.note?.pageCount ?? 0),
+        grade: _selectedGrade,
+        subjectName: subjectName,
+        chapterNumber: int.tryParse(_chapterNumCtrl.text.trim()) ??
+            (widget.note?.chapterNumber ?? 1),
+        isPremium: _isPremium,
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -534,57 +597,95 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                           color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
                         ),
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            height: 48,
-                            width: 48,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-                            ),
-                            child: const Icon(
-                              Iconsax.document_upload_copy,
-                              color: AppColors.primary,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: AppSizes.md),
-                          Expanded(
-                            child: Column(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isNarrow = constraints.maxWidth < 500;
+                          final hasFile = _canViewPdf;
+
+                          final infoWidget = Row(
+                            children: [
+                              Container(
+                                height: 48,
+                                width: 48,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                                ),
+                                child: const Icon(
+                                  Iconsax.document_upload_copy,
+                                  color: AppColors.primary,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: AppSizes.md),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _pickedFileName ??
+                                          (_existingFileKey != null
+                                              ? 'Existing: ${_existingFileKey!.split('/').last}'
+                                              : 'No file selected'),
+                                      style: const TextStyle(fontWeight: FontWeight.w600),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _fileSizeBytes > 0
+                                          ? '${_formatBytes(_fileSizeBytes)} • ${_fileType.toUpperCase()}'
+                                          : 'Tap below to select a PDF from your computer',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+
+                          final actionsWidget = Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              if (hasFile)
+                                OutlinedButton.icon(
+                                  onPressed: _viewPdf,
+                                  icon: const Icon(Icons.visibility_outlined, size: 17),
+                                  label: const Text('View'),
+                                ),
+                              OutlinedButton.icon(
+                                onPressed: _pickPdf,
+                                icon: const Icon(Iconsax.folder_open_copy, size: 17),
+                                label: Text(
+                                  hasFile ? 'Change' : 'Browse',
+                                ),
+                              ),
+                            ],
+                          );
+
+                          if (isNarrow) {
+                            return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  _pickedFileName ??
-                                      (_existingFileKey != null
-                                          ? 'Existing: ${_existingFileKey!.split('/').last}'
-                                          : 'No file selected'),
-                                  style: const TextStyle(fontWeight: FontWeight.w600),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _fileSizeBytes > 0
-                                      ? '${_formatBytes(_fileSizeBytes)} • $_fileType.toUpperCase()'
-                                      : 'Tap below to select a PDF from your computer',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
+                                infoWidget,
+                                const SizedBox(height: AppSizes.md),
+                                actionsWidget,
                               ],
-                            ),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _pickPdf,
-                            icon: const Icon(Iconsax.folder_open_copy, size: 18),
-                            label: Text(
-                              _pickedBytes != null || _existingFileKey != null
-                                  ? 'Change'
-                                  : 'Browse',
-                            ),
-                          ),
-                        ],
+                            );
+                          }
+
+                          return Row(
+                            children: [
+                              Expanded(child: infoWidget),
+                              const SizedBox(width: AppSizes.md),
+                              actionsWidget,
+                            ],
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: AppSizes.spaceBtwInputFields),

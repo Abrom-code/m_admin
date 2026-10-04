@@ -36,6 +36,7 @@ class AdminRoutes {
 
   static const notes = '/notes';
   static const noteEditor = '/notes/editor';
+  static const notePdfPreview = '/notes/pdf-preview';
 
   static const pilotExams = '/pilot-exams';
   static const pilotExamEditor = '/pilot-exams/editor';

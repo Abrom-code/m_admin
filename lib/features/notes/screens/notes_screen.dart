@@ -6,7 +6,9 @@ import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/common/widgets/loaders/circular_loading.dart';
 import 'package:m_admin/features/notes/controllers/notes_controller.dart';
 import 'package:m_admin/features/notes/models/admin_note_model.dart';
+import 'package:m_admin/features/notes/screens/note_pdf_preview_screen.dart';
 import 'package:m_admin/routes/routes.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
@@ -577,10 +579,38 @@ class _NoteTile extends StatelessWidget {
           ),
           const SizedBox(width: AppSizes.md),
 
-          // Actions: Edit and Delete
+          // Actions: View PDF, Edit and Delete
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (note.fileKey.isNotEmpty || (note.fileUrl != null && note.fileUrl!.isNotEmpty))
+                IconButton(
+                  tooltip: 'View PDF',
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  onPressed: () {
+                    final url = (note.fileUrl != null && note.fileUrl!.trim().isNotEmpty && note.fileUrl!.startsWith('http'))
+                        ? note.fileUrl!.trim()
+                        : (note.fileKey.isNotEmpty
+                            ? (note.fileKey.startsWith('http')
+                                ? note.fileKey
+                                : Supabase.instance.client.storage.from('notes').getPublicUrl(note.fileKey))
+                            : null);
+                    Get.to(
+                      () => NotePdfPreviewScreen(
+                        title: note.title,
+                        fileName: note.fileKey.isNotEmpty ? note.fileKey.split('/').last : 'document.pdf',
+                        fileUrl: url,
+                        fileKey: note.fileKey,
+                        fileSizeBytes: note.fileSizeBytes,
+                        pageCount: note.pageCount,
+                        grade: note.grade,
+                        subjectName: note.subjectName,
+                        chapterNumber: note.chapterNumber,
+                        isPremium: note.isPremium,
+                      ),
+                    );
+                  },
+                ),
               IconButton(
                 tooltip: 'Edit note',
                 icon: const Icon(Iconsax.edit_2_copy, size: 18),
