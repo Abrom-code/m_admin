@@ -6,7 +6,6 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:m_admin/features/challenges/controllers/admin_leaderboard_controller.dart';
 import 'package:m_admin/features/challenges/models/challenge_leaderboard_entry.dart';
-import 'package:m_admin/features/challenges/screens/widgets/grant_reward_dialog.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
@@ -440,14 +439,6 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                           return _CleanLeaderboardTile(
                             entry: entry,
                             isChallengeView: isChallengeView,
-                            onGrantReward: () {
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              GrantRewardDialog.show(
-                                context,
-                                entry: entry,
-                                controller: _ctrl,
-                              );
-                            },
                           );
                         },
                       ),
@@ -533,12 +524,10 @@ class _CleanLeaderboardTile extends StatelessWidget {
   const _CleanLeaderboardTile({
     required this.entry,
     required this.isChallengeView,
-    required this.onGrantReward,
   });
 
   final ChallengeLeaderboardEntry entry;
   final bool isChallengeView;
-  final VoidCallback onGrantReward;
 
   Color _rankBadgeColor() {
     if (entry.rank == 1) return const Color(0xFFFFD700); // Gold
@@ -730,17 +719,6 @@ class _CleanLeaderboardTile extends StatelessWidget {
               ],
             );
 
-            // Reward Action Button
-            final rewardButton = FilledButton.tonalIcon(
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                visualDensity: VisualDensity.compact,
-              ),
-              onPressed: onGrantReward,
-              icon: const Icon(Iconsax.gift_copy, size: 13),
-              label: const Text('Reward', style: TextStyle(fontSize: 11.5)),
-            );
-
             if (isNarrow) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -759,7 +737,6 @@ class _CleanLeaderboardTile extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       scoreWidget,
-                      rewardButton,
                     ],
                   ),
                 ],
@@ -775,8 +752,6 @@ class _CleanLeaderboardTile extends StatelessWidget {
                 Expanded(flex: 2, child: countsBreakdown),
                 const SizedBox(width: AppSizes.sm),
                 scoreWidget,
-                const SizedBox(width: AppSizes.md),
-                rewardButton,
               ],
             );
           },
