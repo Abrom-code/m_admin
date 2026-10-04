@@ -262,45 +262,102 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                         Expanded(
                           flex: 2,
                           child: _isLoadingSubjects
-                              ? const LinearProgressIndicator()
-                              : DropdownButtonFormField<int>(
-                                  initialValue: _selectedSubjectId,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Subject *',
-                                    prefixIcon: Icon(Iconsax.book_copy, size: 20),
+                              ? const SizedBox(
+                                  height: 50,
+                                  child: Center(
+                                    child: LinearProgressIndicator(),
                                   ),
-                                  items: _subjects.map((s) {
-                                    return DropdownMenuItem<int>(
-                                      value: s['id'] as int?,
-                                      child: Text(s['name']?.toString() ?? 'Subject'),
+                                )
+                              : Builder(
+                                  builder: (context) {
+                                    final subjectItems = <DropdownMenuItem<int>>[];
+                                    final existingSubjectIds = <int>{};
+
+                                    for (final s in _subjects) {
+                                      final id = (s['id'] as num?)?.toInt();
+                                      if (id != null) {
+                                        existingSubjectIds.add(id);
+                                        subjectItems.add(
+                                          DropdownMenuItem<int>(
+                                            value: id,
+                                            child: Text(s['name']?.toString() ?? 'Subject'),
+                                          ),
+                                        );
+                                      }
+                                    }
+
+                                    // If note has a subject not yet in fetched list, add placeholder item
+                                    if (_selectedSubjectId != null &&
+                                        !existingSubjectIds.contains(_selectedSubjectId)) {
+                                      subjectItems.insert(
+                                        0,
+                                        DropdownMenuItem<int>(
+                                          value: _selectedSubjectId,
+                                          child: Text('Subject #$_selectedSubjectId'),
+                                        ),
+                                      );
+                                    }
+
+                                    final effectiveSubjectValue = _selectedSubjectId != null &&
+                                            (existingSubjectIds.contains(_selectedSubjectId) ||
+                                                widget.note != null)
+                                        ? _selectedSubjectId
+                                        : (subjectItems.isNotEmpty ? subjectItems.first.value : null);
+
+                                    return DropdownButtonFormField<int>(
+                                      key: ValueKey('subject_${effectiveSubjectValue}_${_subjects.length}'),
+                                      initialValue: effectiveSubjectValue,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Subject *',
+                                        prefixIcon: Icon(Iconsax.book_copy, size: 20),
+                                      ),
+                                      items: subjectItems,
+                                      onChanged: (val) {
+                                        setState(() => _selectedSubjectId = val);
+                                        _loadChapters();
+                                      },
+                                      validator: (v) => v == null ? 'Subject is required' : null,
                                     );
-                                  }).toList(),
-                                  onChanged: (val) {
-                                    setState(() => _selectedSubjectId = val);
-                                    _loadChapters();
                                   },
-                                  validator: (v) => v == null ? 'Subject is required' : null,
                                 ),
                         ),
                         const SizedBox(width: AppSizes.spaceBtwInputFields),
                         Expanded(
-                          child: DropdownButtonFormField<int>(
-                            initialValue: _selectedGrade,
-                            decoration: const InputDecoration(
-                              labelText: 'Grade *',
-                              prefixIcon: Icon(Iconsax.teacher_copy, size: 20),
-                            ),
-                            items: const [
-                              DropdownMenuItem(value: 9, child: Text('Grade 9')),
-                              DropdownMenuItem(value: 10, child: Text('Grade 10')),
-                              DropdownMenuItem(value: 11, child: Text('Grade 11')),
-                              DropdownMenuItem(value: 12, child: Text('Grade 12')),
-                            ],
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(() => _selectedGrade = val);
-                                _loadChapters();
+                          child: Builder(
+                            builder: (context) {
+                              final validGrades = [9, 10, 11, 12];
+                              final gradeItems = <DropdownMenuItem<int>>[
+                                const DropdownMenuItem(value: 9, child: Text('Grade 9')),
+                                const DropdownMenuItem(value: 10, child: Text('Grade 10')),
+                                const DropdownMenuItem(value: 11, child: Text('Grade 11')),
+                                const DropdownMenuItem(value: 12, child: Text('Grade 12')),
+                              ];
+
+                              if (!validGrades.contains(_selectedGrade)) {
+                                gradeItems.insert(
+                                  0,
+                                  DropdownMenuItem(
+                                    value: _selectedGrade,
+                                    child: Text('Grade $_selectedGrade'),
+                                  ),
+                                );
                               }
+
+                              return DropdownButtonFormField<int>(
+                                key: ValueKey('grade_$_selectedGrade'),
+                                initialValue: _selectedGrade,
+                                decoration: const InputDecoration(
+                                  labelText: 'Grade *',
+                                  prefixIcon: Icon(Iconsax.teacher_copy, size: 20),
+                                ),
+                                items: gradeItems,
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() => _selectedGrade = val);
+                                    _loadChapters();
+                                  }
+                                },
+                              );
                             },
                           ),
                         ),
@@ -328,26 +385,51 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                         ),
                         const SizedBox(width: AppSizes.spaceBtwInputFields),
                         Expanded(
-                          child: DropdownButtonFormField<int?>(
-                            key: ValueKey('chapter_$_selectedChapterId'),
-                            initialValue: _selectedChapterId,
-                            decoration: const InputDecoration(
-                              labelText: 'Linked Chapter (Optional)',
-                              prefixIcon: Icon(Iconsax.folder_2_copy, size: 20),
-                            ),
-                            items: [
-                              const DropdownMenuItem<int?>(
-                                value: null,
-                                child: Text('None / Unlinked'),
-                              ),
-                              ..._chapters.map((ch) {
-                                return DropdownMenuItem<int?>(
-                                  value: ch['id'] as int?,
-                                  child: Text('Ch ${ch['chapter_number']}: ${ch['title']}'),
+                          child: Builder(
+                            builder: (context) {
+                              final chapterItems = <DropdownMenuItem<int?>>[
+                                const DropdownMenuItem<int?>(
+                                  value: null,
+                                  child: Text('None / Unlinked'),
+                                ),
+                              ];
+
+                              final existingChapterIds = <int>{};
+                              for (final ch in _chapters) {
+                                final chId = (ch['id'] as num?)?.toInt();
+                                if (chId != null) {
+                                  existingChapterIds.add(chId);
+                                  chapterItems.add(
+                                    DropdownMenuItem<int?>(
+                                      value: chId,
+                                      child: Text('Ch ${ch['chapter_number']}: ${ch['title']}'),
+                                    ),
+                                  );
+                                }
+                              }
+
+                              // Ensure currently selected chapter is always present in items
+                              if (_selectedChapterId != null &&
+                                  !existingChapterIds.contains(_selectedChapterId)) {
+                                chapterItems.add(
+                                  DropdownMenuItem<int?>(
+                                    value: _selectedChapterId,
+                                    child: Text('Chapter #$_selectedChapterId (Linked)'),
+                                  ),
                                 );
-                              }),
-                            ],
-                            onChanged: (val) => setState(() => _selectedChapterId = val),
+                              }
+
+                              return DropdownButtonFormField<int?>(
+                                key: ValueKey('chapter_${_selectedChapterId}_${_chapters.length}'),
+                                initialValue: _selectedChapterId,
+                                decoration: const InputDecoration(
+                                  labelText: 'Linked Chapter (Optional)',
+                                  prefixIcon: Icon(Iconsax.folder_2_copy, size: 20),
+                                ),
+                                items: chapterItems,
+                                onChanged: (val) => setState(() => _selectedChapterId = val),
+                              );
+                            },
                           ),
                         ),
                       ],

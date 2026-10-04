@@ -265,7 +265,7 @@ class _DashboardTopBar extends StatelessWidget {
               const SizedBox(width: 8),
             if (pendingReportsCount > 0)
               InkWell(
-                onTap: () => AdminNavController.instance.changePage(5),
+                onTap: () => AdminNavController.instance.changePage(7),
                 borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                 child: Container(
                   padding:
@@ -1009,10 +1009,14 @@ class _QuestionReportsQueue extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
                     'REPORTED QUESTIONS QUEUE',
@@ -1047,7 +1051,7 @@ class _QuestionReportsQueue extends StatelessWidget {
                 ],
               ),
               InkWell(
-                onTap: () => AdminNavController.instance.changePage(5),
+                onTap: () => AdminNavController.instance.changePage(7),
                 child: const Text(
                   'View All Reports ➔',
                   style: TextStyle(
@@ -1269,39 +1273,42 @@ class _ReportedQuestionItem extends StatelessWidget {
         const SizedBox(height: 8),
 
         // Action buttons: Edit Question + Fixed (Remove from DB)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            if (group.testId != null && group.subjectId != null) ...[
-              OutlinedButton.icon(
-                onPressed: () {
-                  Get.to(() => TestEditorScreen(
-                        subjectId: group.subjectId!,
-                        testId: group.testId,
-                        subjectName: group.subjectName ?? '',
-                      ));
-                },
-                icon: const Icon(Iconsax.edit_2_copy, size: 12),
-                label: const Text('Edit Question', style: TextStyle(fontSize: 11)),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              if (group.testId != null && group.subjectId != null)
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Get.to(() => TestEditorScreen(
+                          subjectId: group.subjectId!,
+                          testId: group.testId,
+                          subjectName: group.subjectName ?? '',
+                        ));
+                  },
+                  icon: const Icon(Iconsax.edit_2_copy, size: 12),
+                  label: const Text('Edit Question', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ElevatedButton.icon(
+                onPressed: () => _confirmFixAndRemove(context),
+                icon: const Icon(Icons.check_circle_rounded, size: 12),
+                label: const Text('Fixed (Remove)', style: TextStyle(fontSize: 11)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   visualDensity: VisualDensity.compact,
                 ),
               ),
-              const SizedBox(width: 8),
             ],
-            ElevatedButton.icon(
-              onPressed: () => _confirmFixAndRemove(context),
-              icon: const Icon(Icons.check_circle_rounded, size: 12),
-              label: const Text('Fixed (Remove)', style: TextStyle(fontSize: 11)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.success,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
-          ],
+          ),
         ),
       ],
     );

@@ -57,11 +57,6 @@ class AdminNavController extends GetxController {
     ),
     AdminNavItem(label: 'Challenges', icon: Iconsax.cup_copy),
     AdminNavItem(label: 'Sessions', icon: Iconsax.mobile_copy),
-    AdminNavItem(
-      label: 'Audit Log',
-      icon: Iconsax.document_text_1_copy,
-      superAdminOnly: true,
-    ),
     AdminNavItem(label: 'Settings', icon: Iconsax.setting_2_copy),
   ];
 

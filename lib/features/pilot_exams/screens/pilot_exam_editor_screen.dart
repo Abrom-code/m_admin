@@ -28,7 +28,7 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
   late final TextEditingController _editionCtrl;
   late final TextEditingController _descCtrl;
 
-  int _selectedGrade = 12;
+  int? _selectedGrade;
   bool _isPremium = true;
   bool _isActive = true;
 
@@ -47,7 +47,7 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
     _editionCtrl = TextEditingController(text: e?.edition ?? '2019 E.C.');
     _descCtrl = TextEditingController(text: e?.description ?? '');
 
-    _selectedGrade = e?.grade ?? 12;
+    _selectedGrade = (e != null && e.grade > 0 && e.grade <= 12) ? e.grade : null;
     _isPremium = e?.isPremium ?? true;
     _isActive = e?.isActive ?? true;
 
@@ -105,7 +105,7 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
         'title': _titleCtrl.text.trim(),
         'edition': _editionCtrl.text.trim(),
         'description': _descCtrl.text.trim(),
-        'grade': _selectedGrade,
+        'grade': _selectedGrade ?? 0,
         'is_premium': _isPremium,
         'is_active': _isActive,
       };
@@ -222,21 +222,25 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
                     ),
                     const SizedBox(height: AppSizes.spaceBtwInputFields),
 
-                    // Grade dropdown
-                    DropdownButtonFormField<int>(
+                    // Grade dropdown (Optional)
+                    DropdownButtonFormField<int?>(
                       initialValue: _selectedGrade,
                       decoration: const InputDecoration(
-                        labelText: 'Grade Level *',
+                        labelText: 'Grade Level (Optional)',
                         prefixIcon: Icon(Iconsax.teacher_copy, size: 20),
                       ),
                       items: const [
+                        DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text('All Grades / National (Optional)'),
+                        ),
                         DropdownMenuItem(value: 9, child: Text('Grade 9')),
                         DropdownMenuItem(value: 10, child: Text('Grade 10')),
                         DropdownMenuItem(value: 11, child: Text('Grade 11')),
                         DropdownMenuItem(value: 12, child: Text('Grade 12 (Matric)')),
                       ],
                       onChanged: (val) {
-                        if (val != null) setState(() => _selectedGrade = val);
+                        setState(() => _selectedGrade = val);
                       },
                     ),
                     const SizedBox(height: AppSizes.spaceBtwInputFields),
@@ -442,15 +446,22 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
                   ),
                   const SizedBox(width: AppSizes.spaceBtwItems),
                   ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
                     onPressed: _isSaving ? null : _save,
                     icon: _isSaving
                         ? const SizedBox(
-                            width: 18,
-                            height: 18,
+                            width: 16,
+                            height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
-                        : const Icon(Icons.check, size: 18),
-                    label: Text(_isSaving ? 'Saving...' : (isEditing ? 'Update Exam' : 'Create Exam')),
+                        : const Icon(Icons.check, size: 16),
+                    label: Text(
+                      _isSaving ? 'Saving...' : (isEditing ? 'Update Exam' : 'Create Exam'),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),

@@ -67,17 +67,18 @@ class _SubjectChaptersScreenState extends State<SubjectChaptersScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) => AlertDialog(
           title: Text(existing != null ? 'Edit Chapter' : 'Add Chapter'),
-          content: SizedBox(
-            width: 420,
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isNarrow = constraints.maxWidth < 320;
+                        final numField = TextFormField(
                           controller: numCtrl,
                           keyboardType: TextInputType.number,
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -86,11 +87,9 @@ class _SubjectChaptersScreenState extends State<SubjectChaptersScreen> {
                             prefixIcon: Icon(Iconsax.hashtag_copy, size: 18),
                           ),
                           validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-                        ),
-                      ),
-                      const SizedBox(width: AppSizes.spaceBtwInputFields),
-                      Expanded(
-                        child: DropdownButtonFormField<int>(
+                        );
+
+                        final gradeDropdown = DropdownButtonFormField<int>(
                           initialValue: grade,
                           decoration: const InputDecoration(
                             labelText: 'Grade *',
@@ -105,21 +104,39 @@ class _SubjectChaptersScreenState extends State<SubjectChaptersScreen> {
                           onChanged: (val) {
                             if (val != null) setDlgState(() => grade = val);
                           },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSizes.spaceBtwInputFields),
-                  TextFormField(
-                    controller: titleCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Chapter Title *',
-                      hintText: 'e.g. Introduction to Calculus',
-                      prefixIcon: Icon(Iconsax.book_copy, size: 18),
+                        );
+
+                        if (isNarrow) {
+                          return Column(
+                            children: [
+                              numField,
+                              const SizedBox(height: AppSizes.spaceBtwInputFields),
+                              gradeDropdown,
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          children: [
+                            Expanded(child: numField),
+                            const SizedBox(width: AppSizes.spaceBtwInputFields),
+                            Expanded(child: gradeDropdown),
+                          ],
+                        );
+                      },
                     ),
-                    validator: (v) => v == null || v.trim().isEmpty ? 'Title is required' : null,
-                  ),
-                ],
+                    const SizedBox(height: AppSizes.spaceBtwInputFields),
+                    TextFormField(
+                      controller: titleCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Chapter Title *',
+                        hintText: 'e.g. Introduction to Calculus',
+                        prefixIcon: Icon(Iconsax.book_copy, size: 18),
+                      ),
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Title is required' : null,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -207,33 +224,30 @@ class _SubjectChaptersScreenState extends State<SubjectChaptersScreen> {
             // Filter Bar
             AdminCard(
               padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 8),
-              child: Row(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   const Text('Filter by Grade:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  const SizedBox(width: 8),
-                  Wrap(
-                    spacing: 6,
-                    children: [
-                      ChoiceChip(
-                        label: const Text('All', style: TextStyle(fontSize: 11)),
-                        selected: _filterGrade == null,
+                  ChoiceChip(
+                    label: const Text('All', style: TextStyle(fontSize: 11)),
+                    selected: _filterGrade == null,
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (_) {
+                      setState(() => _filterGrade = null);
+                      _loadChapters();
+                    },
+                  ),
+                  ...[9, 10, 11, 12].map((g) => ChoiceChip(
+                        label: Text('Grade $g', style: const TextStyle(fontSize: 11)),
+                        selected: _filterGrade == g,
                         visualDensity: VisualDensity.compact,
                         onSelected: (_) {
-                          setState(() => _filterGrade = null);
+                          setState(() => _filterGrade = g);
                           _loadChapters();
                         },
-                      ),
-                      ...[9, 10, 11, 12].map((g) => ChoiceChip(
-                            label: Text('G$g', style: const TextStyle(fontSize: 11)),
-                            selected: _filterGrade == g,
-                            visualDensity: VisualDensity.compact,
-                            onSelected: (_) {
-                              setState(() => _filterGrade = g);
-                              _loadChapters();
-                            },
-                          )),
-                    ],
-                  ),
+                      )),
                 ],
               ),
             ),

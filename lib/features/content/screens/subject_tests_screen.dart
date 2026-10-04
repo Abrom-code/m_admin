@@ -580,75 +580,97 @@ class _ChapterTestsViewState extends State<_ChapterTestsView> {
               ),
             ),
           ),
-          child: Row(
-            children: [
-              // Search input
-              Expanded(
-                child: SizedBox(
-                  height: 34,
-                  child: TextField(
-                    controller: _searchCtrl,
-                    onChanged: (v) => ctrl.searchQuery.value = v.trim().toLowerCase(),
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      hintText: 'Search chapter tests or titles...',
-                      hintStyle: const TextStyle(fontSize: 11),
-                      prefixIcon: const Icon(Iconsax.search_normal_copy, size: 14),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        borderSide: BorderSide(
-                          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                        ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 620;
+              final searchField = SizedBox(
+                height: 34,
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (v) => ctrl.searchQuery.value = v.trim().toLowerCase(),
+                  style: const TextStyle(fontSize: 12),
+                  decoration: InputDecoration(
+                    hintText: 'Search chapter tests or titles...',
+                    hintStyle: const TextStyle(fontSize: 11),
+                    prefixIcon: const Icon(Iconsax.search_normal_copy, size: 14),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(
+                        color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: AppSizes.md),
+              );
 
-              // Grade filter chips
-              if (!widget.subject.isCommon)
-                Obx(() {
-                  final selGrade = ctrl.selectedChapterGrade.value;
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Grade: ',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(width: 4),
-                      ...[null, 9, 10, 11, 12].map((g) {
-                        final isSel = selGrade == g;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: ChoiceChip(
-                            showCheckmark: false,
-                            label: Text(
-                              g == null ? 'All' : 'G$g',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight:
-                                    isSel ? FontWeight.bold : FontWeight.w500,
-                                color: isSel ? Colors.white : AppColors.textSecondary,
-                              ),
+              final gradeChips = !widget.subject.isCommon
+                  ? Obx(() {
+                      final selGrade = ctrl.selectedChapterGrade.value;
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Grade: ',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
                             ),
-                            selected: isSel,
-                            selectedColor: AppColors.primary,
-                            visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            onSelected: (_) => ctrl.selectedChapterGrade.value = g,
-                          ),
-                        );
-                      }),
+                            const SizedBox(width: 4),
+                            ...[null, 9, 10, 11, 12].map((g) {
+                              final isSel = selGrade == g;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: ChoiceChip(
+                                  showCheckmark: false,
+                                  label: Text(
+                                    g == null ? 'All' : 'G$g',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                                      color: isSel ? Colors.white : AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  selected: isSel,
+                                  selectedColor: AppColors.primary,
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  onSelected: (_) => ctrl.selectedChapterGrade.value = g,
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      );
+                    })
+                  : null;
+
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    searchField,
+                    if (gradeChips != null) ...[
+                      const SizedBox(height: 8),
+                      gradeChips,
                     ],
-                  );
-                }),
-            ],
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: searchField),
+                  if (gradeChips != null) ...[
+                    const SizedBox(width: AppSizes.md),
+                    gradeChips,
+                  ],
+                ],
+              );
+            },
           ),
         ),
 
@@ -1039,75 +1061,73 @@ class _GradeTestsViewState extends State<_GradeTestsView> {
               ),
             ),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 34,
-                  child: TextField(
-                    controller: _searchCtrl,
-                    onChanged: (v) => ctrl.searchQuery.value = v.trim().toLowerCase(),
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      hintText: 'Search grade assessment tests...',
-                      hintStyle: const TextStyle(fontSize: 11),
-                      prefixIcon: const Icon(Iconsax.search_normal_copy, size: 14),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        borderSide: BorderSide(
-                          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                        ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 680;
+              final searchField = SizedBox(
+                height: 34,
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (v) => ctrl.searchQuery.value = v.trim().toLowerCase(),
+                  style: const TextStyle(fontSize: 12),
+                  decoration: InputDecoration(
+                    hintText: 'Search grade assessment tests...',
+                    hintStyle: const TextStyle(fontSize: 11),
+                    prefixIcon: const Icon(Iconsax.search_normal_copy, size: 14),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(
+                        color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: AppSizes.md),
+              );
 
-              // Grade filter chips
-              Obx(() {
+              final gradeChips = Obx(() {
                 final selGrade = ctrl.selectedGradeTestGrade.value;
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Grade: ',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(width: 4),
-                    ...[null, 9, 10, 11, 12].map((g) {
-                      final isSel = selGrade == g;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: ChoiceChip(
-                          showCheckmark: false,
-                          label: Text(
-                            g == null ? 'All' : 'Grade $g',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight:
-                                  isSel ? FontWeight.bold : FontWeight.w500,
-                              color: isSel ? Colors.white : AppColors.textSecondary,
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Grade: ',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(width: 4),
+                      ...[null, 9, 10, 11, 12].map((g) {
+                        final isSel = selGrade == g;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: ChoiceChip(
+                            showCheckmark: false,
+                            label: Text(
+                              g == null ? 'All' : 'Grade $g',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                                color: isSel ? Colors.white : AppColors.textSecondary,
+                              ),
                             ),
+                            selected: isSel,
+                            selectedColor: AppColors.warning,
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            onSelected: (_) => ctrl.selectedGradeTestGrade.value = g,
                           ),
-                          selected: isSel,
-                          selectedColor: AppColors.warning,
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          onSelected: (_) => ctrl.selectedGradeTestGrade.value = g,
-                        ),
-                      );
-                    }),
-                  ],
+                        );
+                      }),
+                    ],
+                  ),
                 );
-              }),
+              });
 
-              const SizedBox(width: AppSizes.md),
-              FilledButton.icon(
+              final actionButton = FilledButton.icon(
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.warning,
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1121,8 +1141,38 @@ class _GradeTestsViewState extends State<_GradeTestsView> {
                 icon: const Icon(Icons.add_rounded, size: 15),
                 label: const Text('Add Grade Test',
                     style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-              ),
-            ],
+              );
+
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    searchField,
+                    const SizedBox(height: 8),
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        gradeChips,
+                        actionButton,
+                      ],
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: searchField),
+                  const SizedBox(width: AppSizes.md),
+                  gradeChips,
+                  const SizedBox(width: AppSizes.md),
+                  actionButton,
+                ],
+              );
+            },
           ),
         ),
 
@@ -1348,126 +1398,161 @@ class _EntranceAndModelExamsViewState
               ),
             ),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 34,
-                  child: TextField(
-                    controller: _searchCtrl,
-                    onChanged: (v) => ctrl.searchQuery.value = v.trim().toLowerCase(),
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      hintText: 'Search entrance or model exams (year, title)...',
-                      hintStyle: const TextStyle(fontSize: 11),
-                      prefixIcon: const Icon(Iconsax.search_normal_copy, size: 14),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        borderSide: BorderSide(
-                          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                        ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 780;
+
+              final searchField = SizedBox(
+                height: 34,
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (v) => ctrl.searchQuery.value = v.trim().toLowerCase(),
+                  style: const TextStyle(fontSize: 12),
+                  decoration: InputDecoration(
+                    hintText: 'Search entrance or model exams (year, title)...',
+                    hintStyle: const TextStyle(fontSize: 11),
+                    prefixIcon: const Icon(Iconsax.search_normal_copy, size: 14),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(
+                        color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: AppSizes.md),
+              );
 
-              // Filter chips (All, Entrance, Model)
-              Obx(() {
+              final filterChips = Obx(() {
                 final selType = ctrl.selectedExamType.value;
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ChoiceChip(
+                        showCheckmark: false,
+                        label: Text(
+                          'All (${ctrl.entranceAndModelTests.length})',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: selType == 'all'
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: selType == 'all'
+                                ? Colors.white
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                        selected: selType == 'all',
+                        selectedColor: const Color(0xFF2563EB),
+                        visualDensity: VisualDensity.compact,
+                        onSelected: (_) => ctrl.selectedExamType.value = 'all',
+                      ),
+                      const SizedBox(width: 4),
+                      ChoiceChip(
+                        showCheckmark: false,
+                        label: Text(
+                          'Entrance (${ctrl.entranceCount})',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: selType == 'entrance'
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: selType == 'entrance'
+                                ? Colors.white
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                        selected: selType == 'entrance',
+                        selectedColor: const Color(0xFF2563EB),
+                        visualDensity: VisualDensity.compact,
+                        onSelected: (_) => ctrl.selectedExamType.value = 'entrance',
+                      ),
+                      const SizedBox(width: 4),
+                      ChoiceChip(
+                        showCheckmark: false,
+                        label: Text(
+                          'Model (${ctrl.modelCount})',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: selType == 'model'
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: selType == 'model'
+                                ? Colors.white
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                        selected: selType == 'model',
+                        selectedColor: const Color(0xFF059669),
+                        visualDensity: VisualDensity.compact,
+                        onSelected: (_) => ctrl.selectedExamType.value = 'model',
+                      ),
+                    ],
+                  ),
+                );
+              });
+
+              final actionButtons = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => widget.onOpenTest(null, type: 'entrance'),
+                    icon: const Icon(Icons.school_rounded, size: 14),
+                    label: const Text('+ Entrance',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 6),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => widget.onOpenTest(null, type: 'model'),
+                    icon: const Icon(Iconsax.award_copy, size: 14),
+                    label: const Text('+ Model',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              );
+
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    ChoiceChip(
-                      showCheckmark: false,
-                      label: Text(
-                        'All (${ctrl.entranceAndModelTests.length})',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: selType == 'all'
-                              ? FontWeight.bold
-                              : FontWeight.w500,
-                          color: selType == 'all'
-                              ? Colors.white
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                      selected: selType == 'all',
-                      selectedColor: const Color(0xFF2563EB),
-                      visualDensity: VisualDensity.compact,
-                      onSelected: (_) => ctrl.selectedExamType.value = 'all',
-                    ),
-                    const SizedBox(width: 4),
-                    ChoiceChip(
-                      showCheckmark: false,
-                      label: Text(
-                        'Entrance (${ctrl.entranceCount})',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: selType == 'entrance'
-                              ? FontWeight.bold
-                              : FontWeight.w500,
-                          color: selType == 'entrance'
-                              ? Colors.white
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                      selected: selType == 'entrance',
-                      selectedColor: const Color(0xFF2563EB),
-                      visualDensity: VisualDensity.compact,
-                      onSelected: (_) => ctrl.selectedExamType.value = 'entrance',
-                    ),
-                    const SizedBox(width: 4),
-                    ChoiceChip(
-                      showCheckmark: false,
-                      label: Text(
-                        'Model (${ctrl.modelCount})',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: selType == 'model'
-                              ? FontWeight.bold
-                              : FontWeight.w500,
-                          color: selType == 'model'
-                              ? Colors.white
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                      selected: selType == 'model',
-                      selectedColor: const Color(0xFF059669),
-                      visualDensity: VisualDensity.compact,
-                      onSelected: (_) => ctrl.selectedExamType.value = 'model',
+                    searchField,
+                    const SizedBox(height: 8),
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        filterChips,
+                        actionButtons,
+                      ],
                     ),
                   ],
                 );
-              }),
+              }
 
-              const SizedBox(width: AppSizes.md),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  visualDensity: VisualDensity.compact,
-                ),
-                onPressed: () => widget.onOpenTest(null, type: 'entrance'),
-                icon: const Icon(Icons.school_rounded, size: 14),
-                label: const Text('+ Entrance',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(width: 6),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  visualDensity: VisualDensity.compact,
-                ),
-                onPressed: () => widget.onOpenTest(null, type: 'model'),
-                icon: const Icon(Iconsax.award_copy, size: 14),
-                label: const Text('+ Model',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-              ),
-            ],
+              return Row(
+                children: [
+                  Expanded(child: searchField),
+                  const SizedBox(width: AppSizes.md),
+                  filterChips,
+                  const SizedBox(width: AppSizes.md),
+                  actionButtons,
+                ],
+              );
+            },
           ),
         ),
 

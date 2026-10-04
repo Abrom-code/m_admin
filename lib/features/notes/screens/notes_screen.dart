@@ -101,33 +101,42 @@ class NotesScreen extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search notes by title or subject...',
-                          prefixIcon: const Icon(Iconsax.search_normal_1_copy, size: 20),
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: AppSizes.md,
-                            vertical: AppSizes.sm,
+                      child: SizedBox(
+                        height: 36,
+                        child: TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Search notes by title or subject...',
+                            hintStyle: const TextStyle(fontSize: 12),
+                            prefixIcon: const Icon(Iconsax.search_normal_1_copy, size: 16),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: AppSizes.sm,
+                              vertical: 8,
+                            ),
+                            suffixIcon: Obx(() {
+                              if (ctrl.searchQuery.value.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return IconButton(
+                                icon: const Icon(Icons.clear, size: 16),
+                                onPressed: () => ctrl.searchQuery.value = '',
+                              );
+                            }),
                           ),
-                          suffixIcon: Obx(() {
-                            if (ctrl.searchQuery.value.isEmpty) {
-                              return const SizedBox.shrink();
-                            }
-                            return IconButton(
-                              icon: const Icon(Icons.clear, size: 18),
-                              onPressed: () => ctrl.searchQuery.value = '',
-                            );
-                          }),
+                          style: const TextStyle(fontSize: 12.5),
+                          onChanged: (val) => ctrl.searchQuery.value = val,
                         ),
-                        onChanged: (val) => ctrl.searchQuery.value = val,
                       ),
                     ),
-                    const SizedBox(width: AppSizes.spaceBtwItems),
-                    ElevatedButton.icon(
+                    const SizedBox(width: AppSizes.sm),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
                       onPressed: () => Get.toNamed(AdminRoutes.noteEditor),
-                      icon: const Icon(Iconsax.add_copy, size: 18),
-                      label: const Text('New Note'),
+                      icon: const Icon(Iconsax.add_copy, size: 15),
+                      label: const Text('New Note', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -135,14 +144,14 @@ class NotesScreen extends StatelessWidget {
 
                 // Filters Row: Grade Chips & Subject Dropdown
                 Wrap(
-                  spacing: AppSizes.sm,
-                  runSpacing: AppSizes.xs,
+                  spacing: 6,
+                  runSpacing: 4,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     const Text(
                       'Grade:',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textSecondary,
                       ),
@@ -172,13 +181,14 @@ class NotesScreen extends StatelessWidget {
                       grade: 12,
                       controller: ctrl,
                     ),
-                    const SizedBox(width: AppSizes.sm),
+                    const SizedBox(width: 4),
 
                     // Subject dropdown
                     Obx(() {
                       final subjects = ctrl.subjects;
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        height: 30,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
                           color: dark ? AppColors.darkSurface : AppColors.lightGrey,
                           borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
@@ -190,17 +200,17 @@ class NotesScreen extends StatelessWidget {
                           child: DropdownButton<int?>(
                             value: ctrl.selectedSubjectId.value,
                             isDense: true,
-                            hint: const Text('All Subjects', style: TextStyle(fontSize: 12)),
+                            hint: const Text('All Subjects', style: TextStyle(fontSize: 11)),
                             items: [
                               const DropdownMenuItem<int?>(
                                 value: null,
-                                child: Text('All Subjects', style: TextStyle(fontSize: 12)),
+                                child: Text('All Subjects', style: TextStyle(fontSize: 11)),
                               ),
                               ...subjects.map((s) => DropdownMenuItem<int?>(
                                     value: s['id'] as int?,
                                     child: Text(
                                       s['name']?.toString() ?? '',
-                                      style: const TextStyle(fontSize: 12),
+                                      style: const TextStyle(fontSize: 11),
                                     ),
                                   )),
                             ],
@@ -380,9 +390,11 @@ class _GradeChip extends StatelessWidget {
     return Obx(() {
       final isSelected = controller.selectedGrade.value == grade;
       return ChoiceChip(
-        label: Text(label, style: const TextStyle(fontSize: 12)),
+        showCheckmark: false,
+        label: Text(label, style: const TextStyle(fontSize: 11)),
         selected: isSelected,
         visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0),
         onSelected: (_) => controller.setGradeFilter(grade),
       );
     });
@@ -403,8 +415,8 @@ class _NoteTile extends StatelessWidget {
     final dark = AppHelperFunctions.isDark(context);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: AppSizes.sm),
-      padding: const EdgeInsets.all(AppSizes.md),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: dark ? AppColors.darkSurface : AppColors.lightGrey,
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
@@ -420,31 +432,31 @@ class _NoteTile extends StatelessWidget {
             clipBehavior: Clip.none,
             children: [
               Container(
-                height: 44,
-                width: 44,
+                height: 36,
+                width: 36,
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                 ),
                 child: const Icon(
                   Iconsax.document_copy,
                   color: AppColors.primary,
-                  size: 22,
+                  size: 18,
                 ),
               ),
               Positioned(
                 right: -4,
                 bottom: -4,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 0.5),
                   decoration: BoxDecoration(
                     color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(3),
                   ),
                   child: Text(
                     'G${note.grade}',
                     style: const TextStyle(
-                      fontSize: 9,
+                      fontSize: 8,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
                     ),
@@ -453,7 +465,7 @@ class _NoteTile extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(width: AppSizes.md),
+          const SizedBox(width: AppSizes.sm + 2),
 
           // Title, Chapter, Metadata
           Expanded(

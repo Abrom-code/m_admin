@@ -20,6 +20,7 @@ class PilotExamsScreen extends StatelessWidget {
     final dark = AppHelperFunctions.isDark(context);
 
     return AdminScaffold(
+      pageIndex: 6,
       onRefresh: ctrl.loadPilotExams,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -101,33 +102,42 @@ class PilotExamsScreen extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search pilot exams by title or edition...',
-                          prefixIcon: const Icon(Iconsax.search_normal_1_copy, size: 20),
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: AppSizes.md,
-                            vertical: AppSizes.sm,
+                      child: SizedBox(
+                        height: 36,
+                        child: TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Search pilot exams by title or edition...',
+                            hintStyle: const TextStyle(fontSize: 12),
+                            prefixIcon: const Icon(Iconsax.search_normal_1_copy, size: 16),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: AppSizes.sm,
+                              vertical: 8,
+                            ),
+                            suffixIcon: Obx(() {
+                              if (ctrl.searchQuery.value.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return IconButton(
+                                icon: const Icon(Icons.clear, size: 16),
+                                onPressed: () => ctrl.searchQuery.value = '',
+                              );
+                            }),
                           ),
-                          suffixIcon: Obx(() {
-                            if (ctrl.searchQuery.value.isEmpty) {
-                              return const SizedBox.shrink();
-                            }
-                            return IconButton(
-                              icon: const Icon(Icons.clear, size: 18),
-                              onPressed: () => ctrl.searchQuery.value = '',
-                            );
-                          }),
+                          style: const TextStyle(fontSize: 12.5),
+                          onChanged: (val) => ctrl.searchQuery.value = val,
                         ),
-                        onChanged: (val) => ctrl.searchQuery.value = val,
                       ),
                     ),
-                    const SizedBox(width: AppSizes.spaceBtwItems),
-                    ElevatedButton.icon(
+                    const SizedBox(width: AppSizes.sm),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
                       onPressed: () => Get.toNamed(AdminRoutes.pilotExamEditor),
-                      icon: const Icon(Iconsax.add_copy, size: 18),
-                      label: const Text('New Pilot Exam'),
+                      icon: const Icon(Iconsax.add_copy, size: 15),
+                      label: const Text('New Pilot Exam', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -135,23 +145,24 @@ class PilotExamsScreen extends StatelessWidget {
 
                 // Grade filters
                 Wrap(
-                  spacing: AppSizes.sm,
-                  runSpacing: AppSizes.xs,
+                  spacing: 6,
+                  runSpacing: 4,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     const Text(
                       'Grade:',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textSecondary,
                       ),
                     ),
-                    _GradeChip(label: 'All', grade: null, controller: ctrl),
+                    _GradeChip(label: 'All Grades', grade: null, controller: ctrl),
                     _GradeChip(label: 'Grade 9', grade: 9, controller: ctrl),
                     _GradeChip(label: 'Grade 10', grade: 10, controller: ctrl),
                     _GradeChip(label: 'Grade 11', grade: 11, controller: ctrl),
                     _GradeChip(label: 'Grade 12', grade: 12, controller: ctrl),
+                    _GradeChip(label: 'National (Optional)', grade: 0, controller: ctrl),
                     Obx(() {
                       final hasFilter = ctrl.selectedGrade.value != null ||
                           ctrl.searchQuery.value.isNotEmpty;
@@ -249,35 +260,38 @@ class _StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AdminCard(
-      padding: const EdgeInsets.all(AppSizes.md),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(AppSizes.sm + 2),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(icon, color: color, size: AppSizes.iconMd),
+            child: Icon(icon, color: color, size: 16),
           ),
-          const SizedBox(width: AppSizes.md),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   value,
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
                   label,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: AppColors.textSecondary,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -304,9 +318,11 @@ class _GradeChip extends StatelessWidget {
     return Obx(() {
       final isSelected = controller.selectedGrade.value == grade;
       return ChoiceChip(
-        label: Text(label, style: const TextStyle(fontSize: 12)),
+        showCheckmark: false,
+        label: Text(label, style: const TextStyle(fontSize: 11)),
         selected: isSelected,
         visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0),
         onSelected: (_) => controller.setGradeFilter(grade),
       );
     });

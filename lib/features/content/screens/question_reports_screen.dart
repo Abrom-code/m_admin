@@ -19,7 +19,7 @@ class QuestionReportsScreen extends StatelessWidget {
     final dark = AppHelperFunctions.isDark(context);
 
     return AdminScaffold(
-      pageIndex: 5,
+      pageIndex: 7,
       onRefresh: () async {
         await controller.loadReports();
         await controller.loadPendingCount();
@@ -202,36 +202,33 @@ class _FilterSearchBar extends StatelessWidget {
           const SizedBox(height: 10),
 
           // Search Field + Sort Controls
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: dark
-                        ? AppColors.darkGrey.withValues(alpha: 0.3)
-                        : AppColors.grey.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                  ),
-                  child: TextField(
-                    controller: controller.searchController,
-                    onChanged: controller.onSearchChanged,
-                    style: const TextStyle(fontSize: 12.5),
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      hintText: 'Search by question, student name, or comment...',
-                      hintStyle: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                      prefixIcon: Icon(Iconsax.search_normal_copy, size: 16, color: AppColors.textSecondary),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 500;
+              final searchField = Container(
+                height: 36,
+                decoration: BoxDecoration(
+                  color: dark
+                      ? AppColors.darkGrey.withValues(alpha: 0.3)
+                      : AppColors.grey.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                ),
+                child: TextField(
+                  controller: controller.searchController,
+                  onChanged: controller.onSearchChanged,
+                  style: const TextStyle(fontSize: 12.5),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    hintText: 'Search by question, student name, or comment...',
+                    hintStyle: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    prefixIcon: Icon(Iconsax.search_normal_copy, size: 16, color: AppColors.textSecondary),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
+              );
 
-              // Sort Dropdown (Top-to-Bottom by Report Count)
-              Obx(() => Container(
+              final sortDropdown = Obx(() => Container(
                     height: 36,
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     decoration: BoxDecoration(
@@ -263,8 +260,27 @@ class _FilterSearchBar extends StatelessWidget {
                         },
                       ),
                     ),
-                  )),
-            ],
+                  ));
+
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    searchField,
+                    const SizedBox(height: 8),
+                    sortDropdown,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: searchField),
+                  const SizedBox(width: 8),
+                  sortDropdown,
+                ],
+              );
+            },
           ),
         ],
       ),

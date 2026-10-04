@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
-import 'package:m_admin/features/audit_log/screens/audit_log_screen.dart';
 import 'package:m_admin/features/challenges/screens/challenges_list_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
 import 'package:m_admin/features/dashboard/screens/dashboard_screen.dart';
@@ -287,7 +286,6 @@ class _Pages extends StatelessWidget {
           const QuestionReportsScreen(),
           const ChallengesListScreen(),
           const SessionsScreen(),
-          const AuditLogScreen(),
           const SettingsScreen(),
         ],
       ),
