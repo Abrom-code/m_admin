@@ -267,6 +267,8 @@ class AdminAppRoutes {
       page: () {
         final args = Get.arguments as Map<String, dynamic>? ?? {};
         return NotePdfPreviewScreen(
+          noteId: (args['note_id'] as num?)?.toInt() ??
+              (args['id'] as num?)?.toInt(),
           title: args['title']?.toString() ?? 'PDF Document',
           fileName: args['file_name']?.toString() ?? 'document.pdf',
           fileUrl: args['file_url']?.toString(),

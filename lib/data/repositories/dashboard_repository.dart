@@ -78,11 +78,16 @@ class RecentReceiptRow {
   }
 }
 
-/// One day of data for the line chart.
+/// One day of data for the chart.
 class DailyPoint {
-  const DailyPoint({required this.day, required this.value});
+  const DailyPoint({
+    required this.day,
+    required this.value,
+    this.methodBreakdown = const {},
+  });
   final DateTime day;
   final double value;
+  final Map<String, double> methodBreakdown;
 }
 
 /// Tests available per subject divided by category (Entrance, Model, Chapter/Grade).
@@ -272,15 +277,27 @@ class DashboardRepository {
       final rows = await query.order('reviewed_at');
 
       final Map<String, double> totals = {};
+      final Map<String, Map<String, double>> methodTotals = {};
+
       for (final r in rows) {
         final ts = r['reviewed_at']?.toString();
         if (ts == null) continue;
         final day = ts.substring(0, 10);
         final amt = _toDouble(r['amount']);
         totals[day] = (totals[day] ?? 0) + amt;
+
+        final rawMethod = (r['payment_method']?.toString() ?? 'other').toLowerCase();
+        final normMethod = rawMethod.contains('telebirr')
+            ? 'telebirr'
+            : (rawMethod.contains('cbe')
+                ? 'cbe'
+                : (rawMethod.contains('abyssinia') ? 'abyssinia' : 'other'));
+
+        methodTotals.putIfAbsent(day, () => {});
+        methodTotals[day]![normMethod] = (methodTotals[day]![normMethod] ?? 0) + amt;
       }
 
-      return _buildSeriesRange(totals, start, end);
+      return _buildSeriesRange(totals, start, end, methodTotals);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
@@ -419,15 +436,20 @@ class DashboardRepository {
   List<DailyPoint> _buildSeriesRange(
     Map<String, double> totals,
     DateTime start,
-    DateTime end,
-  ) {
+    DateTime end, [
+    Map<String, Map<String, double>>? methodTotals,
+  ]) {
     final result = <DailyPoint>[];
     var current = DateTime(start.year, start.month, start.day);
     final endDay = DateTime(end.year, end.month, end.day);
     while (!current.isAfter(endDay)) {
       final key =
           '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}';
-      result.add(DailyPoint(day: current, value: totals[key] ?? 0));
+      result.add(DailyPoint(
+        day: current,
+        value: totals[key] ?? 0,
+        methodBreakdown: methodTotals?[key] ?? const {},
+      ));
       current = current.add(const Duration(days: 1));
     }
     return result;

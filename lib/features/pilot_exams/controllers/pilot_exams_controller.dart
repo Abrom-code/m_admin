@@ -13,6 +13,7 @@ class PilotExamsController extends GetxController {
   final error = RxnString();
 
   final selectedGrade = RxnInt();
+  final statusFilter = RxnString(); // null = all, 'active', 'premium'
   final searchQuery = ''.obs;
 
   final isDeleting = <int, bool>{}.obs;
@@ -42,6 +43,12 @@ class PilotExamsController extends GetxController {
 
     return exams.where((exam) {
       if (selectedGrade.value != null && exam.grade != selectedGrade.value) {
+        return false;
+      }
+      if (statusFilter.value == 'active' && !exam.isActive) {
+        return false;
+      }
+      if (statusFilter.value == 'premium' && !exam.isPremium) {
         return false;
       }
       if (query.isNotEmpty) {
@@ -108,8 +115,13 @@ class PilotExamsController extends GetxController {
     loadPilotExams();
   }
 
+  void setStatusFilter(String? status) {
+    statusFilter.value = status;
+  }
+
   void clearFilters() {
     selectedGrade.value = null;
+    statusFilter.value = null;
     searchQuery.value = '';
     loadPilotExams();
   }

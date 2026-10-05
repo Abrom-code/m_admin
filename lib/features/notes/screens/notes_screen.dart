@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
+import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/common/widgets/loaders/circular_loading.dart';
@@ -25,72 +26,55 @@ class NotesScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Stat Summary Cards ─────────────────────────────────────────
+          // ── Stat Summary Ribbon ─────────────────────────────────────────
           Obx(() {
             final all = ctrl.notes;
             final premiumCount = all.where((n) => n.isPremium).length;
             final freeCount = all.length - premiumCount;
             final subjectCount = all.map((n) => n.subjectId).toSet().length;
+            final pFilter = ctrl.premiumFilter.value;
 
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final isNarrow = constraints.maxWidth < 650;
-                final cards = [
-                  _StatTile(
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _CompactRibbonCard(
                     label: 'Total Notes',
-                    value: '${all.length}',
+                    value: NumberFormat('#,##0').format(all.length),
+                    dotColor: AppColors.primary,
                     icon: Iconsax.document_copy,
-                    color: AppColors.primary,
+                    isSelected: pFilter == null,
+                    onTap: () => ctrl.setPremiumFilter(null),
                   ),
-                  _StatTile(
+                  const SizedBox(width: 8),
+                  _CompactRibbonCard(
                     label: 'Premium',
-                    value: '$premiumCount',
+                    value: NumberFormat('#,##0').format(premiumCount),
+                    dotColor: AppColors.warning,
                     icon: Iconsax.crown_copy,
-                    color: AppColors.warning,
+                    isSelected: pFilter == true,
+                    onTap: () => ctrl.setPremiumFilter(pFilter == true ? null : true),
                   ),
-                  _StatTile(
+                  const SizedBox(width: 8),
+                  _CompactRibbonCard(
                     label: 'Free',
-                    value: '$freeCount',
+                    value: NumberFormat('#,##0').format(freeCount),
+                    dotColor: AppColors.success,
                     icon: Iconsax.unlock_copy,
-                    color: AppColors.success,
+                    isSelected: pFilter == false,
+                    onTap: () => ctrl.setPremiumFilter(pFilter == false ? null : false),
                   ),
-                  _StatTile(
+                  const SizedBox(width: 8),
+                  _CompactRibbonCard(
                     label: 'Subjects',
-                    value: '$subjectCount',
+                    value: NumberFormat('#,##0').format(subjectCount),
+                    dotColor: AppColors.info,
                     icon: Iconsax.book_copy,
-                    color: AppColors.info,
+                    isSelected: false,
+                    onTap: null,
                   ),
-                ];
-
-                if (isNarrow) {
-                  final isVeryNarrow = constraints.maxWidth < 360;
-                  return Wrap(
-                    spacing: AppSizes.sm,
-                    runSpacing: AppSizes.sm,
-                    children: cards
-                        .map((c) => SizedBox(
-                              width: isVeryNarrow
-                                  ? constraints.maxWidth
-                                  : (constraints.maxWidth - AppSizes.sm) / 2,
-                              child: c,
-                            ))
-                        .toList(),
-                  );
-                }
-
-                return Row(
-                  children: cards
-                      .map((c) => Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSizes.xs,
-                              ),
-                              child: c,
-                            ),
-                          ))
-                      .toList(),
-                );
-              },
+                ],
+              ),
             );
           }),
 
@@ -166,24 +150,28 @@ class NotesScreen extends StatelessWidget {
                       controller: ctrl,
                     ),
                     _GradeChip(
-                      label: 'Grade 9',
+                      label: 'G9',
                       grade: 9,
                       controller: ctrl,
+                      tooltip: 'Grade 9',
                     ),
                     _GradeChip(
-                      label: 'Grade 10',
+                      label: 'G10',
                       grade: 10,
                       controller: ctrl,
+                      tooltip: 'Grade 10',
                     ),
                     _GradeChip(
-                      label: 'Grade 11',
+                      label: 'G11',
                       grade: 11,
                       controller: ctrl,
+                      tooltip: 'Grade 11',
                     ),
                     _GradeChip(
-                      label: 'Grade 12',
+                      label: 'G12',
                       grade: 12,
                       controller: ctrl,
+                      tooltip: 'Grade 12',
                     ),
                     const SizedBox(width: 4),
 
@@ -227,6 +215,7 @@ class NotesScreen extends StatelessWidget {
                     Obx(() {
                       final hasFilter = ctrl.selectedGrade.value != null ||
                           ctrl.selectedSubjectId.value != null ||
+                          ctrl.premiumFilter.value != null ||
                           ctrl.searchQuery.value.isNotEmpty;
                       if (!hasFilter) return const SizedBox.shrink();
 
@@ -323,61 +312,98 @@ class NotesScreen extends StatelessWidget {
   }
 }
 
-class _StatTile extends StatelessWidget {
-  const _StatTile({
+class _CompactRibbonCard extends StatelessWidget {
+  const _CompactRibbonCard({
     required this.label,
     required this.value,
-    required this.icon,
-    required this.color,
+    required this.dotColor,
+    required this.isSelected,
+    this.icon,
+    this.onTap,
   });
 
   final String label;
   final String value;
-  final IconData icon;
-  final Color color;
+  final Color dotColor;
+  final bool isSelected;
+  final IconData? icon;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return AdminCard(
-      padding: const EdgeInsets.all(AppSizes.md),
+    final dark = AppHelperFunctions.isDark(context);
+
+    final card = AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? dotColor.withValues(alpha: dark ? 0.18 : 0.08)
+            : (dark ? AppColors.darkCard : AppColors.white),
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+        border: Border.all(
+          color: isSelected
+              ? dotColor
+              : (dark
+                  ? AppColors.darkGrey.withValues(alpha: 0.25)
+                  : AppColors.borderPrimary.withValues(alpha: 0.7)),
+          width: isSelected ? 1.5 : 1.0,
+        ),
+      ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(AppSizes.sm + 2),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: dotColor),
+            const SizedBox(width: 8),
+          ] else ...[
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: dotColor,
+                shape: BoxShape.circle,
+              ),
             ),
-            child: Icon(icon, color: color, size: AppSizes.iconMd),
+            const SizedBox(width: 8),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: isSelected
+                  ? (dark ? AppColors.white : AppColors.textPrimary)
+                  : AppColors.textSecondary,
+            ),
           ),
-          const SizedBox(width: AppSizes.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: dotColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: dotColor,
+              ),
             ),
           ),
         ],
       ),
+    );
+
+    if (onTap == null) return card;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+      child: card,
     );
   }
 }
@@ -387,11 +413,13 @@ class _GradeChip extends StatelessWidget {
     required this.label,
     required this.grade,
     required this.controller,
+    this.tooltip,
   });
 
   final String label;
   final int? grade;
   final NotesController controller;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -399,10 +427,19 @@ class _GradeChip extends StatelessWidget {
       final isSelected = controller.selectedGrade.value == grade;
       return ChoiceChip(
         showCheckmark: false,
-        label: Text(label, style: const TextStyle(fontSize: 11)),
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? Colors.white : AppColors.textSecondary,
+          ),
+        ),
         selected: isSelected,
+        selectedColor: AppColors.primary,
         visualDensity: VisualDensity.compact,
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        tooltip: tooltip,
         onSelected: (_) => controller.setGradeFilter(grade),
       );
     });
@@ -531,6 +568,7 @@ class _NoteTile extends StatelessWidget {
                 onPressed: () {
                   Get.to(
                     () => NotePdfPreviewScreen(
+                      noteId: note.id,
                       title: note.title,
                       fileName: note.fileKey.isNotEmpty
                           ? note.fileKey.split('/').last

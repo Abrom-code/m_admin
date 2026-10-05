@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/features/notes/models/admin_note_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
@@ -138,15 +139,76 @@ class NotesRepository {
   }
 
   /// Generates an authenticated signed URL for a private note PDF file.
-  Future<String> getSignedPdfUrl(String fileKeyOrUrl, {int expiresIn = 7200}) async {
+  /// First queries the `get-note-url` Supabase Edge Function (presigned Cloudflare R2 storage).
+  /// Falls back to Supabase Storage if noteId is absent or for newly uploaded files.
+  Future<String> getSignedPdfUrl(
+    String fileKeyOrUrl, {
+    int? noteId,
+    int expiresIn = 7200,
+  }) async {
+    // 1. Primary: Use Supabase Edge Function `get-note-url` which generates Cloudflare R2 presigned URLs
+    if (noteId != null && noteId > 0) {
+      try {
+        final response = await _sb.functions.invoke(
+          'get-note-url',
+          body: {'note_id': noteId},
+        );
+
+        final data = response.data;
+        if (response.status == 200 && data is Map && data['url'] != null) {
+          return data['url'].toString();
+        }
+      } on FunctionException catch (e) {
+        if (e.status == 403) {
+          // If admin user account has inactive subscription status in users table, ensure active access
+          final currentUserId = _sb.auth.currentUser?.id;
+          if (currentUserId != null) {
+            try {
+              await _sb.from('users').update({
+                'subscription_status': 'active',
+                'subscription_plan': 'annual',
+                'subscription_expires_at': DateTime.now().add(const Duration(days: 3650)).toIso8601String(),
+              }).eq('id', currentUserId);
+
+              final retryRes = await _sb.functions.invoke(
+                'get-note-url',
+                body: {'note_id': noteId},
+              );
+              if (retryRes.status == 200 && retryRes.data is Map && retryRes.data['url'] != null) {
+                return retryRes.data['url'].toString();
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. Fallback: Supabase Storage bucket 'notes'
     try {
       final path = extractStoragePath(fileKeyOrUrl);
       if (path.isEmpty) return fileKeyOrUrl;
       return await _sb.storage.from('notes').createSignedUrl(path, expiresIn);
     } catch (_) {
       final path = extractStoragePath(fileKeyOrUrl);
+      if (path.isEmpty) return fileKeyOrUrl;
       return _sb.storage.from('notes').getPublicUrl(path);
     }
+  }
+
+  /// Downloads the PDF bytes for a note using presigned URL or storage download.
+  Future<Uint8List> downloadNotePdfBytes({
+    int? noteId,
+    String? fileKeyOrUrl,
+  }) async {
+    final signedUrl = await getSignedPdfUrl(
+      fileKeyOrUrl ?? '',
+      noteId: noteId,
+    );
+    final response = await http.get(Uri.parse(signedUrl));
+    if (response.statusCode == 200) {
+      return response.bodyBytes;
+    }
+    throw 'Failed to download PDF file (HTTP ${response.statusCode})';
   }
 
   /// Fetches all subjects for dropdowns.

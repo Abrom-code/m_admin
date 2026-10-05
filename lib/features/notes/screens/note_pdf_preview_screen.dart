@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -12,6 +14,7 @@ import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 class NotePdfPreviewScreen extends StatefulWidget {
   const NotePdfPreviewScreen({
     super.key,
+    this.noteId,
     required this.title,
     required this.fileName,
     this.fileUrl,
@@ -25,6 +28,7 @@ class NotePdfPreviewScreen extends StatefulWidget {
     this.isPremium = true,
   });
 
+  final int? noteId;
   final String title;
   final String fileName;
   final String? fileUrl;
@@ -45,6 +49,7 @@ class _NotePdfPreviewScreenState extends State<NotePdfPreviewScreen> {
   final _repo = NotesRepository();
   String? _resolvedUrl;
   bool _isLoadingUrl = false;
+  bool _isDownloading = false;
 
   @override
   void initState() {
@@ -56,14 +61,18 @@ class _NotePdfPreviewScreenState extends State<NotePdfPreviewScreen> {
     final key = widget.fileKey?.trim();
     final url = widget.fileUrl?.trim();
     final candidate = (key != null && key.isNotEmpty) ? key : url;
-    if (candidate == null || candidate.isEmpty) return;
+    if (widget.noteId == null && (candidate == null || candidate.isEmpty)) return;
 
     setState(() {
       _isLoadingUrl = true;
     });
 
     try {
-      final signedUrl = await _repo.getSignedPdfUrl(candidate, expiresIn: 7200);
+      final signedUrl = await _repo.getSignedPdfUrl(
+        candidate ?? '',
+        noteId: widget.noteId,
+        expiresIn: 7200,
+      );
       if (mounted) {
         setState(() {
           _resolvedUrl = signedUrl;
@@ -94,7 +103,12 @@ class _NotePdfPreviewScreenState extends State<NotePdfPreviewScreen> {
       SnackbarHelper.info('Generating link', 'Please wait while we generate a secure signed URL...');
       return;
     }
-    final url = _resolvedUrl ?? widget.fileUrl;
+    var url = _resolvedUrl ?? widget.fileUrl;
+    if ((url == null || url.trim().isEmpty) && widget.noteId != null) {
+      await _resolveUrl();
+      url = _resolvedUrl ?? widget.fileUrl;
+    }
+
     if (url != null && url.trim().isNotEmpty) {
       try {
         await AppHelperFunctions.openUrl(url.trim());
@@ -103,13 +117,56 @@ class _NotePdfPreviewScreenState extends State<NotePdfPreviewScreen> {
       }
     } else {
       if (widget.pdfBytes != null) {
-        SnackbarHelper.info(
-          'Local File',
-          'This file is currently in memory. Save the note to upload and view via cloud URL.',
-        );
+        _downloadPdf();
       } else {
         SnackbarHelper.warning('No PDF', 'No valid PDF link available.');
       }
+    }
+  }
+
+  Future<void> _downloadPdf() async {
+    if (_isDownloading) return;
+
+    setState(() => _isDownloading = true);
+    try {
+      Uint8List bytes;
+      if (widget.pdfBytes != null) {
+        bytes = widget.pdfBytes!;
+      } else {
+        bytes = await _repo.downloadNotePdfBytes(
+          noteId: widget.noteId,
+          fileKeyOrUrl: widget.fileKey ?? widget.fileUrl,
+        );
+      }
+
+      final defaultFileName = widget.fileName.isNotEmpty
+          ? widget.fileName
+          : 'note_${widget.noteId ?? "document"}.pdf';
+
+      final savedUri = await FilePicker.saveFile(
+        dialogTitle: 'Save Note PDF',
+        fileName: defaultFileName,
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        bytes: bytes,
+      );
+
+      if (savedUri != null) {
+        final savePath = savedUri.isScheme('file')
+            ? savedUri.toFilePath()
+            : savedUri.path;
+        try {
+          final file = File(savePath);
+          if (!await file.exists() || await file.length() == 0) {
+            await file.writeAsBytes(bytes);
+          }
+        } catch (_) {}
+        SnackbarHelper.success('Saved', 'PDF saved successfully');
+      }
+    } catch (e) {
+      SnackbarHelper.error('Download Failed', 'Could not download PDF: $e');
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
     }
   }
 
@@ -136,7 +193,18 @@ class _NotePdfPreviewScreenState extends State<NotePdfPreviewScreen> {
           onPressed: () => Get.back(),
         ),
         actions: [
-          if (hasRemoteUrl) ...[
+          if (hasRemoteUrl || widget.pdfBytes != null) ...[
+            IconButton(
+              tooltip: 'Download PDF',
+              icon: _isDownloading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Iconsax.document_download_copy, size: 20),
+              onPressed: _isDownloading ? null : _downloadPdf,
+            ),
             IconButton(
               tooltip: 'Copy PDF Link',
               icon: const Icon(Iconsax.copy_copy, size: 20),
@@ -329,8 +397,8 @@ class _NotePdfPreviewScreenState extends State<NotePdfPreviewScreen> {
                     const SizedBox(height: 6),
                     Text(
                       hasRemoteUrl
-                          ? 'This PDF document is stored securely in private Supabase Storage. A temporary authenticated signed link is generated automatically for previewing and downloading.'
-                          : 'This PDF document is loaded in the editor from your computer and will be uploaded to private Supabase Storage upon saving.',
+                          ? 'This PDF document is stored securely in private Cloudflare R2 storage. A temporary authenticated signed link is generated automatically for previewing and downloading.'
+                          : 'This PDF document is loaded in the editor from your computer and will be uploaded to private storage upon saving.',
                       style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.textSecondary,
@@ -411,7 +479,24 @@ class _NotePdfPreviewScreenState extends State<NotePdfPreviewScreen> {
                           FilledButton.icon(
                             onPressed: _openPdf,
                             icon: const Icon(Icons.open_in_browser_rounded, size: 18),
-                            label: const Text('Open PDF in Browser / Reader'),
+                            label: const Text('Open in Browser / System App'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: _isDownloading ? null : _downloadPdf,
+                            icon: _isDownloading
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Iconsax.document_download_copy, size: 18),
+                            label: Text(_isDownloading ? 'Downloading...' : 'Download PDF File'),
                             style: FilledButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 18,
@@ -546,7 +631,7 @@ class _NotePdfPreviewScreenState extends State<NotePdfPreviewScreen> {
                     ),
                     if (widget.fileKey != null && widget.fileKey!.isNotEmpty)
                       _DetailRow(label: 'Storage Path', value: widget.fileKey!),
-                    const _DetailRow(label: 'Storage Bucket', value: 'notes (Private - Authenticated)'),
+                    _DetailRow(label: 'Storage Bucket', value: 'Private Cloudflare R2 (${widget.fileKey?.split("/").first ?? "notes"})'),
                   ],
                 ),
               ),

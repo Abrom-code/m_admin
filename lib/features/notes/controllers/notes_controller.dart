@@ -16,6 +16,7 @@ class NotesController extends GetxController {
 
   final selectedGrade = RxnInt();
   final selectedSubjectId = RxnInt();
+  final premiumFilter = RxnBool();
   final searchQuery = ''.obs;
 
   final isDeleting = <int, bool>{}.obs;
@@ -59,6 +60,9 @@ class NotesController extends GetxController {
         return false;
       }
       if (selectedSubjectId.value != null && note.subjectId != selectedSubjectId.value) {
+        return false;
+      }
+      if (premiumFilter.value != null && note.isPremium != premiumFilter.value) {
         return false;
       }
       if (query.isNotEmpty) {
@@ -123,9 +127,14 @@ class NotesController extends GetxController {
     selectedSubjectId.value = subjectId;
   }
 
+  void setPremiumFilter(bool? isPremium) {
+    premiumFilter.value = isPremium;
+  }
+
   void clearFilters() {
     selectedGrade.value = null;
     selectedSubjectId.value = null;
+    premiumFilter.value = null;
     searchQuery.value = '';
   }
 }

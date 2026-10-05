@@ -179,6 +179,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
     Get.to(
       () => NotePdfPreviewScreen(
+        noteId: widget.note?.id,
         title: _titleCtrl.text.trim().isNotEmpty
             ? _titleCtrl.text.trim()
             : (widget.note?.title ?? 'PDF Document'),
