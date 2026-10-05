@@ -36,23 +36,7 @@ class AdminShell extends StatefulWidget {
 }
 
 class _AdminShellState extends State<AdminShell> {
-  /// Key used to open the [Scaffold] drawer programmatically from the swipe
-  /// gesture detector that lives inside the body.
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-
-  /// Horizontal drag start position – used to decide swipe direction.
-  double _dragStartX = 0;
-
-  void _onHorizontalDragStart(DragStartDetails details) {
-    _dragStartX = details.globalPosition.dx;
-  }
-
-  void _onHorizontalDragEnd(DragEndDetails details) {
-    final dx = (details.globalPosition.dx) - _dragStartX;
-    if (dx > 30 && _dragStartX < 60) {
-      _scaffoldKey.currentState?.openDrawer();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,6 +92,7 @@ class _AdminShellState extends State<AdminShell> {
         // Narrow layout: bottom navigation bar + drawer for secondary pages (Dashboard, Sessions, Settings).
         return Scaffold(
           key: _scaffoldKey,
+          drawerEnableOpenDragGesture: false,
           appBar: appBar,
           drawer: Drawer(
             width: kSidebarWidth,
@@ -116,12 +101,7 @@ class _AdminShellState extends State<AdminShell> {
               onNavigate: () => Navigator.of(context).maybePop(),
             ),
           ),
-          body: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragStart: _onHorizontalDragStart,
-            onHorizontalDragEnd: _onHorizontalDragEnd,
-            child: _Pages(nav: nav),
-          ),
+          body: _Pages(nav: nav),
           bottomNavigationBar: _AdminBottomNavBar(nav: nav),
         );
       },

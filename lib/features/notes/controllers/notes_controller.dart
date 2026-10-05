@@ -20,6 +20,7 @@ class NotesController extends GetxController {
   final searchQuery = ''.obs;
 
   final isDeleting = <int, bool>{}.obs;
+  final isUpdatingPremium = <int, bool>{}.obs;
 
   @override
   void onInit() {
@@ -102,20 +103,25 @@ class NotesController extends GetxController {
     }
   }
 
-  Future<void> togglePremium(AdminNoteModel note) async {
+  Future<bool> togglePremium(AdminNoteModel note) async {
     try {
-      final updated = note.copyWith(isPremium: !note.isPremium);
-      await _repo.upsertNote(updated.toJson());
+      isUpdatingPremium[note.id] = true;
+      final newStatus = !note.isPremium;
+      await _repo.updatePremium(note.id, newStatus);
       final index = notes.indexWhere((n) => n.id == note.id);
       if (index >= 0) {
-        notes[index] = updated;
+        notes[index] = note.copyWith(isPremium: newStatus);
       }
       SnackbarHelper.success(
         'Updated',
-        'Note is now ${updated.isPremium ? "Premium" : "Free"}.',
+        'Note is now ${newStatus ? "Premium" : "Free"}.',
       );
+      return true;
     } catch (e) {
       SnackbarHelper.error('Update failed', e.toString());
+      return false;
+    } finally {
+      isUpdatingPremium.remove(note.id);
     }
   }
 

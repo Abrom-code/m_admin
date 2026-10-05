@@ -14,7 +14,7 @@ import 'package:m_admin/utils/helpers/helper_functions.dart';
 /// Pass [pageIndex] and [onRefresh] to register a refresh callback that the
 /// shell's AppBar refresh button will invoke for this page, and that the
 /// pull-to-refresh gesture will also trigger on scrollable pages.
-class AdminScaffold extends StatelessWidget {
+class AdminScaffold extends StatefulWidget {
   const AdminScaffold({
     super.key,
     required this.body,
@@ -47,28 +47,52 @@ class AdminScaffold extends StatelessWidget {
   final Widget? banner;
 
   @override
-  Widget build(BuildContext context) {
-    // Register this page's refresh with the nav controller so the AppBar
-    // button can call it regardless of which page is currently visible.
-    if (pageIndex != null && onRefresh != null) {
-      AdminNavController.instance.setPageRefresh(pageIndex!, onRefresh!);
-    }
+  State<AdminScaffold> createState() => _AdminScaffoldState();
+}
 
+class _AdminScaffoldState extends State<AdminScaffold> {
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    if (widget.pageIndex != null && widget.onRefresh != null) {
+      AdminNavController.instance.setPageRefresh(widget.pageIndex!, widget.onRefresh!);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AdminScaffold oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.pageIndex != null && widget.onRefresh != null) {
+      AdminNavController.instance.setPageRefresh(widget.pageIndex!, widget.onRefresh!);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (banner != null) ...[
-          banner!,
+        if (widget.banner != null) ...[
+          widget.banner!,
           const SizedBox(height: AppSizes.spaceBtwItems),
         ],
-        if (scrollable) body else Expanded(child: body),
+        if (widget.scrollable) widget.body else Expanded(child: widget.body),
       ],
     );
 
     final constrained = Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxContentWidth),
+        constraints: BoxConstraints(maxWidth: widget.maxContentWidth),
         child: content,
       ),
     );
@@ -88,21 +112,30 @@ class AdminScaffold extends StatelessWidget {
           child: constrained,
         );
 
-        if (!scrollable) return padded;
+        if (!widget.scrollable) return padded;
 
         // Scrollable pages get pull-to-refresh for free.
-        if (onRefresh != null) {
+        if (widget.onRefresh != null) {
           return RefreshIndicator(
-            onRefresh: onRefresh!,
+            onRefresh: widget.onRefresh!,
+            notificationPredicate: (notification) => notification.depth == 0,
             child: SingleChildScrollView(
-              // physics must allow overscroll so the indicator can trigger.
-              physics: const AlwaysScrollableScrollPhysics(),
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
               child: padded,
             ),
           );
         }
 
-        return SingleChildScrollView(child: padded);
+        return SingleChildScrollView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          child: padded,
+        );
       },
     );
   }

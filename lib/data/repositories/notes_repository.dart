@@ -60,13 +60,30 @@ class NotesRepository {
         payload.remove('id');
       }
 
-      final row = await _sb
-          .from('notes')
-          .upsert(payload)
-          .select('*, subjects(name)')
-          .single();
+      try {
+        final row = await _sb
+            .from('notes')
+            .upsert(payload)
+            .select('*, subjects(name)')
+            .single();
+        return AdminNoteModel.fromJson(Map<String, dynamic>.from(row));
+      } catch (_) {
+        final row = await _sb
+            .from('notes')
+            .upsert(payload)
+            .select()
+            .single();
+        return AdminNoteModel.fromJson(Map<String, dynamic>.from(row));
+      }
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
 
-      return AdminNoteModel.fromJson(Map<String, dynamic>.from(row));
+  /// Updates only the is_premium flag of a note.
+  Future<void> updatePremium(int id, bool isPremium) async {
+    try {
+      await _sb.from('notes').update({'is_premium': isPremium}).eq('id', id);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
