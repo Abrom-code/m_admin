@@ -276,10 +276,10 @@ class _ModernFilterBar extends StatelessWidget {
                       value: null,
                       child: Text('All methods', style: TextStyle(fontSize: 12)),
                     ),
-                    ...PaymentMethodInfo.byKey.entries.map(
-                      (e) => DropdownMenuItem(
-                        value: e.key,
-                        child: Text(e.value.label, style: const TextStyle(fontSize: 12)),
+                    ...PaymentMethodInfo.filterableMethods.map(
+                      (m) => DropdownMenuItem(
+                        value: m.key,
+                        child: Text(m.label, style: const TextStyle(fontSize: 12)),
                       ),
                     ),
                   ],
@@ -367,7 +367,7 @@ class _ModernTable extends StatelessWidget {
             : 'No receipts match your selected filter criteria.',
         page: controller.page.value,
         pageSize: PaymentsController.pageSize,
-        totalCount: controller.counts[controller.activeTab.value],
+        totalCount: controller.totalCount.value,
         onPageChanged: controller.changePage,
         onRowTap: (row) => _openDetail(context, row),
         columns: [

@@ -7,6 +7,7 @@ import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/common/widgets/charts/line_chart_painter.dart';
 import 'package:m_admin/data/repositories/dashboard_repository.dart';
 import 'package:m_admin/features/dashboard/controllers/dashboard_controller.dart';
+import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
@@ -234,6 +235,79 @@ class _SignupChartCardState extends State<SignupChartCard> {
                         ),
                       ),
                     ),
+                    // Payment Method Filter Pill
+                    Builder(builder: (context) {
+                      final selectedMethod = controller.selectedMethodFilter.value;
+                      final isCustomMethod = selectedMethod != null;
+
+                      return Container(
+                        height: 31,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: isCustomMethod
+                              ? AppColors.success.withValues(alpha: 0.15)
+                              : (dark
+                                  ? AppColors.darkSurface
+                                  : AppColors.lightGrey),
+                          borderRadius:
+                              BorderRadius.circular(AppSizes.borderRadiusSm),
+                          border: Border.all(
+                            color: isCustomMethod
+                                ? AppColors.success
+                                : (dark
+                                    ? AppColors.darkBorder
+                                    : AppColors.borderPrimary),
+                            width: isCustomMethod ? 1.2 : 1.0,
+                          ),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String?>(
+                            value: selectedMethod,
+                            isDense: true,
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 14),
+                            hint: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Iconsax.card_copy, size: 12),
+                                SizedBox(width: 4),
+                                Text('Method', style: TextStyle(fontSize: 11.5)),
+                              ],
+                            ),
+                            items: const [
+                              DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('All Methods', style: TextStyle(fontSize: 11.5)),
+                              ),
+                              DropdownMenuItem<String?>(
+                                value: 'telebirr',
+                                child: Text('Telebirr', style: TextStyle(fontSize: 11.5)),
+                              ),
+                              DropdownMenuItem<String?>(
+                                value: 'cbe',
+                                child: Text('CBE', style: TextStyle(fontSize: 11.5)),
+                              ),
+                              DropdownMenuItem<String?>(
+                                value: 'abyssinia',
+                                child: Text('Abyssinia', style: TextStyle(fontSize: 11.5)),
+                              ),
+                              DropdownMenuItem<String?>(
+                                value: 'mpesa',
+                                child: Text('M-Pesa', style: TextStyle(fontSize: 11.5)),
+                              ),
+                            ],
+                            onChanged: (method) {
+                              setState(() => _selectedIndex = null);
+                              controller.setMethodFilter(method);
+                              if (method != null && _metricMode != ChartMetricMode.revenue) {
+                                setState(() {
+                                  _metricMode = ChartMetricMode.revenue;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      );
+                    }),
                   ],
                 );
               });
@@ -342,9 +416,18 @@ class _SignupChartCardState extends State<SignupChartCard> {
             Widget? tooltipWidget;
             if (_selectedIndex != null && _selectedIndex! < series.length) {
               final selPoint = series[_selectedIndex!];
-              final formattedAmount = isSignups
-                  ? '${NumberFormat('#,##0').format(selPoint.value.round())} students'
-                  : 'ETB ${NumberFormat('#,##0.00').format(selPoint.value)}';
+              final String formattedAmount;
+              if (isSignups) {
+                formattedAmount = '${NumberFormat('#,##0').format(selPoint.value.round())} students';
+              } else if (controller.isPriceHidden.value) {
+                formattedAmount = 'ETB ••••••';
+              } else {
+                final base = 'ETB ${NumberFormat('#,##0.00').format(selPoint.value)}';
+                final method = controller.selectedMethodFilter.value;
+                formattedAmount = method != null
+                    ? '$base (${PaymentMethodInfo.labelOf(method)})'
+                    : base;
+              }
               final formattedDate =
                   DateFormat('MMM d, yyyy').format(selPoint.day);
 
@@ -391,6 +474,31 @@ class _SignupChartCardState extends State<SignupChartCard> {
               );
             }
 
+            final activeMethod = controller.selectedMethodFilter.value;
+            final String totalLabel = isSignups
+                ? 'TOTAL IN RANGE'
+                : (activeMethod != null
+                    ? 'TOTAL (${PaymentMethodInfo.labelOf(activeMethod).toUpperCase()})'
+                    : 'TOTAL IN RANGE');
+
+            final String totalValue = isSignups
+                ? NumberFormat('#,##0').format(total.round())
+                : (controller.isPriceHidden.value
+                    ? 'ETB ••••••'
+                    : 'ETB ${NumberFormat('#,##0').format(total)}');
+
+            final String peakValue = isSignups
+                ? '${peak.round()}'
+                : (controller.isPriceHidden.value
+                    ? 'ETB ••••••'
+                    : 'ETB ${NumberFormat.compact().format(peak)}');
+
+            final String avgValue = isSignups
+                ? avg.toStringAsFixed(1)
+                : (controller.isPriceHidden.value
+                    ? 'ETB ••••••'
+                    : 'ETB ${avg.toStringAsFixed(0)}');
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -401,26 +509,20 @@ class _SignupChartCardState extends State<SignupChartCard> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     _MetricStatItem(
-                      label: 'TOTAL IN RANGE',
-                      value: isSignups
-                          ? NumberFormat('#,##0').format(total.round())
-                          : 'ETB ${NumberFormat('#,##0').format(total)}',
+                      label: totalLabel,
+                      value: totalValue,
                       unit: isSignups ? 'students' : 'revenue',
                       color: chartColor,
                     ),
                     _MetricStatItem(
                       label: 'PEAK DAY',
-                      value: isSignups
-                          ? '${peak.round()}'
-                          : 'ETB ${NumberFormat.compact().format(peak)}',
+                      value: peakValue,
                       unit: isSignups ? 'students / day' : 'highest day',
                       color: AppColors.textSecondary,
                     ),
                     _MetricStatItem(
                       label: 'DAILY AVERAGE',
-                      value: isSignups
-                          ? avg.toStringAsFixed(1)
-                          : 'ETB ${avg.toStringAsFixed(0)}',
+                      value: avgValue,
                       unit: 'per day pace',
                       color: AppColors.textSecondary,
                     ),

@@ -25,11 +25,20 @@ class DashboardController extends GetxController {
   final pendingQuestionReportsCount = 0.obs;
   final isReportsLoading = false.obs;
 
+  // ── Sensitive KPI Visibility Toggles ─────────────────────────────
+  final isActiveHidden = false.obs;
+  final isPriceHidden = false.obs;
+
+  void toggleActiveVisibility() => isActiveHidden.value = !isActiveHidden.value;
+  void togglePriceVisibility() => isPriceHidden.value = !isPriceHidden.value;
+
+  // ── Chart Controls ───────────────────────────────────────────────
   final isLoading = false.obs;
   final isChartLoading = false.obs;
   final errorMessage = RxnString();
   final rangeDays = 30.obs;
   final customDateRange = Rxn<DateTimeRange>();
+  final selectedMethodFilter = RxnString();
 
   @override
   void onInit() {
@@ -50,6 +59,12 @@ class DashboardController extends GetxController {
     reloadChartSeries();
   }
 
+  void setMethodFilter(String? method) {
+    if (selectedMethodFilter.value == method) return;
+    selectedMethodFilter.value = method;
+    reloadChartSeries();
+  }
+
   Future<void> reloadChartSeries() async {
     try {
       isChartLoading.value = true;
@@ -59,8 +74,8 @@ class DashboardController extends GetxController {
           : _repo.fetchSignupsDaily(rangeDays.value);
 
       final Future<List<DailyPoint>> revenueFuture = range != null
-          ? _repo.fetchRevenueDaily(null, range.start, range.end)
-          : _repo.fetchRevenueDaily(rangeDays.value);
+          ? _repo.fetchRevenueDaily(null, range.start, range.end, selectedMethodFilter.value)
+          : _repo.fetchRevenueDaily(rangeDays.value, null, null, selectedMethodFilter.value);
 
       final results = await Future.wait([signupsFuture, revenueFuture]);
       signupSeries.value = results[0];
@@ -84,8 +99,8 @@ class DashboardController extends GetxController {
           : _repo.fetchSignupsDaily(rangeDays.value);
 
       final Future<List<DailyPoint>> revenueFuture = range != null
-          ? _repo.fetchRevenueDaily(null, range.start, range.end)
-          : _repo.fetchRevenueDaily(rangeDays.value);
+          ? _repo.fetchRevenueDaily(null, range.start, range.end, selectedMethodFilter.value)
+          : _repo.fetchRevenueDaily(rangeDays.value, null, null, selectedMethodFilter.value);
 
       // Fan out all queries in parallel.
       final results = await Future.wait([

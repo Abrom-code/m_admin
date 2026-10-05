@@ -187,7 +187,19 @@ class PaymentMethodInfo {
       account: '165093089',
       holder: _defaultHolder,
     ),
+    'mpesa': PaymentMethodInfo(
+      label: 'M-Pesa',
+      account: '',
+      holder: _defaultHolder,
+    ),
   };
+
+  static const List<({String key, String label})> filterableMethods = [
+    (key: 'telebirr', label: 'Telebirr'),
+    (key: 'cbe', label: 'CBE'),
+    (key: 'abyssinia', label: 'Abyssinia'),
+    (key: 'mpesa', label: 'M-Pesa'),
+  ];
 
   static Map<String, PaymentMethodInfo> byKey =
       Map<String, PaymentMethodInfo>.from(_defaults);
@@ -199,7 +211,8 @@ class PaymentMethodInfo {
       String accountKey,
       String holderKey,
     ) {
-      final base = _defaults[key]!;
+      final base = _defaults[key] ??
+          const PaymentMethodInfo(label: '', account: '', holder: _defaultHolder);
       final account = cfg[accountKey]?.trim();
       final holder = cfg[holderKey]?.trim();
       return PaymentMethodInfo(
@@ -212,10 +225,20 @@ class PaymentMethodInfo {
     final updated = <String, PaymentMethodInfo>{
       'telebirr': merge('telebirr', 'Telebirr',
           'payment_telebirr', 'payment_telebirr_holder'),
+      'payment_telebirr': merge('telebirr', 'Telebirr',
+          'payment_telebirr', 'payment_telebirr_holder'),
       'cbe': merge('cbe', 'CBE',
+          'payment_cbe_birr', 'payment_cbe_birr_holder'),
+      'payment_cbe_birr': merge('cbe', 'CBE',
           'payment_cbe_birr', 'payment_cbe_birr_holder'),
       'abyssinia': merge('abyssinia', 'Abyssinia',
           'payment_abyssinia', 'payment_abyssinia_holder'),
+      'payment_abyssinia': merge('abyssinia', 'Abyssinia',
+          'payment_abyssinia', 'payment_abyssinia_holder'),
+      'mpesa': merge('mpesa', 'M-Pesa',
+          'payment_mpesa', 'payment_mpesa_holder'),
+      'payment_mpesa': merge('mpesa', 'M-Pesa',
+          'payment_mpesa', 'payment_mpesa_holder'),
     };
 
     final extraRaw = cfg['payment_extra_accounts'] ?? '';
@@ -227,11 +250,13 @@ class PaymentMethodInfo {
           if (item is Map<String, dynamic>) {
             final k = item['key']?.toString() ?? '';
             if (k.isEmpty) continue;
-            updated[k] = PaymentMethodInfo(
+            final info = PaymentMethodInfo(
               label: item['label']?.toString() ?? k,
               account: item['account']?.toString() ?? '',
               holder: item['holder']?.toString() ?? '',
             );
+            updated[k] = info;
+            updated[k.toLowerCase()] = info;
           }
         }
       } catch (_) {
@@ -241,8 +266,27 @@ class PaymentMethodInfo {
     byKey = updated;
   }
 
-  static PaymentMethodInfo? of(String key) => byKey[key.toLowerCase()];
+  static String normalizeKey(String key) {
+    return key.toLowerCase().replaceAll('payment_', '').replaceAll('_birr', '');
+  }
 
-  static String labelOf(String key) =>
-      byKey[key.toLowerCase()]?.label ?? (key.isEmpty ? 'Unknown' : key);
+  static PaymentMethodInfo? of(String key) {
+    if (key.isEmpty) return null;
+    final lower = key.toLowerCase();
+    final clean = normalizeKey(key);
+    return byKey[lower] ?? byKey[clean];
+  }
+
+  static String labelOf(String key) {
+    if (key.isEmpty) return 'Unknown';
+    final lower = key.toLowerCase();
+    final clean = normalizeKey(key);
+    final match = byKey[lower] ?? byKey[clean];
+    if (match != null) return match.label;
+    if (clean == 'cbe') return 'CBE';
+    if (clean.isNotEmpty) {
+      return clean[0].toUpperCase() + clean.substring(1);
+    }
+    return key;
+  }
 }

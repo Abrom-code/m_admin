@@ -237,11 +237,13 @@ class DashboardRepository {
     }
   }
 
-  /// Daily approved-payment totals for the given date range or last [days] days.
+  /// Daily approved-payment totals for the given date range or last [days] days,
+  /// optionally filtered by payment method.
   Future<List<DailyPoint>> fetchRevenueDaily([
     int? days,
     DateTime? startDate,
     DateTime? endDate,
+    String? method,
   ]) async {
     try {
       final DateTime start;
@@ -255,13 +257,19 @@ class DashboardRepository {
         start = end.subtract(Duration(days: d - 1));
       }
 
-      final rows = await _sb
+      var query = _sb
           .from('payment_receipts')
-          .select('reviewed_at, amount')
+          .select('reviewed_at, amount, payment_method')
           .eq('status', 'approved')
           .gte('reviewed_at', start.toUtc().toIso8601String())
-          .lte('reviewed_at', end.toUtc().toIso8601String())
-          .order('reviewed_at');
+          .lte('reviewed_at', end.toUtc().toIso8601String());
+
+      if (method != null && method.isNotEmpty && method.toLowerCase() != 'all') {
+        final clean = method.toLowerCase().replaceAll('payment_', '').replaceAll('_birr', '');
+        query = query.or('payment_method.ilike.%$clean%,payment_method.ilike.%$method%');
+      }
+
+      final rows = await query.order('reviewed_at');
 
       final Map<String, double> totals = {};
       for (final r in rows) {

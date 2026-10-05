@@ -12,7 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AdminPaymentRepository {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  Future<List<PaymentReview>> fetchQueue({
+  Future<({List<PaymentReview> rows, int totalCount})> fetchQueue({
     required String status,
     String? search,
     String? method,
@@ -32,8 +32,9 @@ class AdminPaymentRepository {
         query = query.eq('status', status);
       }
 
-      if (method != null && method.isNotEmpty) {
-        query = query.eq('payment_method', method);
+      if (method != null && method.isNotEmpty && method.toLowerCase() != 'all') {
+        final clean = method.toLowerCase().replaceAll('payment_', '').replaceAll('_birr', '');
+        query = query.or('payment_method.ilike.%$clean%,payment_method.ilike.%$method%');
       }
 
       if (range != null) {
@@ -60,13 +61,16 @@ class AdminPaymentRepository {
         );
       }
 
-      final rows = await query
+      final response = await query
           .order('created_at', ascending: false)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+          .count(CountOption.exact);
 
-      return rows
+      final rows = (response.data as List)
           .map((row) => PaymentReview.fromJson(Map<String, dynamic>.from(row)))
           .toList();
+
+      return (rows: rows, totalCount: response.count);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }

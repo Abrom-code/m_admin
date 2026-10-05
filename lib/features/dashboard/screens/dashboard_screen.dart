@@ -364,14 +364,20 @@ class _ContentKpiGrid extends StatelessWidget {
               subtext: '${stats.newUsersThisWeek} new this week',
               onTap: () => AdminNavController.instance.changePage(3),
             ),
-            _ContentKpiCard(
-              title: 'ACTIVE PREMIUM',
-              value: NumberFormat('#,##0').format(stats.paidUsers),
-              tag: '$conversionRate%',
-              tagColor: AppColors.success,
-              subtext: '${stats.unpaidUsers} free / unpaid',
-              onTap: () => AdminNavController.instance.changePage(3),
-            ),
+            Obx(() {
+              final activeHidden = DashboardController.instance.isActiveHidden.value;
+              return _ContentKpiCard(
+                title: 'ACTIVE PREMIUM',
+                value: activeHidden ? '••••' : NumberFormat('#,##0').format(stats.paidUsers),
+                tag: '$conversionRate%',
+                tagColor: AppColors.success,
+                subtext: '${stats.unpaidUsers} free / unpaid',
+                hasEyeToggle: true,
+                isEyeHidden: activeHidden,
+                onEyeToggle: DashboardController.instance.toggleActiveVisibility,
+                onTap: () => AdminNavController.instance.changePage(3),
+              );
+            }),
             _ContentKpiCard(
               title: 'PENDING REVIEWS',
               value: '${stats.pendingPayments}',
@@ -394,14 +400,20 @@ class _ContentKpiGrid extends StatelessWidget {
               subtext: 'Weekly momentum',
               onTap: () => AdminNavController.instance.changePage(3),
             ),
-            _ContentKpiCard(
-              title: 'GROSS REVENUE',
-              value: _fmtRevenue(stats.totalRevenue),
-              tag: 'ETB Total',
-              tagColor: AppColors.success,
-              subtext: 'Click for breakdown ➔',
-              onTap: () => _showRevenueDialog(Get.context!),
-            ),
+            Obx(() {
+              final priceHidden = DashboardController.instance.isPriceHidden.value;
+              return _ContentKpiCard(
+                title: 'GROSS REVENUE',
+                value: priceHidden ? 'ETB ••••••' : _fmtRevenue(stats.totalRevenue),
+                tag: 'ETB Total',
+                tagColor: AppColors.success,
+                subtext: 'Click for breakdown ➔',
+                hasEyeToggle: true,
+                isEyeHidden: priceHidden,
+                onEyeToggle: DashboardController.instance.togglePriceVisibility,
+                onTap: () => _showRevenueDialog(Get.context!),
+              );
+            }),
           ],
         );
       },
@@ -433,6 +445,9 @@ class _ContentKpiCard extends StatelessWidget {
     required this.tag,
     required this.tagColor,
     required this.subtext,
+    this.hasEyeToggle = false,
+    this.isEyeHidden = false,
+    this.onEyeToggle,
     this.onTap,
   });
 
@@ -441,6 +456,9 @@ class _ContentKpiCard extends StatelessWidget {
   final String tag;
   final Color tagColor;
   final String subtext;
+  final bool hasEyeToggle;
+  final bool isEyeHidden;
+  final VoidCallback? onEyeToggle;
   final VoidCallback? onTap;
 
   @override
@@ -477,16 +495,45 @@ class _ContentKpiCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Text(
-                    title,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                      color: AppColors.textSecondary,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      if (hasEyeToggle) ...[
+                        const SizedBox(width: 4),
+                        Tooltip(
+                          message: isEyeHidden ? 'Show value' : 'Hide value',
+                          child: InkWell(
+                            onTap: onEyeToggle,
+                            borderRadius: BorderRadius.circular(10),
+                            child: Padding(
+                              padding: const EdgeInsets.all(2.0),
+                              child: Icon(
+                                isEyeHidden
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                size: 13,
+                                color: isEyeHidden
+                                    ? AppColors.primary
+                                    : AppColors.textSecondary.withValues(alpha: 0.8),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -876,6 +923,17 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                         ),
                   ),
                 ),
+                Obx(() => IconButton(
+                  tooltip: controller.isPriceHidden.value ? 'Show price' : 'Hide price',
+                  icon: Icon(
+                    controller.isPriceHidden.value
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    size: AppSizes.iconMd,
+                    color: AppColors.textSecondary,
+                  ),
+                  onPressed: controller.togglePriceVisibility,
+                )),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.close_rounded),
@@ -900,8 +958,11 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                   const SizedBox(height: AppSizes.xs),
                   Obx(() {
                     final total = controller.stats.value?.totalRevenue ?? 0;
+                    final priceHidden = controller.isPriceHidden.value;
                     return Text(
-                      'ETB ${NumberFormat('#,##0.00').format(total)}',
+                      priceHidden
+                          ? 'ETB ••••••'
+                          : 'ETB ${NumberFormat('#,##0.00').format(total)}',
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
@@ -969,8 +1030,10 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                               ),
                             ),
                             const SizedBox(height: AppSizes.xs),
-                            Text(
-                              'ETB ${NumberFormat('#,##0.00').format(_rangeRevenue ?? 0)}',
+                            Obx(() => Text(
+                              controller.isPriceHidden.value
+                                  ? 'ETB ••••••'
+                                  : 'ETB ${NumberFormat('#,##0.00').format(_rangeRevenue ?? 0)}',
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
@@ -978,7 +1041,7 @@ class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
                                     ? AppColors.white
                                     : AppColors.textPrimary,
                               ),
-                            ),
+                            )),
                           ],
                         ),
             ),
