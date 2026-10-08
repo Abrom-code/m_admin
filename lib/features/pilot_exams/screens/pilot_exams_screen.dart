@@ -466,28 +466,44 @@ class _PilotExamCard extends StatelessWidget {
                           ),
                           const SizedBox(width: AppSizes.xs),
 
-                          // Active status badge
-                          InkWell(
-                            onTap: () => controller.toggleActive(exam),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: exam.isActive
-                                    ? AppColors.success.withValues(alpha: 0.14)
-                                    : AppColors.error.withValues(alpha: 0.14),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: exam.isActive ? AppColors.success : AppColors.error,
-                                  width: 0.8,
+                          // Verification / Active status badge
+                          Tooltip(
+                            message: exam.isActive
+                                ? 'Published & live for students (click to unpublish)'
+                                : 'Draft / Unverified (click to verify & publish)',
+                            child: InkWell(
+                              onTap: () => controller.toggleActive(exam),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: exam.isActive
+                                      ? AppColors.success.withValues(alpha: 0.14)
+                                      : AppColors.warning.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: exam.isActive ? AppColors.success : AppColors.warning,
+                                    width: 0.8,
+                                  ),
                                 ),
-                              ),
-                              child: Text(
-                                exam.isActive ? 'ACTIVE' : 'INACTIVE',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: exam.isActive ? AppColors.success : AppColors.error,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      exam.isActive ? Icons.cloud_done_rounded : Icons.lock_clock_rounded,
+                                      size: 11,
+                                      color: exam.isActive ? AppColors.success : AppColors.warning,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      exam.isActive ? 'PUBLISHED' : 'UNVERIFIED',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: exam.isActive ? AppColors.success : AppColors.warning,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),

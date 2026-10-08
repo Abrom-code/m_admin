@@ -325,6 +325,56 @@ class _TestForm extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: AppSizes.spaceBtwInputFields),
+            // Verification Status
+            Obx(
+              () => DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: controller.statusValue.value,
+                decoration: InputDecoration(
+                  labelText: 'Verification Status',
+                  helperText: controller.statusValue.value == 'published'
+                      ? 'Live for all students nationwide'
+                      : controller.statusValue.value == 'verification'
+                          ? 'In review - only visible to admins'
+                          : controller.statusValue.value == 'archived'
+                              ? 'Archived - hidden from all'
+                              : 'Draft - visible only to admins for inspection',
+                  prefixIcon: Icon(
+                    controller.statusValue.value == 'published'
+                        ? Icons.cloud_done_rounded
+                        : controller.statusValue.value == 'verification'
+                            ? Icons.rate_review_outlined
+                            : Icons.lock_clock_rounded,
+                    color: controller.statusValue.value == 'published'
+                        ? AppColors.success
+                        : AppColors.warning,
+                    size: 20,
+                  ),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'draft',
+                    child: Text('Draft (Unverified)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'verification',
+                    child: Text('In Verification'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'published',
+                    child: Text('Published (Live for Students)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'archived',
+                    child: Text('Archived'),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) controller.statusValue.value = v;
+                },
+              ),
+            ),
           ],
         ),
       ),

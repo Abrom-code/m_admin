@@ -23,6 +23,7 @@ class TestRow {
     required this.time,
     required this.questionCount,
     this.isPremium = true,
+    this.status = 'published',
     this.updatedAt,
     this.description,
   });
@@ -35,10 +36,13 @@ class TestRow {
   final int time; // -1 = untimed
   final int questionCount;
   final bool isPremium;
+  final String status;
   final DateTime? updatedAt;
   final String? description;
 
   bool get isUntimed => time == -1;
+  bool get isDraft => status.toLowerCase() == 'draft' || status.toLowerCase() == 'verification';
+  bool get isPublished => status.toLowerCase() == 'published';
 
   Color get typeColor {
     switch (type.toLowerCase()) {
@@ -72,6 +76,7 @@ class TestRow {
       time: AppHelperFunctions.toInt(j['time']) ?? -1,
       questionCount: AppHelperFunctions.toInt(j['question_count']) ?? 0,
       isPremium: isPremium,
+      status: j['status']?.toString() ?? 'draft',
       updatedAt: j['updated_at'] == null
           ? null
           : DateTime.tryParse(j['updated_at'].toString()),
@@ -137,6 +142,22 @@ class SubjectTestsController extends GetxController {
       error.value = AppExceptionHandler.handle(e).message;
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> toggleTestStatus(TestRow test) async {
+    final newStatus = test.isPublished ? 'draft' : 'published';
+    try {
+      await _repo.updateTestStatus(test.id, newStatus);
+      await loadAll();
+      SnackbarHelper.success(
+        'Status Updated',
+        newStatus == 'published'
+            ? 'Test is now PUBLISHED and visible to students.'
+            : 'Test marked as UNVERIFIED DRAFT (hidden from students).',
+      );
+    } catch (e) {
+      SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
     }
   }
 
@@ -922,6 +943,7 @@ class _ChapterTestsViewState extends State<_ChapterTestsView> {
                                 onEdit: () => widget.onOpenTest(test.id),
                                 onDelete: () =>
                                     _confirmDelete(context, test, ctrl),
+                                onToggleStatus: () => ctrl.toggleTestStatus(test),
                               );
                             },
                           ),
@@ -997,6 +1019,7 @@ class _ChapterTestsViewState extends State<_ChapterTestsView> {
                               onEdit: () => widget.onOpenTest(test.id),
                               onDelete: () =>
                                   _confirmDelete(context, test, ctrl),
+                              onToggleStatus: () => ctrl.toggleTestStatus(test),
                             );
                           },
                         ),
@@ -1332,6 +1355,7 @@ class _GradeTestsViewState extends State<_GradeTestsView> {
                             onEdit: () => widget.onOpenTest(test.id),
                             onDelete: () =>
                                 _confirmDelete(context, test, ctrl),
+                            onToggleStatus: () => ctrl.toggleTestStatus(test),
                           );
                         },
                       ),
@@ -1728,7 +1752,46 @@ class _EntranceAndModelExamsViewState
                                   ),
                                 ),
                               ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: exam.isPublished
+                                      ? AppColors.success.withValues(alpha: 0.12)
+                                      : AppColors.warning.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  exam.isPublished ? 'PUBLISHED' : 'UNVERIFIED',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: exam.isPublished
+                                        ? AppColors.success
+                                        : AppColors.warning,
+                                  ),
+                                ),
+                              ),
                               const Spacer(),
+                              IconButton(
+                                tooltip: exam.isPublished
+                                    ? 'Unpublish Exam (hide from students)'
+                                    : 'Verify & Publish Exam (make live)',
+                                visualDensity: VisualDensity.compact,
+                                icon: Icon(
+                                  exam.isPublished
+                                      ? Icons.cloud_done_rounded
+                                      : Icons.cloud_upload_outlined,
+                                  size: 15,
+                                  color: exam.isPublished
+                                      ? AppColors.success
+                                      : AppColors.warning,
+                                ),
+                                onPressed: () => ctrl.toggleTestStatus(exam),
+                              ),
                               IconButton(
                                 tooltip: 'Edit Exam Details',
                                 visualDensity: VisualDensity.compact,
@@ -1854,11 +1917,13 @@ class _TestRowItem extends StatelessWidget {
     required this.test,
     required this.onEdit,
     required this.onDelete,
+    this.onToggleStatus,
   });
 
   final TestRow test;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onToggleStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -1956,9 +2021,44 @@ class _TestRowItem extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(width: 6),
+
+          // Status pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+            decoration: BoxDecoration(
+              color: test.isPublished
+                  ? AppColors.success.withValues(alpha: 0.12)
+                  : AppColors.warning.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text(
+              test.isPublished ? 'PUBLISHED' : 'UNVERIFIED',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: test.isPublished ? AppColors.success : AppColors.warning,
+              ),
+            ),
+          ),
           const SizedBox(width: 8),
 
           // Actions
+          if (onToggleStatus != null)
+            IconButton(
+              tooltip: test.isPublished
+                  ? 'Unpublish test (hide from students)'
+                  : 'Verify & Publish test (make live)',
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                test.isPublished
+                    ? Icons.cloud_done_rounded
+                    : Icons.cloud_upload_outlined,
+                size: 15,
+                color: test.isPublished ? AppColors.success : AppColors.warning,
+              ),
+              onPressed: onToggleStatus,
+            ),
           IconButton(
             tooltip: 'Manage Questions & Details',
             visualDensity: VisualDensity.compact,

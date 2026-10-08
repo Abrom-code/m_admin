@@ -78,7 +78,12 @@ class PilotExamsController extends GetxController {
 
   Future<void> toggleActive(AdminPilotExamModel exam) async {
     try {
-      final updated = exam.copyWith(isActive: !exam.isActive);
+      final newActive = !exam.isActive;
+      final newStatus = newActive ? 'published' : 'draft';
+      final updated = exam.copyWith(
+        isActive: newActive,
+        status: newStatus,
+      );
       await _repo.upsertPilotExam(updated.toJson());
       final index = exams.indexWhere((e) => e.id == exam.id);
       if (index >= 0) {
@@ -86,7 +91,9 @@ class PilotExamsController extends GetxController {
       }
       SnackbarHelper.success(
         'Updated',
-        'Pilot Exam is now ${updated.isActive ? "Active" : "Inactive"}.',
+        newActive
+            ? 'Pilot Exam verified & published (live for students).'
+            : 'Pilot Exam marked as draft (hidden from students).',
       );
     } catch (e) {
       SnackbarHelper.error('Update failed', e.toString());

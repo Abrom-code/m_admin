@@ -30,7 +30,7 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
 
   int? _selectedGrade;
   bool _isPremium = true;
-  bool _isActive = true;
+  bool _isActive = false;
 
   final List<AdminPilotExamSubjectModel> _subjectsList = [];
   List<Map<String, dynamic>> _availableSubjects = [];
@@ -49,7 +49,7 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
 
     _selectedGrade = (e != null && e.grade > 0 && e.grade <= 12) ? e.grade : null;
     _isPremium = e?.isPremium ?? true;
-    _isActive = e?.isActive ?? true;
+    _isActive = e?.isActive ?? false;
 
     if (e != null) {
       _subjectsList.addAll(e.subjects);
@@ -108,6 +108,7 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
         'grade': _selectedGrade ?? 0,
         'is_premium': _isPremium,
         'is_active': _isActive,
+        'status': _isActive ? 'published' : 'draft',
       };
 
       if (isEditing && widget.exam!.id > 0) {
@@ -265,8 +266,8 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
                             contentPadding: EdgeInsets.zero,
                             value: _isActive,
                             onChanged: (v) => setState(() => _isActive = v),
-                            title: const Text('Active Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                            subtitle: const Text('Visible to students', style: TextStyle(fontSize: 11)),
+                            title: const Text('Publish Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            subtitle: Text(_isActive ? 'Published & live for students' : 'Draft / Unverified (hidden from students)', style: const TextStyle(fontSize: 11)),
                           ),
                         ),
                         Expanded(
