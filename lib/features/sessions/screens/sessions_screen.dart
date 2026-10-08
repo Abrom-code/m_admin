@@ -416,8 +416,8 @@ class _SessionFilterBar extends StatelessWidget {
               child: TextField(
                 controller: controller.searchController,
                 onChanged: controller.onSearchChanged,
-                onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                 style: const TextStyle(fontSize: 12.5),
                 decoration: InputDecoration(
                   isDense: true,
@@ -444,6 +444,7 @@ class _SessionFilterBar extends StatelessWidget {
                         onPressed: () {
                           controller.searchController.clear();
                           controller.onSearchChanged('');
+                          FocusManager.instance.primaryFocus?.unfocus();
                         },
                         visualDensity: VisualDensity.compact,
                       );

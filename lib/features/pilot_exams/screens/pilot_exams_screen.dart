@@ -92,6 +92,7 @@ class PilotExamsScreen extends StatelessWidget {
                       child: SizedBox(
                         height: 36,
                         child: TextField(
+                          controller: ctrl.searchController,
                           decoration: InputDecoration(
                             hintText: 'Search pilot exams by title or edition...',
                             hintStyle: const TextStyle(fontSize: 12),
@@ -107,12 +108,18 @@ class PilotExamsScreen extends StatelessWidget {
                               }
                               return IconButton(
                                 icon: const Icon(Icons.clear, size: 16),
-                                onPressed: () => ctrl.searchQuery.value = '',
+                                onPressed: () {
+                                  ctrl.searchController.clear();
+                                  ctrl.searchQuery.value = '';
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                },
                               );
                             }),
                           ),
                           style: const TextStyle(fontSize: 12.5),
                           onChanged: (val) => ctrl.searchQuery.value = val,
+                          onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                         ),
                       ),
                     ),

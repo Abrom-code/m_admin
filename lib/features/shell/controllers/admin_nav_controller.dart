@@ -75,6 +75,7 @@ class AdminNavController extends GetxController {
 
   void changePage(int index) {
     if (index < 0 || index >= items.length) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     selectedIndex.value = index;
   }
 

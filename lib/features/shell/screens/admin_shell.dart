@@ -252,23 +252,34 @@ class _Pages extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(
-      () => IndexedStack(
-        index: nav.selectedIndex.value,
+    return Obx(() {
+      final currentIdx = nav.selectedIndex.value;
+      const pages = <Widget>[
+        DashboardScreen(),
+        PaymentsScreen(),
+        NotificationsScreen(),
+        UsersScreen(),
+        ContentScreen(),
+        NotesScreen(),
+        PilotExamsScreen(),
+        QuestionReportsScreen(),
+        ChallengesListScreen(),
+        SessionsScreen(),
+        SettingsScreen(),
+      ];
+
+      return IndexedStack(
+        index: currentIdx,
         children: [
-          const DashboardScreen(),
-          const PaymentsScreen(),
-          const NotificationsScreen(),
-          const UsersScreen(),
-          const ContentScreen(),
-          const NotesScreen(),
-          const PilotExamsScreen(),
-          const QuestionReportsScreen(),
-          const ChallengesListScreen(),
-          const SessionsScreen(),
-          const SettingsScreen(),
+          for (var i = 0; i < pages.length; i++)
+            ExcludeFocus(
+              excluding: currentIdx != i,
+              child: FocusScope(
+                child: pages[i],
+              ),
+            ),
         ],
-      ),
-    );
+      );
+    });
   }
 }

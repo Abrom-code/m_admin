@@ -229,14 +229,35 @@ class _FilterSearchBar extends StatelessWidget {
                 child: TextField(
                   controller: controller.searchController,
                   onChanged: controller.onSearchChanged,
+                  onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                  onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                   style: const TextStyle(fontSize: 12.5),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     isDense: true,
                     hintText: 'Search by question, student name, or comment...',
-                    hintStyle: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    prefixIcon: Icon(Iconsax.search_normal_copy, size: 16, color: AppColors.textSecondary),
+                    hintStyle: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    prefixIcon: const Icon(Iconsax.search_normal_copy, size: 16, color: AppColors.textSecondary),
+                    suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: controller.searchController,
+                      builder: (_, value, _) {
+                        if (value.text.isEmpty) return const SizedBox.shrink();
+                        return IconButton(
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 15,
+                            color: AppColors.textSecondary,
+                          ),
+                          onPressed: () {
+                            controller.searchController.clear();
+                            controller.onSearchChanged('');
+                            FocusManager.instance.primaryFocus?.unfocus();
+                          },
+                          visualDensity: VisualDensity.compact,
+                        );
+                      },
+                    ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   ),
                 ),
               );

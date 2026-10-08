@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/notes_repository.dart';
 import 'package:m_admin/features/notes/models/admin_note_model.dart';
@@ -18,6 +19,7 @@ class NotesController extends GetxController {
   final selectedSubjectId = RxnInt();
   final premiumFilter = RxnBool();
   final searchQuery = ''.obs;
+  final searchController = TextEditingController();
 
   /// Sort Options:
   /// - 'default': DB order (grade, chapter, order)
@@ -42,6 +44,12 @@ class NotesController extends GetxController {
     super.onInit();
     loadSubjects();
     loadNotes();
+  }
+
+  @override
+  void onClose() {
+    searchController.dispose();
+    super.onClose();
   }
 
   Future<void> loadSubjects() async {

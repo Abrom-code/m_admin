@@ -609,6 +609,8 @@ class _ChapterTestsViewState extends State<_ChapterTestsView> {
                 child: TextField(
                   controller: _searchCtrl,
                   onChanged: (v) => ctrl.searchQuery.value = v.trim().toLowerCase(),
+                  onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                  onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                   style: const TextStyle(fontSize: 12),
                   decoration: InputDecoration(
                     hintText: 'Search chapter tests or titles...',
@@ -1092,6 +1094,8 @@ class _GradeTestsViewState extends State<_GradeTestsView> {
                 child: TextField(
                   controller: _searchCtrl,
                   onChanged: (v) => ctrl.searchQuery.value = v.trim().toLowerCase(),
+                  onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                  onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                   style: const TextStyle(fontSize: 12),
                   decoration: InputDecoration(
                     hintText: 'Search grade assessment tests...',
@@ -1431,6 +1435,8 @@ class _EntranceAndModelExamsViewState
                 child: TextField(
                   controller: _searchCtrl,
                   onChanged: (v) => ctrl.searchQuery.value = v.trim().toLowerCase(),
+                  onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                  onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                   style: const TextStyle(fontSize: 12),
                   decoration: InputDecoration(
                     hintText: 'Search entrance or model exams (year, title)...',

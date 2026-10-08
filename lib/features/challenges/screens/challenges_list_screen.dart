@@ -123,6 +123,8 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                       child: TextField(
                         controller: _ctrl.searchCtrl,
                         onChanged: _ctrl.onSearch,
+                        onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                        onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                         autofocus: false,
                         style: const TextStyle(fontSize: 11.5),
                         decoration: InputDecoration(

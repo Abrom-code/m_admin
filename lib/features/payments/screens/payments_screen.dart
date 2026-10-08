@@ -222,8 +222,8 @@ class _ModernFilterBar extends StatelessWidget {
             child: TextField(
               controller: controller.searchController,
               onChanged: controller.onSearchChanged,
-              onSubmitted: (_) => FocusScope.of(context).unfocus(),
-              onTapOutside: (_) => FocusScope.of(context).unfocus(),
+              onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               style: const TextStyle(fontSize: 12.5),
               decoration: InputDecoration(
                 isDense: true,
@@ -250,6 +250,7 @@ class _ModernFilterBar extends StatelessWidget {
                       onPressed: () {
                         controller.searchController.clear();
                         controller.onSearchChanged('');
+                        FocusManager.instance.primaryFocus?.unfocus();
                       },
                       visualDensity: VisualDensity.compact,
                     );
@@ -548,7 +549,7 @@ class _ModernTable extends StatelessWidget {
   }
 
   void _openDetail(BuildContext context, PaymentReview row) {
-    FocusScope.of(context).unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
     final wide = MediaQuery.sizeOf(context).width >= 1200;
 
     if (wide) {

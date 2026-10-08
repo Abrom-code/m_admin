@@ -45,7 +45,7 @@ class NotificationsScreen extends StatelessWidget {
                         final typeFilter = _TypeFilter(controller: controller);
                         final sendBtn = FilledButton.icon(
                           onPressed: () {
-                            FocusScope.of(context).unfocus();
+                            FocusManager.instance.primaryFocus?.unfocus();
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) =>

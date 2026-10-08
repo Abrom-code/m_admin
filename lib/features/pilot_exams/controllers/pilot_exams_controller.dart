@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/pilot_exams_repository.dart';
 import 'package:m_admin/features/pilot_exams/models/admin_pilot_exam_model.dart';
@@ -15,6 +16,7 @@ class PilotExamsController extends GetxController {
   final selectedGrade = RxnInt();
   final statusFilter = RxnString(); // null = all, 'active', 'premium'
   final searchQuery = ''.obs;
+  final searchController = TextEditingController();
 
   final isDeleting = <int, bool>{}.obs;
 
@@ -22,6 +24,12 @@ class PilotExamsController extends GetxController {
   void onInit() {
     super.onInit();
     loadPilotExams();
+  }
+
+  @override
+  void onClose() {
+    searchController.dispose();
+    super.onClose();
   }
 
   Future<void> loadPilotExams() async {
