@@ -187,7 +187,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     final ok = await _controller.approve(
       _review,
       amount: result.amount,
-      planKey: result.planKey == 'custom' ? _review.planKey : result.planKey,
+      planKey: result.planKey,
       planDurationMonths: result.planDurationMonths,
       expiresAt: result.expiresAt,
       notificationTitle: result.notificationTitle,

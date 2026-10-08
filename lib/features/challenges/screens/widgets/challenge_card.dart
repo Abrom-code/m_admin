@@ -20,6 +20,7 @@ class ChallengeCard extends StatelessWidget {
     required this.onNotify,
     required this.onPublish,
     required this.onDelete,
+    this.onClose,
   });
 
   final LeaderboardChallengeModel challenge;
@@ -28,6 +29,7 @@ class ChallengeCard extends StatelessWidget {
   final VoidCallback onNotify;
   final VoidCallback onPublish;
   final VoidCallback onDelete;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +38,7 @@ class ChallengeCard extends StatelessWidget {
     final isScheduled = challenge.isScheduled || statusLower == 'scheduled';
     final isDraft = challenge.isDraft || statusLower == 'draft';
     final isClosed = challenge.isClosed || challenge.isArchived || statusLower == 'closed' || statusLower == 'archived';
+    final isLive = statusLower == 'live' || challenge.isLive;
 
     Color statusBadgeColor;
     switch (statusLower) {
@@ -337,7 +340,30 @@ class ChallengeCard extends StatelessWidget {
                         icon: const Icon(Iconsax.send_1_copy, size: 11),
                         label: const Text('Publish', style: TextStyle(fontSize: 10)),
                       )
-                    else
+                    else ...[
+                      // Manual Close button when live
+                      if (isLive && onClose != null) ...[
+                        Tooltip(
+                          message: 'Manually Close Challenge from Live',
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 0),
+                              visualDensity: VisualDensity.compact,
+                              minimumSize: const Size(0, 24),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              side: BorderSide(color: AppColors.error.withValues(alpha: 0.7)),
+                              foregroundColor: AppColors.error,
+                            ),
+                            onPressed: onClose,
+                            icon: const Icon(Icons.stop_circle_outlined, size: 11, color: AppColors.error),
+                            label: const Text(
+                              'Close',
+                              style: TextStyle(fontSize: 10, color: AppColors.error, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 0),
@@ -354,6 +380,7 @@ class ChallengeCard extends StatelessWidget {
                         icon: const Icon(Iconsax.ranking_copy, size: 11, color: Color(0xFF0284C7)),
                         label: const Text('Leaderboard', style: TextStyle(fontSize: 10)),
                       ),
+                    ],
                   ],
                 ),
               ],

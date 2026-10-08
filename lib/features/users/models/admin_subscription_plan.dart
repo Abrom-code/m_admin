@@ -45,7 +45,7 @@ class AdminSubscriptionPlan {
       key: '1_year',
       title: '1 Year',
       durationMonths: 12,
-      defaultPrice: 250,
+      defaultPrice: 200,
       subtitle: 'Full exam prep',
       isFeatured: true,
       badgeText: '⭐ Best Value',
@@ -113,6 +113,9 @@ class AdminSubscriptionPlan {
   static AdminSubscriptionPlan? matchByAmount(num? amount) {
     if (amount == null || amount <= 0) return null;
     final intAmount = amount.round();
+    if (intAmount == 200 || intAmount == 250) {
+      return defaultPlan;
+    }
     try {
       return all.firstWhere((p) => p.defaultPrice == intAmount);
     } catch (_) {
@@ -120,8 +123,21 @@ class AdminSubscriptionPlan {
     }
   }
 
+  /// Formats date cleanly as "D Mon YYYY", e.g. "24 Oct 2026".
+  static String formatDate(DateTime date) =>
+      '${date.day} ${_monthName(date.month)} ${date.year}';
+
   /// Builds notification title for payment approval.
-  static String buildApprovalNotificationTitle(String? planKey) {
+  static String buildApprovalNotificationTitle(
+    String? planKey, {
+    DateTime? expiresAt,
+  }) {
+    if (planKey == 'custom' || byKey(planKey) == null) {
+      if (expiresAt != null) {
+        return 'Payment Approved! 🎉 (Until ${formatDate(expiresAt)})';
+      }
+      return 'Payment Approved! 🎉';
+    }
     final label = labelOf(planKey);
     return 'Payment Approved! 🎉 ($label)';
   }
@@ -133,18 +149,36 @@ class AdminSubscriptionPlan {
     String currency = 'ETB',
     required DateTime expiresAt,
   }) {
-    final label = labelOf(planKey);
-    final formattedDate = '${expiresAt.day} ${_monthName(expiresAt.month)} ${expiresAt.year}';
+    final formattedDate = formatDate(expiresAt);
     final diffDays = expiresAt.difference(DateTime.now()).inDays;
+    final timingText =
+        diffDays > 0 ? '$formattedDate ($diffDays days left)' : formattedDate;
+
+    if (planKey == 'custom' || byKey(planKey) == null) {
+      final amountPrefix = (amount != null && amount > 0)
+          ? 'Your payment of ${amount.toStringAsFixed(0)} $currency'
+          : 'Your subscription';
+      return '$amountPrefix has been approved! Premium access is active until $timingText. Enjoy full access to all exams! Please close and reopen the app to activate your premium features.';
+    }
+
+    final label = labelOf(planKey);
     final amountPrefix = (amount != null && amount > 0)
         ? 'Your payment of ${amount.toStringAsFixed(0)} $currency for the $label plan'
         : 'Your $label subscription';
-    final timingText = diffDays > 0 ? '$formattedDate ($diffDays days left)' : formattedDate;
-    return '$amountPrefix has been approved! Premium access is active until $timingText. Enjoy full access to all exams!';
+    return '$amountPrefix has been approved! Premium access is active until $timingText. Enjoy full access to all exams! Please close and reopen the app to activate your premium features.';
   }
 
   /// Builds notification title for manual grant / extension.
-  static String buildGrantNotificationTitle(String? planKey) {
+  static String buildGrantNotificationTitle(
+    String? planKey, {
+    DateTime? expiresAt,
+  }) {
+    if (planKey == 'custom' || byKey(planKey) == null) {
+      if (expiresAt != null) {
+        return 'Premium Access Granted! 🎉 (Until ${formatDate(expiresAt)})';
+      }
+      return 'Premium Access Granted! 🎉';
+    }
     final label = labelOf(planKey);
     return 'Premium Access Granted! 🎉 ($label)';
   }
@@ -154,11 +188,17 @@ class AdminSubscriptionPlan {
     required String? planKey,
     required DateTime expiresAt,
   }) {
-    final label = labelOf(planKey);
-    final formattedDate = '${expiresAt.day} ${_monthName(expiresAt.month)} ${expiresAt.year}';
+    final formattedDate = formatDate(expiresAt);
     final diffDays = expiresAt.difference(DateTime.now()).inDays;
-    final timingText = diffDays > 0 ? '$formattedDate ($diffDays days left)' : formattedDate;
-    return 'You have been granted $label premium access, valid until $timingText. Enjoy full access to all exams and features!';
+    final timingText =
+        diffDays > 0 ? '$formattedDate ($diffDays days left)' : formattedDate;
+
+    if (planKey == 'custom' || byKey(planKey) == null) {
+      return 'You have been granted premium access valid until $timingText. Enjoy full access to all exams and features! Please close and reopen the app to activate your premium features.';
+    }
+
+    final label = labelOf(planKey);
+    return 'You have been granted $label premium access, valid until $timingText. Enjoy full access to all exams and features! Please close and reopen the app to activate your premium features.';
   }
 
   static String _monthName(int month) => switch (month) {

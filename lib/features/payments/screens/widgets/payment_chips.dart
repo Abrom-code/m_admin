@@ -92,14 +92,21 @@ class PaymentMethodChip extends StatelessWidget {
 
   static const _colors = <String, Color>{
     'telebirr': AppColors.primary,
+    'payment_telebirr': AppColors.primary,
     'cbe': AppColors.info,
+    'payment_cbe_birr': AppColors.info,
+    'cbe_birr': AppColors.info,
     'abyssinia': AppColors.amberAccent,
+    'payment_abyssinia': AppColors.amberAccent,
     'mpesa': AppColors.success,
+    'payment_mpesa': AppColors.success,
   };
 
   @override
   Widget build(BuildContext context) {
-    final color = _colors[method.toLowerCase()] ?? AppColors.darkGrey;
+    final lower = method.toLowerCase();
+    final clean = PaymentMethodInfo.normalizeKey(method);
+    final color = _colors[lower] ?? _colors[clean] ?? AppColors.darkGrey;
 
     return StatusPill(
       label: PaymentMethodInfo.labelOf(method),

@@ -5,7 +5,7 @@ import 'package:m_admin/utils/helpers/helper_functions.dart';
 class ContentRepository {
   final _sb = Supabase.instance.client;
 
-  // ── Tests ──────────────────────────────────────────────────────────
+  // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<List<Map<String, dynamic>>> fetchTestsForSubject(
     int subjectId, {
@@ -15,7 +15,7 @@ class ContentRepository {
       var q = _sb
           .from('tests')
           .select('id, title, type, grade, chapter_id, time, question_count, '
-              'created_at, updated_at')
+              'is_premium, description, created_at, updated_at')
           .eq('subject_id', subjectId);
 
       if (type != null && type.isNotEmpty) {
@@ -87,7 +87,7 @@ class ContentRepository {
     }
   }
 
-  // ── Questions ──────────────────────────────────────────────────────
+  // â”€â”€ Questions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<List<Map<String, dynamic>>> fetchQuestionsForTest(int testId) async {
     try {
@@ -197,7 +197,7 @@ class ContentRepository {
     }
   }
 
-  // ── Subjects & Chapters ────────────────────────────────────────────
+  // â”€â”€ Subjects & Chapters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<List<Map<String, dynamic>>> fetchSubjects() async {
     try {
@@ -233,25 +233,31 @@ class ContentRepository {
   }
 
   Future<List<Map<String, dynamic>>> fetchChaptersForSubject(
-    int subjectId,
-  ) async {
+    int subjectId, {
+    int? grade,
+  }) async {
     try {
-      final rows = await _sb
-          .from('chapters')
-          .select('id, title, grade, chapter_number')
-          .eq('subject_id', subjectId)
-          .order('grade')
-          .order('chapter_number');
-
-      return rows.map((r) => Map<String, dynamic>.from(r)).toList();
+      var query = _sb.from('chapters').select().eq('subject_id', subjectId);
+      if (grade != null && grade > 0) {
+        query = query.eq('grade', grade);
+      }
+      final rows = await query
+          .order('grade', ascending: true)
+          .order('chapter_number', ascending: true);
+      return List<Map<String, dynamic>>.from(rows);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
   }
 
-  Future<void> upsertChapter(Map<String, dynamic> data) async {
+  Future<Map<String, dynamic>> upsertChapter(Map<String, dynamic> data) async {
     try {
-      await _sb.from('chapters').upsert(data);
+      final payload = Map<String, dynamic>.from(data);
+      if (payload['id'] == null || payload['id'] == 0) {
+        payload.remove('id');
+      }
+      final row = await _sb.from('chapters').upsert(payload).select().single();
+      return Map<String, dynamic>.from(row);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
@@ -271,7 +277,7 @@ class ContentRepository {
     }
   }
 
-  // ── Question sections ──────────────────────────────────────────────
+  // â”€â”€ Question sections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<List<Map<String, dynamic>>> fetchQuestionSections() async {
     try {
@@ -307,7 +313,7 @@ class ContentRepository {
     }
   }
 
-  // ── Passages ───────────────────────────────────────────────────────
+  // â”€â”€ Passages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<List<Map<String, dynamic>>> fetchPassages() async {
     try {
@@ -342,7 +348,7 @@ class ContentRepository {
 
       if (refs.isNotEmpty) {
         throw Exception(
-          'Cannot delete passage — it is referenced by questions.',
+          'Cannot delete passage â€” it is referenced by questions.',
         );
       }
 
@@ -351,4 +357,5 @@ class ContentRepository {
       throw AppExceptionHandler.handle(e);
     }
   }
+
 }

@@ -26,12 +26,22 @@ class AdminRoutes {
   static const contentChapter = '/content/chapter';
   static const contentTest = '/content/test';
   static const contentQuestion = '/content/question';
+  static const questionReports = '/content/reports';
 
   static const challenges = '/challenges';
   static const subjectChallenges = '/challenges/subject';
   static const challengeEditor = '/challenges/editor';
   static const challengeScheduler = '/challenges/scheduler';
   static const challengeLeaderboard = '/challenges/leaderboard';
+
+  static const notes = '/notes';
+  static const noteEditor = '/notes/editor';
+  static const notePdfPreview = '/notes/pdf-preview';
+
+  static const pilotExams = '/pilot-exams';
+  static const pilotExamEditor = '/pilot-exams/editor';
+
+  static const auditLog = '/audit-log';
 
   static const sessions = '/sessions';
   static const settings = '/settings';

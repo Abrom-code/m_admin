@@ -42,7 +42,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
       behavior: HitTestBehavior.translucent,
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: AdminScaffold(
-        pageIndex: 5,
+        pageIndex: 6,
         scrollable: false,
         onRefresh: _ctrl.loadAll,
         body: Column(
@@ -330,6 +330,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                                   NotifyChallengeDialog.show(context, challenge);
                                 },
                                 onPublish: () => _confirmPublish(context, challenge),
+                                onClose: () => _confirmClose(context, challenge),
                                 onDelete: () => _confirmDelete(context, challenge),
                               );
                             },
@@ -476,6 +477,21 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
       onPressed: () {
         Navigator.pop(context);
         _ctrl.publishChallenge(challenge.id, forceLive: challenge.isScheduled);
+      },
+    );
+  }
+
+  void _confirmClose(BuildContext context, LeaderboardChallengeModel challenge) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    AppDialogBoxes.showOkCancelDialog(
+      context: context,
+      title: 'Close Live Challenge?',
+      subtitle: 'Are you sure you want to close "${challenge.title}" from live now?\n\n'
+          'Students will immediately no longer be able to attempt this challenge, '
+          'and the round will be marked as CLOSED.',
+      onPressed: () {
+        Navigator.pop(context);
+        _ctrl.closeChallenge(challenge.id);
       },
     );
   }

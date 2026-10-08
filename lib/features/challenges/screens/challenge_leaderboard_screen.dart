@@ -1,10 +1,11 @@
+import 'package:m_admin/features/challenges/models/challenge_model.dart';
+import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:m_admin/features/challenges/controllers/admin_leaderboard_controller.dart';
 import 'package:m_admin/features/challenges/models/challenge_leaderboard_entry.dart';
-import 'package:m_admin/features/challenges/screens/widgets/grant_reward_dialog.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
@@ -38,6 +39,21 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
     );
   }
 
+  void _confirmClose(BuildContext context, LeaderboardChallengeModel ch) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    AppDialogBoxes.showOkCancelDialog(
+      context: context,
+      title: 'Close Live Challenge?',
+      subtitle: 'Are you sure you want to manually close "${ch.title}" from live now?\n\n'
+          'Students will immediately no longer be able to start new attempts, '
+          'and the round will be marked as CLOSED.',
+      onPressed: () {
+        Navigator.pop(context);
+        _ctrl.closeCurrentChallenge();
+      },
+    );
+  }
+
   @override
   void dispose() {
     _scrollCtrl.dispose();
@@ -63,6 +79,26 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
             return Text(_ctrl.challenge.value?.title ?? widget.challengeTitle ?? 'Challenge Leaderboard');
           }),
           actions: [
+            Obx(() {
+              final ch = _ctrl.challenge.value;
+              if (ch != null && ch.isLive && _ctrl.selectedView.value == 'challenge') {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: BorderSide(color: AppColors.error.withValues(alpha: 0.7)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => _confirmClose(context, ch),
+                    icon: const Icon(Icons.stop_circle_outlined, size: 14),
+                    label: const Text('Close Challenge', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            }),
             IconButton(
               tooltip: 'Refresh Standings',
               icon: Obx(
@@ -403,14 +439,6 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                           return _CleanLeaderboardTile(
                             entry: entry,
                             isChallengeView: isChallengeView,
-                            onGrantReward: () {
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              GrantRewardDialog.show(
-                                context,
-                                entry: entry,
-                                controller: _ctrl,
-                              );
-                            },
                           );
                         },
                       ),
@@ -496,12 +524,10 @@ class _CleanLeaderboardTile extends StatelessWidget {
   const _CleanLeaderboardTile({
     required this.entry,
     required this.isChallengeView,
-    required this.onGrantReward,
   });
 
   final ChallengeLeaderboardEntry entry;
   final bool isChallengeView;
-  final VoidCallback onGrantReward;
 
   Color _rankBadgeColor() {
     if (entry.rank == 1) return const Color(0xFFFFD700); // Gold
@@ -693,17 +719,6 @@ class _CleanLeaderboardTile extends StatelessWidget {
               ],
             );
 
-            // Reward Action Button
-            final rewardButton = FilledButton.tonalIcon(
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                visualDensity: VisualDensity.compact,
-              ),
-              onPressed: onGrantReward,
-              icon: const Icon(Iconsax.gift_copy, size: 13),
-              label: const Text('Reward', style: TextStyle(fontSize: 11.5)),
-            );
-
             if (isNarrow) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -722,7 +737,6 @@ class _CleanLeaderboardTile extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       scoreWidget,
-                      rewardButton,
                     ],
                   ),
                 ],
@@ -738,8 +752,6 @@ class _CleanLeaderboardTile extends StatelessWidget {
                 Expanded(flex: 2, child: countsBreakdown),
                 const SizedBox(width: AppSizes.sm),
                 scoreWidget,
-                const SizedBox(width: AppSizes.md),
-                rewardButton,
               ],
             );
           },

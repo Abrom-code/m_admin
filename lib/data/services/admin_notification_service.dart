@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 
@@ -21,6 +22,9 @@ class AdminNotificationService extends GetxService {
   // Auto-incrementing ID so multiple notifications don't replace each other.
   int _nextId = 0;
 
+  /// Whether the service initialized successfully.
+  bool _ready = false;
+
   @override
   Future<void> onInit() async {
     super.onInit();
@@ -35,26 +39,55 @@ class AdminNotificationService extends GetxService {
   }
 
   Future<void> _init() async {
-    const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon');
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
+    try {
+      const androidSettings =
+          AndroidInitializationSettings('@mipmap/launcher_icon');
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
 
-    await _plugin.initialize(
-      const InitializationSettings(
-        android: androidSettings,
-        iOS: iosSettings,
-        macOS: iosSettings,
-      ),
-    );
+      final initialized = await _plugin.initialize(
+        const InitializationSettings(
+          android: androidSettings,
+          iOS: iosSettings,
+          macOS: iosSettings,
+        ),
+      );
 
-    // Request Android 13+ POST_NOTIFICATIONS permission.
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+      if (initialized != true) {
+        debugPrint('[AdminNotificationService] Plugin init returned false.');
+        return;
+      }
+
+      // Create the Android notification channel explicitly so the OS knows
+      // about it before the first notification is shown.
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+
+      if (androidPlugin != null) {
+        await androidPlugin.createNotificationChannel(
+          const AndroidNotificationChannel(
+            _channelId,
+            _channelName,
+            description: _channelDescription,
+            importance: Importance.high,
+          ),
+        );
+
+        // Request Android 13+ POST_NOTIFICATIONS permission.
+        final granted = await androidPlugin.requestNotificationsPermission();
+        debugPrint(
+          '[AdminNotificationService] Notification permission: $granted',
+        );
+      }
+
+      _ready = true;
+      debugPrint('[AdminNotificationService] Initialized successfully.');
+    } catch (e) {
+      debugPrint('[AdminNotificationService] Init error: $e');
+    }
   }
 
   /// Shows a heads-up notification on the admin device.
@@ -67,6 +100,11 @@ class AdminNotificationService extends GetxService {
     required String body,
     int? id,
   }) async {
+    if (!_ready) {
+      debugPrint('[AdminNotificationService] Not ready — skipping "$title".');
+      return;
+    }
+
     final notifId = id ?? _nextId++;
 
     const androidDetails = AndroidNotificationDetails(
@@ -86,22 +124,26 @@ class AdminNotificationService extends GetxService {
       presentSound: true,
     );
 
-    await _plugin.show(
-      notifId,
-      title,
-      body,
-      const NotificationDetails(
-        android: androidDetails,
-        iOS: iosDetails,
-        macOS: iosDetails,
-      ),
-    );
+    try {
+      await _plugin.show(
+        notifId,
+        title,
+        body,
+        const NotificationDetails(
+          android: androidDetails,
+          iOS: iosDetails,
+          macOS: iosDetails,
+        ),
+      );
+    } catch (e) {
+      debugPrint('[AdminNotificationService] show() error: $e');
+    }
   }
 
   /// Convenience method for new-payment alerts.
   Future<void> newPendingPayment({required String paymentMethod}) async {
     final method = paymentMethod.isEmpty
-        ? 'New payment'
+        ? 'New'
         : '${paymentMethod[0].toUpperCase()}${paymentMethod.substring(1)}';
 
     await show(

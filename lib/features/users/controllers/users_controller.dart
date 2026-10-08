@@ -17,6 +17,7 @@ class UsersController extends GetxController {
   final _session = Get.find<AdminSessionService>();
 
   final rows = <AdminUserModel>[].obs;
+  final totalCount = 0.obs;
   final isLoading = false.obs;
   final errorMessage = RxnString();
   final counts = <String, int>{}.obs;
@@ -25,6 +26,7 @@ class UsersController extends GetxController {
   final searchQuery = ''.obs;
   final statusFilter = RxnString();
   final streamFilter = RxnString();
+  final dateRange = Rxn<DateTimeRange>();
   final page = 0.obs;
   static const pageSize = 30;
 
@@ -61,13 +63,16 @@ class UsersController extends GetxController {
     try {
       isLoading.value = true;
       errorMessage.value = null;
-      rows.value = await _repo.fetchUsers(
+      final result = await _repo.fetchUsers(
         search: searchQuery.value,
         statusFilter: statusFilter.value,
         streamFilter: streamFilter.value,
+        dateRange: dateRange.value,
         page: page.value,
         pageSize: pageSize,
       );
+      rows.value = result.users;
+      totalCount.value = result.totalCount;
       _deduplicateRows();
     } catch (e) {
       errorMessage.value = AppExceptionHandler.handle(e).message;
@@ -115,11 +120,18 @@ class UsersController extends GetxController {
     load();
   }
 
+  void setDateRange(DateTimeRange? range) {
+    dateRange.value = range;
+    page.value = 0;
+    load();
+  }
+
   void clearFilters() {
     searchController.clear();
     searchQuery.value = '';
     statusFilter.value = null;
     streamFilter.value = null;
+    dateRange.value = null;
     page.value = 0;
     load();
   }
@@ -173,26 +185,27 @@ class UsersController extends GetxController {
       String? notifTitle;
       String? notifBody;
       if (status == 'active' && expiresAt != null) {
-        notifTitle = AdminSubscriptionPlan.buildGrantNotificationTitle(plan);
+        notifTitle = AdminSubscriptionPlan.buildGrantNotificationTitle(
+          plan,
+          expiresAt: expiresAt,
+        );
         notifBody = AdminSubscriptionPlan.buildGrantNotificationBody(
           planKey: plan,
           expiresAt: expiresAt,
         );
-      } else if (status == 'inactive') {
-        notifTitle = 'Subscription Update';
-        notifBody = (reason != null && reason.isNotEmpty)
-            ? 'Your premium access has been deactivated: $reason'
-            : 'Your premium access has been deactivated.';
       }
 
-      // Send push notification (best-effort — must not fail the action).
-      await _repo.sendSubscriptionPush(
-        userId: user.id,
-        status: status,
-        title: notifTitle,
-        body: notifBody,
-        reason: reason,
-      );
+      // Send push notification only for activation (not revocation).
+      // Revocation is handled silently via Supabase DB update only.
+      if (status == 'active' && notifTitle != null && notifBody != null) {
+        await _repo.sendSubscriptionPush(
+          userId: user.id,
+          status: status,
+          title: notifTitle,
+          body: notifBody,
+          reason: reason,
+        );
+      }
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
     } finally {
@@ -217,6 +230,49 @@ class UsersController extends GetxController {
       );
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
+    } finally {
+      actingIds.remove(user.id);
+      actingIds.refresh();
+    }
+  }
+
+  /// Permanently deletes a user from auth and public tables.
+  Future<bool> deleteUser(AdminUserModel user, {String? reason}) async {
+    if (isActing(user.id)) return false;
+
+    try {
+      actingIds.add(user.id);
+      actingIds.refresh();
+
+      await _repo.deleteUserPermanently(
+        user.id,
+        _session.adminUid,
+        userEmail: user.email,
+        reason: reason,
+      );
+
+      // Remove from in-memory row list (including any duplicate email rows)
+      rows.removeWhere((r) =>
+          r.id == user.id ||
+          (user.email.isNotEmpty &&
+              r.email.trim().toLowerCase() == user.email.trim().toLowerCase()));
+      rows.refresh();
+
+      await refreshCounts();
+
+      // Refresh dashboard if registered
+      if (Get.isRegistered<DashboardController>()) {
+        DashboardController.instance.load();
+      }
+
+      SnackbarHelper.success(
+        'User Deleted',
+        '${user.displayName} has been permanently deleted.',
+      );
+      return true;
+    } catch (e) {
+      AppExceptionHandler.handleResponse(e);
+      return false;
     } finally {
       actingIds.remove(user.id);
       actingIds.refresh();

@@ -1,8 +1,10 @@
+import 'package:m_admin/common/widgets/admin_date_filter_pill.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
+import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/features/users/controllers/users_controller.dart';
@@ -295,8 +297,18 @@ class _UserFilterBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSizes.xs),
+              // Registration Date Gap Filter
+              Obx(
+                () => AdminDateFilterPill(
+                  selectedRange: controller.dateRange.value,
+                  onRangeChanged: controller.setDateRange,
+                  defaultLabel: 'Registration Date',
+                ),
+              ),
+              const SizedBox(width: AppSizes.xs),
               Obx(() {
                 final active = controller.streamFilter.value != null ||
+                    controller.dateRange.value != null ||
                     controller.searchController.text.isNotEmpty;
                 if (!active) return const SizedBox.shrink();
                 return IconButton(
@@ -319,7 +331,10 @@ class _UserFilterBar extends StatelessWidget {
               children: [
                 searchInput,
                 const SizedBox(height: 6),
-                filterRow,
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: filterRow,
+                ),
               ],
             );
           }
@@ -357,7 +372,7 @@ class _UserTable extends StatelessWidget {
         emptyMessage: 'Try adjusting your search query or stream filters.',
         page: controller.page.value,
         pageSize: UsersController.pageSize,
-        totalCount: controller.counts[''],
+        totalCount: controller.totalCount.value,
         onPageChanged: controller.changePage,
         onRowTap: (user) => _openDetail(context, user),
         columns: [
@@ -397,13 +412,42 @@ class _UserTable extends StatelessWidget {
             ),
           ),
         ],
-        rowActions: (context, user) => IconButton(
-          tooltip: 'Manage Student',
-          icon: const Icon(Icons.arrow_forward_ios_rounded, size: 13),
-          onPressed: () => _openDetail(context, user),
+        rowActions: (context, user) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Delete User Permanently',
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                size: 16,
+                color: AppColors.error,
+              ),
+              onPressed: () => _confirmDelete(context, user),
+            ),
+            IconButton(
+              tooltip: 'Manage Student',
+              icon: const Icon(Icons.arrow_forward_ios_rounded, size: 13),
+              onPressed: () => _openDetail(context, user),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, AdminUserModel user) async {
+    final confirmed = await AppDialogBoxes.confirmTyped(
+      title: 'Delete User Permanently',
+      message: 'This will permanently delete "${user.displayName}" (${user.email}) '
+          'and wipe ALL associated data including test attempts, bookmarks, '
+          'receipts, and active sessions.\n\nThis action cannot be undone.',
+      expectedText: 'DELETE',
+      confirmLabel: 'Permanently Delete',
+    );
+
+    if (!confirmed) return;
+
+    await controller.deleteUser(user);
   }
 
   void _openDetail(BuildContext context, AdminUserModel user) {
@@ -471,7 +515,7 @@ class _StudentProfileCell extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                user.displayName,
+                user.fullName.isNotEmpty ? user.fullName : user.displayName,
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
                 style: const TextStyle(

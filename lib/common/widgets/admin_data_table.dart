@@ -175,11 +175,21 @@ class AdminDataTable<T> extends StatelessWidget {
   /// Builds the scrollable rows list, wrapped in a [RefreshIndicator] when
   /// [onRefresh] is provided so dragging down reloads the table.
   Widget _buildRowsList(BuildContext context) {
+    // If rows were not sliced by the caller, paginate them client-side
+    final List<T> displayRows;
+    if (totalCount != null && rows.length == totalCount && rows.length > pageSize) {
+      final start = page * pageSize;
+      final end = (start + pageSize).clamp(0, rows.length);
+      displayRows = start < rows.length ? rows.sublist(start, end) : <T>[];
+    } else {
+      displayRows = rows;
+    }
+
     final list = ListView.separated(
       physics: onRefresh != null
           ? const AlwaysScrollableScrollPhysics()
           : const ClampingScrollPhysics(),
-      itemCount: rows.length,
+      itemCount: displayRows.length,
       separatorBuilder: (context, _) => Divider(
         height: 1,
         color: AppHelperFunctions.isDark(context)
@@ -187,7 +197,7 @@ class AdminDataTable<T> extends StatelessWidget {
             : AppColors.borderPrimary,
       ),
       itemBuilder: (context, index) => _BodyRow<T>(
-        row: rows[index],
+        row: displayRows[index],
         columns: columns,
         onTap: onRowTap,
         rowActions: rowActions,
@@ -494,11 +504,15 @@ class _Pagination extends StatelessWidget {
     final first = rowCount == 0 ? 0 : page * pageSize + 1;
     final last = page * pageSize + rowCount;
 
-    // Without a total, fall back to "a full page means there is probably
-    // more" — never claim a count we cannot substantiate.
     final canGoForward = totalCount == null
         ? rowCount == pageSize
         : last < totalCount!;
+
+    final totalPages = (totalCount != null && totalCount! > 0)
+        ? (totalCount! / pageSize).ceil()
+        : null;
+
+    final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -508,37 +522,145 @@ class _Pagination extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(
-            color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+            color: borderColor,
           ),
         ),
       ),
-      child: Row(
-        children: [
-          Text(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 480;
+          final isVeryNarrow = constraints.maxWidth < 360;
+
+          final infoWidget = Text(
             totalCount == null
-                ? 'Showing $first–$last'
-                : 'Showing $first–$last of $totalCount',
+                ? (rowCount == 0 ? 'No entries' : 'Showing $first–$last')
+                : (totalCount == 0
+                    ? 'No entries'
+                    : 'Showing $first–$last of $totalCount'),
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
             ),
-          ),
-          const Spacer(),
-          IconButton(
-            tooltip: 'Previous page',
-            onPressed: page > 0 ? () => onPageChanged(page - 1) : null,
-            icon: const Icon(Icons.chevron_left_rounded),
-          ),
-          Text(
-            '${page + 1}',
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-          ),
-          IconButton(
-            tooltip: 'Next page',
-            onPressed: canGoForward ? () => onPageChanged(page + 1) : null,
-            icon: const Icon(Icons.chevron_right_rounded),
-          ),
-        ],
+          );
+
+          final buttonsWidget = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Previous button
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  side: BorderSide(
+                    color: page > 0
+                        ? borderColor
+                        : (dark ? Colors.white10 : Colors.black12),
+                  ),
+                ),
+                onPressed: page > 0 ? () => onPageChanged(page - 1) : null,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.chevron_left_rounded,
+                      size: 16,
+                      color: page > 0 ? null : (dark ? Colors.white24 : Colors.black26),
+                    ),
+                    if (!isVeryNarrow) ...[
+                      const SizedBox(width: 3),
+                      Text(
+                        'Previous',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: page > 0 ? null : (dark ? Colors.white24 : Colors.black26),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Current page indicator badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: dark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Text(
+                  totalPages != null
+                      ? 'Page ${page + 1} of $totalPages'
+                      : 'Page ${page + 1}',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Next button
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  side: BorderSide(
+                    color: canGoForward
+                        ? borderColor
+                        : (dark ? Colors.white10 : Colors.black12),
+                  ),
+                ),
+                onPressed: canGoForward ? () => onPageChanged(page + 1) : null,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!isVeryNarrow) ...[
+                      Text(
+                        'Next',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: canGoForward ? null : (dark ? Colors.white24 : Colors.black26),
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                    ],
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 16,
+                      color: canGoForward ? null : (dark ? Colors.white24 : Colors.black26),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          if (isNarrow) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                infoWidget,
+                const SizedBox(height: 8),
+                buttonsWidget,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              infoWidget,
+              const Spacer(),
+              buttonsWidget,
+            ],
+          );
+        },
       ),
     );
   }

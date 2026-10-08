@@ -1,3 +1,4 @@
+import 'package:m_admin/features/content/screens/question_reports_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -6,8 +7,10 @@ import 'package:m_admin/data/services/admin_session_service.dart';
 import 'package:m_admin/features/challenges/screens/challenges_list_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
 import 'package:m_admin/features/dashboard/screens/dashboard_screen.dart';
+import 'package:m_admin/features/notes/screens/notes_screen.dart';
 import 'package:m_admin/features/notifications/screens/notifications_screen.dart';
 import 'package:m_admin/features/payments/screens/payments_screen.dart';
+import 'package:m_admin/features/pilot_exams/screens/pilot_exams_screen.dart';
 import 'package:m_admin/features/sessions/screens/sessions_screen.dart';
 import 'package:m_admin/features/settings/screens/settings_screen.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
@@ -33,23 +36,7 @@ class AdminShell extends StatefulWidget {
 }
 
 class _AdminShellState extends State<AdminShell> {
-  /// Key used to open the [Scaffold] drawer programmatically from the swipe
-  /// gesture detector that lives inside the body.
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-
-  /// Horizontal drag start position – used to decide swipe direction.
-  double _dragStartX = 0;
-
-  void _onHorizontalDragStart(DragStartDetails details) {
-    _dragStartX = details.globalPosition.dx;
-  }
-
-  void _onHorizontalDragEnd(DragEndDetails details) {
-    final dx = (details.globalPosition.dx) - _dragStartX;
-    if (dx > 30 && _dragStartX < 60) {
-      _scaffoldKey.currentState?.openDrawer();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +92,7 @@ class _AdminShellState extends State<AdminShell> {
         // Narrow layout: bottom navigation bar + drawer for secondary pages (Dashboard, Sessions, Settings).
         return Scaffold(
           key: _scaffoldKey,
+          drawerEnableOpenDragGesture: false,
           appBar: appBar,
           drawer: Drawer(
             width: kSidebarWidth,
@@ -113,12 +101,7 @@ class _AdminShellState extends State<AdminShell> {
               onNavigate: () => Navigator.of(context).maybePop(),
             ),
           ),
-          body: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragStart: _onHorizontalDragStart,
-            onHorizontalDragEnd: _onHorizontalDragEnd,
-            child: _Pages(nav: nav),
-          ),
+          body: _Pages(nav: nav),
           bottomNavigationBar: _AdminBottomNavBar(nav: nav),
         );
       },
@@ -157,7 +140,9 @@ class _AdminBottomNavBar extends StatelessWidget {
 
     return Obx(() {
       final currentIdx = nav.selectedIndex.value;
-      final selectedDest = (currentIdx >= 1 && currentIdx <= 5) ? currentIdx - 1 : 0;
+      const bottomNavPages = [1, 2, 3, 4, 8];
+      final matchedIdx = bottomNavPages.indexOf(currentIdx);
+      final selectedDest = matchedIdx >= 0 ? matchedIdx : 0;
 
       return Container(
         decoration: BoxDecoration(
@@ -173,12 +158,12 @@ class _AdminBottomNavBar extends StatelessWidget {
           height: 62,
           elevation: 0,
           backgroundColor: Colors.transparent,
-          indicatorColor: (currentIdx >= 1 && currentIdx <= 5)
+          indicatorColor: matchedIdx >= 0
               ? AppColors.primary.withValues(alpha: 0.16)
               : Colors.transparent,
           selectedIndex: selectedDest,
           onDestinationSelected: (index) {
-            nav.changePage(index + 1);
+            nav.changePage(bottomNavPages[index]);
           },
           destinations: [
             NavigationDestination(
@@ -276,6 +261,9 @@ class _Pages extends StatelessWidget {
           const NotificationsScreen(),
           const UsersScreen(),
           const ContentScreen(),
+          const NotesScreen(),
+          const PilotExamsScreen(),
+          const QuestionReportsScreen(),
           const ChallengesListScreen(),
           const SessionsScreen(),
           const SettingsScreen(),

@@ -6,10 +6,19 @@ import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 class TestEditorController extends GetxController {
-  TestEditorController({this.testId, required this.subjectId});
+  TestEditorController({
+    this.testId,
+    required this.subjectId,
+    this.initialType,
+    this.initialGrade,
+    this.initialChapterId,
+  });
 
   final int? testId; // null = create new
   final int subjectId;
+  final String? initialType;
+  final int? initialGrade;
+  final int? initialChapterId;
 
   final _repo = ContentRepository();
 
@@ -24,7 +33,9 @@ class TestEditorController extends GetxController {
   final gradeCtrl = TextEditingController();
   final selectedChapterId = RxnInt();
   final timeCtrl = TextEditingController();
+  final descriptionCtrl = TextEditingController();
   final isUntimed = false.obs;
+  final isPremium = true.obs;
 
   final formKey = GlobalKey<FormState>();
 
@@ -33,6 +44,15 @@ class TestEditorController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    if (initialType != null && validTypes.contains(initialType)) {
+      typeValue.value = initialType!;
+    }
+    if (initialGrade != null && initialGrade! > 0) {
+      gradeCtrl.text = initialGrade.toString();
+    }
+    if (initialChapterId != null && initialChapterId! > 0) {
+      selectedChapterId.value = initialChapterId;
+    }
     _loadChapters();
     if (testId != null) _loadTest();
   }
@@ -42,6 +62,7 @@ class TestEditorController extends GetxController {
     titleCtrl.dispose();
     gradeCtrl.dispose();
     timeCtrl.dispose();
+    descriptionCtrl.dispose();
     super.onClose();
   }
 
@@ -67,6 +88,17 @@ class TestEditorController extends GetxController {
       final time = AppHelperFunctions.toInt(data['time']) ?? -1;
       isUntimed.value = time == -1;
       timeCtrl.text = time == -1 ? '' : time.toString();
+      descriptionCtrl.text = data['description']?.toString() ?? '';
+
+      // Premium flag — default true when absent (matches student app default).
+      final rawPremium = data['is_premium'];
+      isPremium.value = rawPremium == null
+          ? true
+          : (rawPremium == true ||
+              rawPremium == 1 ||
+              rawPremium == 'true' ||
+              rawPremium == '1');
+
       questions.value = await _repo.fetchQuestionsForTest(testId!);
     } catch (e) {
       SnackbarHelper.error('Load error', AppExceptionHandler.handle(e).message);
@@ -95,6 +127,10 @@ class TestEditorController extends GetxController {
             ? selectedChapterId.value
             : null,
         'time': time,
+        'description': descriptionCtrl.text.trim().isEmpty
+            ? null
+            : descriptionCtrl.text.trim(),
+        'is_premium': isPremium.value,
       };
 
       await _repo.upsertTest(data);

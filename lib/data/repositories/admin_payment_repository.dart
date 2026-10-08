@@ -12,7 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AdminPaymentRepository {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  Future<List<PaymentReview>> fetchQueue({
+  Future<({List<PaymentReview> rows, int totalCount})> fetchQueue({
     required String status,
     String? search,
     String? method,
@@ -24,7 +24,7 @@ class AdminPaymentRepository {
       var query = _supabase
           .from('payment_receipts')
           .select(
-            '*, users!inner(id, first_name, last_name, email, stream, '
+            '*, users!inner(id, first_name, last_name, full_name, email, stream, '
             'subscription_status)',
           );
 
@@ -32,14 +32,21 @@ class AdminPaymentRepository {
         query = query.eq('status', status);
       }
 
-      if (method != null && method.isNotEmpty) {
-        query = query.eq('payment_method', method);
+      if (method != null && method.isNotEmpty && method.toLowerCase() != 'all') {
+        final clean = method.toLowerCase().replaceAll('payment_', '').replaceAll('_birr', '');
+        query = query.or('payment_method.ilike.%$clean%,payment_method.ilike.%$method%');
       }
 
       if (range != null) {
-        query = query
-            .gte('created_at', range.start.toUtc().toIso8601String())
-            .lte('created_at', range.end.toUtc().toIso8601String());
+        final startIso = range.start.toUtc().toIso8601String();
+        final endOfDay = DateTime(
+          range.end.year,
+          range.end.month,
+          range.end.day,
+          23, 59, 59, 999,
+        );
+        final endIso = endOfDay.toUtc().toIso8601String();
+        query = query.gte('created_at', startIso).lte('created_at', endIso);
       }
 
       final term = search?.trim() ?? '';
@@ -48,18 +55,22 @@ class AdminPaymentRepository {
         query = query.or(
           'first_name.ilike.%$safe%,'
           'last_name.ilike.%$safe%,'
+          'full_name.ilike.%$safe%,'
           'email.ilike.%$safe%',
           referencedTable: 'users',
         );
       }
 
-      final rows = await query
+      final response = await query
           .order('created_at', ascending: false)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+          .count(CountOption.exact);
 
-      return rows
+      final rows = (response.data as List)
           .map((row) => PaymentReview.fromJson(Map<String, dynamic>.from(row)))
           .toList();
+
+      return (rows: rows, totalCount: response.count);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
@@ -85,7 +96,7 @@ class AdminPaymentRepository {
       final row = await _supabase
           .from('payment_receipts')
           .select(
-            '*, users!inner(id, first_name, last_name, email, stream, '
+            '*, users!inner(id, first_name, last_name, full_name, email, stream, '
             'subscription_status)',
           )
           .eq('id', id)

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -488,6 +488,27 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                   ),
                                 ),
                               ],
+                              const SizedBox(height: 16),
+                              Obx(
+                                () => SwitchListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  value: _ctrl.isPremium.value,
+                                  onChanged: (val) => _ctrl.isPremium.value = val,
+                                  title: const Text(
+                                    'Premium Challenge',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                  ),
+                                  subtitle: const Text(
+                                    'When enabled, only subscribed students can participate in this challenge round.',
+                                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                  ),
+                                  secondary: Icon(
+                                    Iconsax.crown_copy,
+                                    color: _ctrl.isPremium.value ? AppColors.warning : AppColors.textSecondary,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -868,7 +889,7 @@ class _ChallengeQuestionDialogState extends State<_ChallengeQuestionDialog> {
         if (widget.challengeId.isNotEmpty) 'challenge_id': widget.challengeId,
         'question_text': _textCtrl.text.trim(),
         'image_url': _imageCtrl.text.trim().isEmpty ? null : _imageCtrl.text.trim(),
-        'passage_id': int.tryParse(_passageIdCtrl.text.trim()),
+        'passage_id': _passageIdCtrl.text.trim().isEmpty ? null : _passageIdCtrl.text.trim(),
         'choices': choices,
         'correct_choice': '$_correctChoiceIndex',
         'explanation_en': _explEnCtrl.text.trim(),
@@ -949,11 +970,10 @@ class _ChallengeQuestionDialogState extends State<_ChallengeQuestionDialog> {
                         // Passage ID (optional)
                         TextFormField(
                           controller: _passageIdCtrl,
-                          keyboardType: TextInputType.number,
                           style: const TextStyle(fontSize: 12),
                           decoration: InputDecoration(
                             labelText: 'Passage ID (optional)',
-                            hintText: 'e.g. 101 (from passages table)',
+                            hintText: 'Passage ID or UUID (from passages table)',
                             prefixIcon: const Icon(Iconsax.document_text_copy, size: 15),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

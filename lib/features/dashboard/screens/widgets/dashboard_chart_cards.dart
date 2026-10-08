@@ -27,16 +27,40 @@ class PaidUnpaidDonutCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Expanded(
-                child: Text(
-                  'PAID VS UNPAID',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.6,
-                    color: AppColors.textSecondary,
-                  ),
+              Expanded(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'PAID VS UNPAID',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Obx(() => Tooltip(
+                      message: controller.isActiveHidden.value ? 'Show active' : 'Hide active',
+                      child: InkWell(
+                        onTap: controller.toggleActiveVisibility,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Padding(
+                          padding: const EdgeInsets.all(2.0),
+                          child: Icon(
+                            controller.isActiveHidden.value
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            size: 13,
+                            color: controller.isActiveHidden.value
+                                ? AppColors.primary
+                                : AppColors.textSecondary.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ),
+                    )),
+                  ],
                 ),
               ),
               const SizedBox(width: 4),
@@ -78,9 +102,12 @@ class PaidUnpaidDonutCard extends StatelessWidget {
               );
             }
 
+            final activeLabel = controller.isActiveHidden.value
+                ? 'Active (••••)'
+                : 'Active (${s.paidUsers})';
             final segments = [
               DonutSegment(
-                label: 'Active (${s.paidUsers})',
+                label: activeLabel,
                 value: s.paidUsers.toDouble(),
                 color: AppColors.success,
               ),
@@ -224,7 +251,7 @@ class FunnelCard extends StatelessWidget {
               ),
               SizedBox(width: 4),
               Text(
-                'Registration to Paid',
+                'Signups, Inactives, Actives & Submitted',
                 style: TextStyle(
                   fontSize: 10.5,
                   color: AppColors.textSecondary,
@@ -328,7 +355,7 @@ class FunnelCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(3),
             child: LinearProgressIndicator(
               minHeight: 5,
-              value: topCount > 0 ? (count / topCount) : 0,
+              value: topCount > 0 ? (count / topCount).clamp(0.0, 1.0) : 0,
               backgroundColor: dark
                   ? AppColors.darkSurface
                   : AppColors.grey.withValues(alpha: 0.35),
@@ -343,13 +370,15 @@ class FunnelCard extends StatelessWidget {
   Color _stageColor(int index) {
     switch (index) {
       case 0:
-        return AppColors.info;
+        return AppColors.info; // 1. Signups
       case 1:
-        return AppColors.amberAccent;
+        return AppColors.warning; // 2. Inactives
       case 2:
-        return AppColors.primary;
+        return AppColors.success; // 3. Actives
+      case 3:
+        return AppColors.primary; // 4. Submitted
       default:
-        return AppColors.success;
+        return AppColors.primary;
     }
   }
 }

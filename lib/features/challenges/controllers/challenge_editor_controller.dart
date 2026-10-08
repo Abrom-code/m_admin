@@ -24,6 +24,7 @@ class ChallengeEditorController extends GetxController {
   final selectedSubjectId = RxnInt();
   final audience = 'both'.obs; // 'natural', 'social', 'both'
   final status = 'draft'.obs;
+  final isPremium = false.obs;
 
   final startsAt = Rxn<DateTime>();
   final endsAt = Rxn<DateTime>();
@@ -69,6 +70,7 @@ class ChallengeEditorController extends GetxController {
         audience.value = c.audience;
         durationCtrl.text = '${c.durationMinutes}';
         status.value = c.status;
+        isPremium.value = c.isPremium;
         startsAt.value = c.startsAt;
         endsAt.value = c.endsAt;
 
@@ -150,6 +152,7 @@ class ChallengeEditorController extends GetxController {
         'audience': audience.value,
         'duration_seconds': durationMins * 60,
         'status': targetStatus,
+        'is_premium': isPremium.value,
         if (startsAt.value != null) 'starts_at': startsAt.value!.toUtc().toIso8601String(),
         if (endsAt.value != null) 'ends_at': endsAt.value!.toUtc().toIso8601String(),
       };

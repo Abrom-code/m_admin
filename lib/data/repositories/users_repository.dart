@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show DateTimeRange;
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -10,17 +11,18 @@ import 'package:m_admin/utils/exceptions/exception_handler.dart';
 class UsersRepository {
   final _sb = Supabase.instance.client;
 
-  Future<List<AdminUserModel>> fetchUsers({
+  Future<({List<AdminUserModel> users, int totalCount})> fetchUsers({
     String? search,
     String? statusFilter,
     String? streamFilter,
+    DateTimeRange? dateRange,
     int page = 0,
     int pageSize = 30,
   }) async {
     try {
       var q = _sb
           .from('users')
-          .select('id, first_name, last_name, email, stream, '
+          .select('id, first_name, last_name, full_name, email, stream, '
               'subscription_status, created_at, receipt_upload_count, '
               'subscription_plan, subscription_expires_at');
 
@@ -32,19 +34,57 @@ class UsersRepository {
         q = q.ilike('stream', streamFilter);
       }
 
-      if (search != null && search.trim().isNotEmpty) {
-        final safe = _escapeFilterValue(search.trim());
-        q = q.or(
-          'id.ilike.%$safe%,'
-          'first_name.ilike.%$safe%,'
-          'last_name.ilike.%$safe%,'
-          'email.ilike.%$safe%',
+      if (dateRange != null) {
+        final startIso = dateRange.start.toUtc().toIso8601String();
+        final endOfDay = DateTime(
+          dateRange.end.year,
+          dateRange.end.month,
+          dateRange.end.day,
+          23, 59, 59, 999,
         );
+        final endIso = endOfDay.toUtc().toIso8601String();
+        q = q.gte('created_at', startIso).lte('created_at', endIso);
       }
 
-      final rows = await q
+      if (search != null && search.trim().isNotEmpty) {
+        final trimmed = search.trim();
+        final safe = _escapeFilterValue(trimmed);
+
+        // Supabase Auth stores id as uuid — ilike fails on uuid in Postgres.
+        // Check if query is a valid UUID string for exact match.
+        final isUuid = RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+        ).hasMatch(trimmed);
+
+        final parts = trimmed.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+        final orClauses = <String>[
+          'first_name.ilike.%$safe%',
+          'last_name.ilike.%$safe%',
+          'full_name.ilike.%$safe%',
+          'email.ilike.%$safe%',
+        ];
+
+        if (isUuid) {
+          orClauses.add('id.eq.$trimmed');
+        }
+
+        if (parts.length >= 2) {
+          final first = _escapeFilterValue(parts.first);
+          final last = _escapeFilterValue(parts.sublist(1).join(' '));
+          orClauses.add('and(first_name.ilike.%$first%,last_name.ilike.%$last%)');
+          orClauses.add('and(first_name.ilike.%$last%,last_name.ilike.%$first%)');
+        }
+
+        q = q.or(orClauses.join(','));
+      }
+
+      final response = await q
           .order('created_at', ascending: false)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+          .count(CountOption.exact);
+
+      final rows = response.data as List;
+      final total = response.count;
 
       final users = rows
           .map(
@@ -79,7 +119,7 @@ class UsersRepository {
         }
       }
 
-      return deduped;
+      return (users: deduped, totalCount: total);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
@@ -153,6 +193,41 @@ class UsersRepository {
           .eq('id', userId);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Permanently deletes a user from the system.
+  ///
+  /// Calls the dmin_delete_user RPC function to delete from uth.users
+  /// (which cascades to all tables) and records the action in dmin_audit_log.
+  /// Falls back to direct RLS deletion on public.users if the RPC is absent.
+  Future<void> deleteUserPermanently(
+    String userId,
+    String adminUid, {
+    String? userEmail,
+    String? reason,
+  }) async {
+    try {
+      await _sb.rpc('admin_delete_user', params: {
+        'p_user_id': userId,
+        'p_admin_uid': adminUid,
+        if (reason != null && reason.isNotEmpty) 'p_reason': reason,
+      });
+    } on PostgrestException {
+      // If RPC is absent or errors, fall back to direct delete via RLS
+      await _sb.from('users').delete().eq('id', userId);
+      if (userEmail != null && userEmail.trim().isNotEmpty) {
+        await _sb.from('users').delete().ilike('email', userEmail.trim());
+      }
+    } catch (e) {
+      try {
+        await _sb.from('users').delete().eq('id', userId);
+        if (userEmail != null && userEmail.trim().isNotEmpty) {
+          await _sb.from('users').delete().ilike('email', userEmail.trim());
+        }
+      } catch (_) {
+        throw AppExceptionHandler.handle(e);
+      }
     }
   }
 
@@ -232,6 +307,79 @@ class UsersRepository {
         if (v != null && v.isNotEmpty) set.add(v);
       }
       return set.toList()..sort();
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Fetches the currently bound device session for [userId].
+  Future<Map<String, dynamic>?> fetchUserDevice(String userId) async {
+    try {
+      final row = await _sb
+          .from('user_sessions')
+          .select('user_id, device_id, device_model, os_version, last_active_at, updated_at')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      return row != null ? Map<String, dynamic>.from(row) : null;
+    } catch (e) {
+      debugPrint('[UsersRepository] fetchUserDevice error: $e');
+      return null;
+    }
+  }
+
+  /// Fetches device activity and audit history for [userId].
+  Future<List<Map<String, dynamic>>> fetchDeviceHistory(String userId) async {
+    try {
+      final rows = await _sb
+          .from('device_history')
+          .select('id, action, device_id, device_model, os_version, performed_by, note, created_at')
+          .eq('user_id', userId)
+          .order('created_at', ascending: false)
+          .limit(20);
+
+      return rows.map((r) => Map<String, dynamic>.from(r)).toList();
+    } catch (e) {
+      debugPrint('[UsersRepository] fetchDeviceHistory error: $e');
+      return [];
+    }
+  }
+
+  /// Resets the user's bound device so they can pair a new device on next login.
+  Future<bool> resetUserDevice(
+    String userId,
+    String adminUid, {
+    String? reason,
+  }) async {
+    try {
+      try {
+        await _sb.rpc('admin_reset_user_device', params: {
+          'p_user_id': userId,
+          'p_admin_uid': adminUid,
+          if (reason != null && reason.isNotEmpty) 'p_reason': reason,
+        });
+        return true;
+      } on PostgrestException catch (pe) {
+        debugPrint('[UsersRepository] admin_reset_user_device RPC fallback: $pe');
+      }
+
+      // Direct fallback
+      await _sb.from('user_sessions').update({
+        'device_id': null,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('user_id', userId);
+
+      // Attempt audit log write
+      try {
+        await _sb.from('device_history').insert({
+          'user_id': userId,
+          'action': 'ADMIN_RESET',
+          'performed_by': adminUid,
+          'note': reason ?? 'Admin reset device lock',
+        });
+      } catch (_) {}
+
+      return true;
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }

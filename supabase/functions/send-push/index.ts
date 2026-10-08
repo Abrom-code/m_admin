@@ -690,7 +690,8 @@ async function handleAnnouncement(body: AnnouncementBody) {
 
   // Ensure notification type is valid for DB check constraint
   const allowedTypes = ["announcement", "payment", "new_content", "challenge"];
-  const notifType = (body.type && allowedTypes.includes(body.type)) ? body.type : "announcement";
+  const rawType = (body.type ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const notifType = (rawType && allowedTypes.includes(rawType)) ? rawType : "announcement";
 
   // Build insert payload
   const insertPayload: Record<string, unknown> = {

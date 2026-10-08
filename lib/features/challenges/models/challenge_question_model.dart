@@ -1,4 +1,5 @@
-﻿import 'dart:convert';
+import 'dart:convert';
+import 'package:m_admin/features/challenges/models/passage_model.dart';
 
 class ChallengeQuestionModel {
   final String id;
@@ -11,7 +12,8 @@ class ChallengeQuestionModel {
   final String explanationEn;
   final String explanationAm;
   final String? imageUrl;
-  final int? passageId;
+  final String? passageId;
+  final PassageModel? passage;
 
   ChallengeQuestionModel({
     required this.id,
@@ -25,6 +27,7 @@ class ChallengeQuestionModel {
     this.explanationAm = '',
     this.imageUrl,
     this.passageId,
+    this.passage,
   });
 
   bool get hasExplanation =>
@@ -61,6 +64,26 @@ class ChallengeQuestionModel {
     final defaultExp =
         rawExp.isNotEmpty ? rawExp : (expEn.isNotEmpty ? expEn : expAm);
 
+    // Parse passage — handles multiple shapes from Supabase relations
+    PassageModel? parsedPassage;
+    if (json['passage'] is Map<String, dynamic>) {
+      parsedPassage = PassageModel.fromJson(json['passage'] as Map<String, dynamic>);
+    } else if (json['passages'] is Map<String, dynamic>) {
+      parsedPassage = PassageModel.fromJson(json['passages'] as Map<String, dynamic>);
+    } else if (json['passage_content'] != null && json['passage_content'].toString().trim().isNotEmpty) {
+      parsedPassage = PassageModel(
+        id: -1,
+        title: json['passage_title']?.toString(),
+        content: json['passage_content'].toString().trim(),
+        imageUrl: null,
+      );
+    }
+
+    final rawPid = json['passage_id'];
+    final pidStr = (rawPid != null && rawPid.toString().isNotEmpty && rawPid.toString() != 'null')
+        ? rawPid.toString()
+        : null;
+
     return ChallengeQuestionModel(
       id: json['id']?.toString() ?? '',
       setId: json['set_id']?.toString() ?? '',
@@ -72,7 +95,8 @@ class ChallengeQuestionModel {
       explanationEn: expEn.isNotEmpty ? expEn : rawExp,
       explanationAm: expAm,
       imageUrl: json['image_url']?.toString(),
-      passageId: (json['passage_id'] as num?)?.toInt(),
+      passageId: pidStr,
+      passage: parsedPassage,
     );
   }
 
@@ -90,8 +114,9 @@ class ChallengeQuestionModel {
       'explanation': defaultExp,
       if (explanationEn.isNotEmpty) 'explanation_en': explanationEn,
       if (explanationAm.isNotEmpty) 'explanation_am': explanationAm,
-      if (imageUrl != null && imageUrl!.isNotEmpty) 'image_url': imageUrl,
+      'image_url': imageUrl,
       if (passageId != null) 'passage_id': passageId,
+      if (passage != null) 'passage': passage!.toMap(),
     };
   }
 
@@ -106,7 +131,8 @@ class ChallengeQuestionModel {
     String? explanationEn,
     String? explanationAm,
     String? imageUrl,
-    int? passageId,
+    String? passageId,
+    PassageModel? passage,
   }) {
     return ChallengeQuestionModel(
       id: id ?? this.id,
@@ -120,6 +146,7 @@ class ChallengeQuestionModel {
       explanationAm: explanationAm ?? this.explanationAm,
       imageUrl: imageUrl ?? this.imageUrl,
       passageId: passageId ?? this.passageId,
+      passage: passage ?? this.passage,
     );
   }
 }

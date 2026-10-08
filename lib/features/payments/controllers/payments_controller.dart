@@ -32,6 +32,7 @@ class PaymentsController extends GetxController {
 
   // ── Results ──────────────────────────────────────────────────────
   final rows = <PaymentReview>[].obs;
+  final totalCount = 0.obs;
   final isLoading = false.obs;
   final errorMessage = RxnString();
   final counts = <String, int>{}.obs;
@@ -71,7 +72,7 @@ class PaymentsController extends GetxController {
       isLoading.value = true;
       errorMessage.value = null;
 
-      rows.value = await _repo.fetchQueue(
+      final result = await _repo.fetchQueue(
         status: activeTab.value,
         search: searchQuery.value,
         method: methodFilter.value,
@@ -79,6 +80,8 @@ class PaymentsController extends GetxController {
         page: page.value,
         pageSize: pageSize,
       );
+      rows.value = result.rows;
+      totalCount.value = result.totalCount;
     } catch (e) {
       final failure = AppExceptionHandler.handle(e);
       errorMessage.value = failure.message;

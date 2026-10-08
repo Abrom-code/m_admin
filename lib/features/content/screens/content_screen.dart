@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/routes/routes.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
@@ -180,6 +181,8 @@ class _ContentMetricRibbon extends StatelessWidget {
               color: AppColors.info,
               dark: dark,
             ),
+            const SizedBox(width: 8),
+            _ContentReportsCard(dark: dark),
             const SizedBox(width: 8),
             _ContentMetricCard(
               label: 'Total Questions',
@@ -615,4 +618,66 @@ class SubjectRow {
         ? null
         : DateTime.tryParse(j['updated_at'].toString()),
   );
+}
+
+class _ContentReportsCard extends StatelessWidget {
+  const _ContentReportsCard({required this.dark});
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          if (Get.isRegistered<AdminNavController>()) {
+            AdminNavController.instance.changePage(7);
+          } else {
+            Get.toNamed(AdminRoutes.questionReports);
+          }
+        },
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: dark ? 0.15 : 0.08),
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+          border: Border.all(
+            color: AppColors.error.withValues(alpha: 0.3),
+          ),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Iconsax.flag_copy, size: 18, color: AppColors.error),
+            SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Question Reports',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.error,
+                  ),
+                ),
+                Text(
+                  'Review student feedback',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(width: 6),
+            Icon(Icons.arrow_forward_ios_rounded, size: 11, color: AppColors.error),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 }

@@ -40,6 +40,9 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
   static const _types = {
     'announcement': 'Announcement',
     'new_content': 'New content',
+    'challenge': 'Challenge',
+    'challenge_round': 'Challenge Round',
+    'challenge_reward': 'Challenge Reward',
   };
 
   static const _audienceOptions = {
@@ -75,7 +78,7 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
     setState(() => _isSearching = true);
     try {
       final results = await _usersRepo.fetchUsers(search: query, pageSize: 8);
-      if (mounted) setState(() => _userResults = results);
+      if (mounted) setState(() => _userResults = results.users);
     } finally {
       if (mounted) setState(() => _isSearching = false);
     }

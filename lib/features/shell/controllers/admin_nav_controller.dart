@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
+import 'package:m_admin/data/repositories/question_reports_repository.dart';
 
 /// One entry in the sidebar.
 class AdminNavItem {
@@ -20,22 +21,18 @@ class AdminNavItem {
   final bool superAdminOnly;
 }
 
-enum AdminNavBadge { pendingPayments, unreadAlerts }
+enum AdminNavBadge { pendingPayments, unreadAlerts, reportedQuestions }
 
 /// Drives the shell's sidebar and its `IndexedStack`.
-///
-/// An `IndexedStack` rather than a swapped child is deliberate: tab state must
-/// survive switching, so a half-filled notification draft or a scrolled
-/// payment queue is still there when the operator comes back.
 class AdminNavController extends GetxController {
   static AdminNavController get instance => Get.find();
 
   final selectedIndex = 0.obs;
 
-  /// Sidebar badges. Refreshed by the payments realtime subscription in
-  /// Phase 7 rather than polled.
+  /// Sidebar badges.
   final pendingPaymentCount = 0.obs;
   final unreadAlertCount = 0.obs;
+  final reportedQuestionCount = 0.obs;
 
   static const items = <AdminNavItem>[
     AdminNavItem(label: 'Dashboard', icon: Iconsax.chart_2_copy),
@@ -51,10 +48,30 @@ class AdminNavController extends GetxController {
     ),
     AdminNavItem(label: 'Users', icon: Iconsax.people_copy),
     AdminNavItem(label: 'Content', icon: Iconsax.book_copy),
+    AdminNavItem(label: 'Notes', icon: Iconsax.document_copy),
+    AdminNavItem(label: 'Pilot Exams', icon: Iconsax.award_copy),
+    AdminNavItem(
+      label: 'Reported Questions',
+      icon: Iconsax.flag_copy,
+      badgeSource: AdminNavBadge.reportedQuestions,
+    ),
     AdminNavItem(label: 'Challenges', icon: Iconsax.cup_copy),
     AdminNavItem(label: 'Sessions', icon: Iconsax.mobile_copy),
     AdminNavItem(label: 'Settings', icon: Iconsax.setting_2_copy),
   ];
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadReportedCount();
+  }
+
+  Future<void> loadReportedCount() async {
+    try {
+      final c = await QuestionReportsRepository().countPendingReports();
+      reportedQuestionCount.value = c;
+    } catch (_) {}
+  }
 
   void changePage(int index) {
     if (index < 0 || index >= items.length) return;
@@ -67,6 +84,8 @@ class AdminNavController extends GetxController {
         return pendingPaymentCount.value;
       case AdminNavBadge.unreadAlerts:
         return unreadAlertCount.value;
+      case AdminNavBadge.reportedQuestions:
+        return reportedQuestionCount.value;
       case null:
         return 0;
     }
@@ -85,7 +104,6 @@ class AdminNavController extends GetxController {
   }
 
   /// Triggers the active page's refresh, if one is registered.
-  /// Sets [isRefreshing] for the duration so the AppBar icon can animate.
   Future<void> invokeCurrentRefresh() async {
     final fn = _refreshFns[selectedIndex.value];
     if (fn == null) return;

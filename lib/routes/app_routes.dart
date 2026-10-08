@@ -9,8 +9,10 @@ import 'package:m_admin/features/challenges/screens/challenge_scheduler_screen.d
 import 'package:m_admin/features/challenges/screens/challenges_list_screen.dart';
 import 'package:m_admin/features/challenges/screens/subject_challenges_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
+import 'package:m_admin/features/content/screens/subject_chapters_screen.dart';
 import 'package:m_admin/features/content/screens/subject_tests_screen.dart';
 import 'package:m_admin/features/content/screens/test_editor_screen.dart';
+import 'package:m_admin/features/content/screens/question_reports_screen.dart';
 import 'package:m_admin/features/dashboard/screens/dashboard_screen.dart';
 import 'package:m_admin/features/notifications/screens/notifications_screen.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
@@ -22,6 +24,16 @@ import 'package:m_admin/features/shell/screens/admin_shell.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
 import 'package:m_admin/features/users/screens/user_detail_screen.dart';
 import 'package:m_admin/features/users/screens/users_screen.dart';
+import 'package:m_admin/features/audit_log/screens/audit_log_screen.dart';
+import 'package:m_admin/features/notes/models/admin_note_model.dart';
+import 'package:m_admin/features/notes/screens/note_editor_screen.dart';
+import 'package:m_admin/features/notes/screens/note_pdf_preview_screen.dart';
+import 'package:m_admin/features/notes/screens/notes_screen.dart';
+import 'package:m_admin/features/notifications/controllers/notifications_controller.dart';
+import 'package:m_admin/features/notifications/screens/notification_compose_screen.dart';
+import 'package:m_admin/features/pilot_exams/models/admin_pilot_exam_model.dart';
+import 'package:m_admin/features/pilot_exams/screens/pilot_exam_editor_screen.dart';
+import 'package:m_admin/features/pilot_exams/screens/pilot_exams_screen.dart';
 import 'package:m_admin/routes/admin_middleware.dart';
 import 'package:m_admin/routes/routes.dart';
 
@@ -83,10 +95,12 @@ class AdminAppRoutes {
     ),
     GetPage(
       name: AdminRoutes.notificationCompose,
-      page: () => const PlaceholderScreen(
-        title: 'Compose',
-        phase: 'Use dialog/sheet from NotificationsScreen',
-      ),
+      page: () {
+        final ctrl = Get.isRegistered<NotificationsController>()
+            ? Get.find<NotificationsController>()
+            : Get.put(NotificationsController());
+        return NotificationComposeScreen(controller: ctrl);
+      },
       middlewares: [AdminAuthMiddleware()],
     ),
     GetPage(
@@ -133,8 +147,17 @@ class AdminAppRoutes {
     ),
     GetPage(
       name: AdminRoutes.contentChapter,
-      page: () =>
-          const PlaceholderScreen(title: 'Chapter', phase: 'Phase 10'),
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>? ?? {};
+        final subject = args['subject'] as SubjectRow?;
+        if (subject == null) {
+          return const PlaceholderScreen(
+            title: 'Chapters',
+            phase: 'Missing subject argument',
+          );
+        }
+        return SubjectChaptersScreen(subject: subject);
+      },
       middlewares: [AdminAuthMiddleware()],
     ),
     GetPage(
@@ -145,8 +168,16 @@ class AdminAppRoutes {
           subjectId: (args['subject_id'] as num?)?.toInt() ?? 0,
           testId: (args['test_id'] as num?)?.toInt(),
           subjectName: args['subject_name']?.toString() ?? '',
+          initialType: args['initial_type']?.toString(),
+          initialGrade: (args['initial_grade'] as num?)?.toInt(),
+          initialChapterId: (args['initial_chapter_id'] as num?)?.toInt(),
         );
       },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.questionReports,
+      page: () => const QuestionReportsScreen(),
       middlewares: [AdminAuthMiddleware()],
     ),
     GetPage(
@@ -213,6 +244,66 @@ class AdminAppRoutes {
           challengeTitle: args['title']?.toString(),
         );
       },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+
+    // ── Notes ──────────────────────────────────────────────────────────
+    GetPage(
+      name: AdminRoutes.notes,
+      page: () => const NotesScreen(),
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.noteEditor,
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>? ?? {};
+        final note = args['note'] as AdminNoteModel?;
+        return NoteEditorScreen(note: note);
+      },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.notePdfPreview,
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>? ?? {};
+        return NotePdfPreviewScreen(
+          noteId: (args['note_id'] as num?)?.toInt() ??
+              (args['id'] as num?)?.toInt(),
+          title: args['title']?.toString() ?? 'PDF Document',
+          fileName: args['file_name']?.toString() ?? 'document.pdf',
+          fileUrl: args['file_url']?.toString(),
+          fileKey: args['file_key']?.toString(),
+          fileSizeBytes: (args['file_size_bytes'] as num?)?.toInt() ?? 0,
+          pageCount: (args['page_count'] as num?)?.toInt() ?? 0,
+          grade: (args['grade'] as num?)?.toInt(),
+          subjectName: args['subject_name']?.toString(),
+          chapterNumber: (args['chapter_number'] as num?)?.toInt(),
+          isPremium: args['is_premium'] == null ? true : (args['is_premium'] == true),
+        );
+      },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+
+    // ── Pilot Exams ────────────────────────────────────────────────────
+    GetPage(
+      name: AdminRoutes.pilotExams,
+      page: () => const PilotExamsScreen(),
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.pilotExamEditor,
+      page: () {
+        final args = Get.arguments as Map<String, dynamic>? ?? {};
+        final exam = args['exam'] as AdminPilotExamModel?;
+        return PilotExamEditorScreen(exam: exam);
+      },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+
+    // ── Audit Log ──────────────────────────────────────────────────────
+    GetPage(
+      name: AdminRoutes.auditLog,
+      page: () => const AuditLogScreen(),
       middlewares: [AdminAuthMiddleware()],
     ),
 

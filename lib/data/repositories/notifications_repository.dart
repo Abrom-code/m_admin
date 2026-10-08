@@ -115,6 +115,7 @@ class NotificationsRepository {
               'event': 'announcement',
               'title': title,
               'body': body,
+              'type': type,
               'audience': edgeAudience,
               'target_stream': ?edgeTargetStream,
               'target_status': ?edgeTargetStatus,

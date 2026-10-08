@@ -55,8 +55,11 @@ class AdminSidebar extends StatelessWidget {
                 itemCount: AdminNavController.items.length,
                 itemBuilder: (context, index) {
                   final item = AdminNavController.items[index];
-                  return Obx(
-                    () => _SidebarItem(
+                  return Obx(() {
+                    if (item.superAdminOnly && !AdminSessionService.instance.isSuperAdmin) {
+                      return const SizedBox.shrink();
+                    }
+                    return _SidebarItem(
                       item: item,
                       selected: nav.selectedIndex.value == index,
                       badgeCount: nav.badgeFor(item.badgeSource),
@@ -64,8 +67,8 @@ class AdminSidebar extends StatelessWidget {
                         nav.changePage(index);
                         onNavigate?.call();
                       },
-                    ),
-                  );
+                    );
+                  });
                 },
               ),
             ),
@@ -184,7 +187,15 @@ class _SidebarItem extends StatelessWidget {
                   ),
                 ),
               ),
-              if (badgeCount > 0) _Badge(count: badgeCount),
+              if (badgeCount > 0)
+                _Badge(
+                  count: badgeCount,
+                  color: item.badgeSource == AdminNavBadge.reportedQuestions
+                      ? AppColors.error
+                      : (item.badgeSource == AdminNavBadge.unreadAlerts
+                          ? AppColors.error
+                          : AppColors.warning),
+                ),
             ],
           ),
         ),
@@ -194,9 +205,10 @@ class _SidebarItem extends StatelessWidget {
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge({required this.count});
+  const _Badge({required this.count, this.color = AppColors.warning});
 
   final int count;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -204,7 +216,7 @@ class _Badge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       constraints: const BoxConstraints(minWidth: 20),
       decoration: BoxDecoration(
-        color: AppColors.warning,
+        color: color,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(

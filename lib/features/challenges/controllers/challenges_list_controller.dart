@@ -214,6 +214,19 @@ class ChallengesListController extends GetxController {
     selectedSubjectId.value = subjectId;
   }
 
+  Future<void> closeChallenge(String id) async {
+    try {
+      isLoading.value = true;
+      await _repo.closeChallenge(id);
+      await loadChallenges();
+      SnackbarHelper.success('Challenge Closed', 'Challenge has been manually closed and removed from live.');
+    } catch (e) {
+      SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   Future<void> deleteChallenge(String id) async {
     try {
       await _repo.deleteChallenge(id);

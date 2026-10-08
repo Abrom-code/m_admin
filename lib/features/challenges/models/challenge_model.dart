@@ -6,6 +6,7 @@ class ChallengeQuestionSetModel {
   final String? createdBy;
   final DateTime createdAt;
   final int questionCount;
+  final bool isPremium;
 
   ChallengeQuestionSetModel({
     required this.id,
@@ -15,9 +16,13 @@ class ChallengeQuestionSetModel {
     this.createdBy,
     required this.createdAt,
     this.questionCount = 0,
+    this.isPremium = false,
   });
 
   factory ChallengeQuestionSetModel.fromJson(Map<String, dynamic> json) {
+    final rawPrem = json['is_premium'];
+    final isPrem = rawPrem == true || rawPrem == 1 || rawPrem == 'true' || rawPrem == '1';
+
     return ChallengeQuestionSetModel(
       id: json['id']?.toString() ?? '',
       subjectId: (json['subject_id'] as num?)?.toInt() ?? 0,
@@ -31,6 +36,7 @@ class ChallengeQuestionSetModel {
           : DateTime.now(),
       questionCount: (json['question_count'] as num?)?.toInt() ??
           ((json['challenge_questions'] as List?)?.length ?? 0),
+      isPremium: isPrem,
     );
   }
 
@@ -39,6 +45,7 @@ class ChallengeQuestionSetModel {
       if (id.isNotEmpty) 'id': id,
       'subject_id': subjectId,
       'title': title,
+      'is_premium': isPremium,
       if (createdBy != null) 'created_by': createdBy,
     };
   }
@@ -60,6 +67,7 @@ class LeaderboardChallengeModel {
   final DateTime createdAt;
   final int questionCount;
   final int attemptCount;
+  final bool isPremium;
 
   LeaderboardChallengeModel({
     required this.id,
@@ -77,24 +85,81 @@ class LeaderboardChallengeModel {
     required this.createdAt,
     this.questionCount = 0,
     this.attemptCount = 0,
+    this.isPremium = false,
   });
 
   bool get isDraft => status == 'draft';
-  bool get isScheduled => status == 'scheduled';
-  bool get isLive => status == 'live';
-  bool get isClosed => status == 'closed';
+
+  /// Time-aware: scheduled only if start time hasn't passed yet.
+  bool get isScheduled {
+    if (status == 'scheduled') {
+      if (startsAt != null && !DateTime.now().isBefore(startsAt!)) {
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /// Time-aware: live if status says so and end hasn't passed,
+  /// OR if scheduled but start time has passed and end hasn't.
+  bool get isLive {
+    final now = DateTime.now();
+    if (status == 'live') {
+      if (endsAt != null && now.isAfter(endsAt!)) {
+        return false;
+      }
+      return true;
+    }
+    if (status == 'scheduled') {
+      if (startsAt != null && !now.isBefore(startsAt!)) {
+        if (endsAt != null && now.isAfter(endsAt!)) {
+          return false;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Time-aware: closed if status is closed/archived or end time has passed.
+  bool get isClosed {
+    if (status == 'closed' || status == 'archived') return true;
+    if (endsAt != null && DateTime.now().isAfter(endsAt!)) return true;
+    return false;
+  }
+
   bool get isArchived => status == 'archived';
   int get durationMinutes => durationSeconds ~/ 60;
 
   /// Pre-visibility window: scheduled & starts_at is within 12 hours
   bool get isUpcomingVisible {
-    if (status != 'scheduled' || startsAt == null) return false;
+    if (startsAt == null) return false;
     final now = DateTime.now();
+    if (now.isAfter(startsAt!)) return false;
     final difference = startsAt!.difference(now);
     return difference.inHours <= 12 && difference.inSeconds > 0;
   }
 
   factory LeaderboardChallengeModel.fromJson(Map<String, dynamic> json) {
+    final rawId = json['id']?.toString() ?? json['challenge_id']?.toString() ?? '';
+    final rawSetId = json['set_id']?.toString() ?? rawId;
+    final finalId = rawId.isNotEmpty ? rawId : rawSetId;
+
+    int sId = (json['subject_id'] as num?)?.toInt() ?? 0;
+    if (sId == 0 && json['subjects'] != null && json['subjects'] is Map) {
+      sId = (json['subjects']['id'] as num?)?.toInt() ?? 0;
+    }
+
+    final subjName = json['subjects'] != null && json['subjects'] is Map
+        ? json['subjects']['name']?.toString()
+        : json['subject_name']?.toString();
+
+    final sTitle = json['challenge_question_sets'] != null &&
+            json['challenge_question_sets'] is Map
+        ? json['challenge_question_sets']['title']?.toString()
+        : json['set_title']?.toString();
+
     int qCount = (json['question_count'] as num?)?.toInt() ?? 0;
     if (qCount == 0 && json['challenge_question_sets'] is Map) {
       final setMap = json['challenge_question_sets'] as Map;
@@ -106,17 +171,29 @@ class LeaderboardChallengeModel {
       qCount = (json['challenge_questions'] as List).length;
     }
 
+    int attempts = (json['attempt_count'] as num?)?.toInt() ?? 0;
+    if (attempts == 0 && json['challenge_attempts'] != null) {
+      if (json['challenge_attempts'] is List) {
+        final list = json['challenge_attempts'] as List;
+        if (list.isNotEmpty && list.first is Map && list.first.containsKey('count')) {
+          attempts = (list.first['count'] as num?)?.toInt() ?? 0;
+        } else {
+          attempts = list.length;
+        }
+      } else if (json['challenge_attempts'] is Map && json['challenge_attempts'].containsKey('count')) {
+        attempts = (json['challenge_attempts']['count'] as num?)?.toInt() ?? 0;
+      }
+    }
+
+    final rawPrem = json['is_premium'];
+    final isPrem = rawPrem == true || rawPrem == 1 || rawPrem == 'true' || rawPrem == '1';
+
     return LeaderboardChallengeModel(
-      id: json['id']?.toString() ?? '',
-      setId: json['set_id']?.toString() ?? '',
-      subjectId: (json['subject_id'] as num?)?.toInt() ?? 0,
-      subjectName: json['subjects'] != null && json['subjects'] is Map
-          ? json['subjects']['name']?.toString()
-          : json['subject_name']?.toString(),
-      setTitle: json['challenge_question_sets'] != null &&
-              json['challenge_question_sets'] is Map
-          ? json['challenge_question_sets']['title']?.toString()
-          : json['set_title']?.toString(),
+      id: finalId,
+      setId: rawSetId,
+      subjectId: sId,
+      subjectName: subjName,
+      setTitle: sTitle,
       audience: json['audience']?.toString() ?? 'both',
       title: json['title']?.toString() ?? '',
       startsAt: json['starts_at'] != null
@@ -132,21 +209,66 @@ class LeaderboardChallengeModel {
           ? (DateTime.tryParse(json['created_at'].toString())?.toLocal() ?? DateTime.now())
           : DateTime.now(),
       questionCount: qCount,
-      attemptCount: (json['attempt_count'] as num?)?.toInt() ?? 0,
+      attemptCount: attempts,
+      isPremium: isPrem,
+    );
+  }
+
+  LeaderboardChallengeModel copyWith({
+    String? id,
+    String? setId,
+    int? subjectId,
+    String? subjectName,
+    String? setTitle,
+    String? audience,
+    String? title,
+    DateTime? startsAt,
+    DateTime? endsAt,
+    int? durationSeconds,
+    String? status,
+    String? createdBy,
+    DateTime? createdAt,
+    int? questionCount,
+    int? attemptCount,
+    bool? isPremium,
+  }) {
+    return LeaderboardChallengeModel(
+      id: id ?? this.id,
+      setId: setId ?? this.setId,
+      subjectId: subjectId ?? this.subjectId,
+      subjectName: subjectName ?? this.subjectName,
+      setTitle: setTitle ?? this.setTitle,
+      audience: audience ?? this.audience,
+      title: title ?? this.title,
+      startsAt: startsAt ?? this.startsAt,
+      endsAt: endsAt ?? this.endsAt,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
+      status: status ?? this.status,
+      createdBy: createdBy ?? this.createdBy,
+      createdAt: createdAt ?? this.createdAt,
+      questionCount: questionCount ?? this.questionCount,
+      attemptCount: attemptCount ?? this.attemptCount,
+      isPremium: isPremium ?? this.isPremium,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      if (id.isNotEmpty) 'id': id,
+      'id': id,
       'set_id': setId,
       'subject_id': subjectId,
+      'subject_name': subjectName,
+      'set_title': setTitle,
       'audience': audience,
       'title': title,
-      'starts_at': startsAt?.toUtc().toIso8601String(),
-      'ends_at': endsAt?.toUtc().toIso8601String(),
+      'starts_at': startsAt?.toIso8601String(),
+      'ends_at': endsAt?.toIso8601String(),
       'duration_seconds': durationSeconds,
       'status': status,
+      'question_count': questionCount,
+      'attempt_count': attemptCount,
+      'is_premium': isPremium,
+      'created_at': createdAt.toIso8601String(),
       if (createdBy != null) 'created_by': createdBy,
     };
   }
