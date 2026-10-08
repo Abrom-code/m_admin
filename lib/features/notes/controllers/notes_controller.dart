@@ -19,6 +19,21 @@ class NotesController extends GetxController {
   final premiumFilter = RxnBool();
   final searchQuery = ''.obs;
 
+  /// Sort Options:
+  /// - 'default': DB order (grade, chapter, order)
+  /// - 'urgency': Needs Review (high student votes, low rating value first)
+  /// - 'lowest_rating': Lowest average rating first
+  /// - 'highest_rating': Highest average rating first
+  /// - 'most_rated': Most rated by students first
+  final sortOption = 'default'.obs;
+
+  /// Rating Filter:
+  /// - null: All notes
+  /// - 'needs_attention': Notes with high reviews but low score (<3.0 / <3.5)
+  /// - 'rated': Only notes with at least one rating
+  /// - 'unrated': Notes without any ratings yet
+  final ratingFilter = RxnString();
+
   final isDeleting = <int, bool>{}.obs;
   final isUpdatingPremium = <int, bool>{}.obs;
 
@@ -56,7 +71,7 @@ class NotesController extends GetxController {
   List<AdminNoteModel> get filteredNotes {
     final query = searchQuery.value.trim().toLowerCase();
 
-    return notes.where((note) {
+    final list = notes.where((note) {
       if (selectedGrade.value != null && note.grade != selectedGrade.value) {
         return false;
       }
@@ -64,6 +79,15 @@ class NotesController extends GetxController {
         return false;
       }
       if (premiumFilter.value != null && note.isPremium != premiumFilter.value) {
+        return false;
+      }
+      if (ratingFilter.value == 'needs_attention' && !note.isNeedsAttention) {
+        return false;
+      }
+      if (ratingFilter.value == 'rated' && !note.hasRatings) {
+        return false;
+      }
+      if (ratingFilter.value == 'unrated' && note.hasRatings) {
         return false;
       }
       if (query.isNotEmpty) {
@@ -74,6 +98,33 @@ class NotesController extends GetxController {
       }
       return true;
     }).toList();
+
+    switch (sortOption.value) {
+      case 'urgency':
+        // High students rated it but rated value is small -> highest urgency score first!
+        list.sort((a, b) => b.attentionUrgencyScore.compareTo(a.attentionUrgencyScore));
+        break;
+      case 'lowest_rating':
+        // Lowest average rating first (only rated notes first, unrated at the end)
+        list.sort((a, b) {
+          if (a.hasRatings && !b.hasRatings) return -1;
+          if (!a.hasRatings && b.hasRatings) return 1;
+          if (!a.hasRatings && !b.hasRatings) return 0;
+          return a.averageRating.compareTo(b.averageRating);
+        });
+        break;
+      case 'highest_rating':
+        list.sort((a, b) => b.averageRating.compareTo(a.averageRating));
+        break;
+      case 'most_rated':
+        list.sort((a, b) => b.ratingCount.compareTo(a.ratingCount));
+        break;
+      default:
+        // Default DB sort
+        break;
+    }
+
+    return list;
   }
 
   /// Groups notes by subject name (or "Subject #id" if unnamed)
@@ -88,6 +139,19 @@ class NotesController extends GetxController {
     return map;
   }
 
+  // Summary Metrics
+  int get needsAttentionCount => notes.where((n) => n.isNeedsAttention).length;
+  int get totalRatedNotesCount => notes.where((n) => n.hasRatings).length;
+  int get totalStudentReviewsCount => notes.fold<int>(0, (sum, n) => sum + n.ratingCount);
+
+  void setSortOption(String sort) {
+    sortOption.value = sort;
+  }
+
+  void setRatingFilter(String? filter) {
+    ratingFilter.value = filter;
+  }
+
   Future<bool> deleteNote(AdminNoteModel note) async {
     try {
       isDeleting[note.id] = true;
@@ -99,29 +163,30 @@ class NotesController extends GetxController {
       SnackbarHelper.error('Delete failed', e.toString());
       return false;
     } finally {
-      isDeleting.remove(note.id);
+      isDeleting[note.id] = false;
     }
   }
 
   Future<bool> togglePremium(AdminNoteModel note) async {
+    final target = !note.isPremium;
     try {
       isUpdatingPremium[note.id] = true;
-      final newStatus = !note.isPremium;
-      await _repo.updatePremium(note.id, newStatus);
-      final index = notes.indexWhere((n) => n.id == note.id);
-      if (index >= 0) {
-        notes[index] = note.copyWith(isPremium: newStatus);
+      await _repo.updatePremium(note.id, target);
+
+      final idx = notes.indexWhere((n) => n.id == note.id);
+      if (idx != -1) {
+        notes[idx] = note.copyWith(isPremium: target);
       }
       SnackbarHelper.success(
         'Updated',
-        'Note is now ${newStatus ? "Premium" : "Free"}.',
+        'Note "${note.title}" is now ${target ? "Premium" : "Free"}.',
       );
       return true;
     } catch (e) {
       SnackbarHelper.error('Update failed', e.toString());
       return false;
     } finally {
-      isUpdatingPremium.remove(note.id);
+      isUpdatingPremium[note.id] = false;
     }
   }
 
@@ -141,6 +206,8 @@ class NotesController extends GetxController {
     selectedGrade.value = null;
     selectedSubjectId.value = null;
     premiumFilter.value = null;
+    ratingFilter.value = null;
+    sortOption.value = 'default';
     searchQuery.value = '';
   }
 }
