@@ -411,6 +411,8 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                         child: TextField(
                           controller: _searchCtrl,
                           onChanged: (v) => _searchQuery.value = v,
+                          onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                           autofocus: false,
                           style: const TextStyle(fontSize: 11.5),
                           decoration: InputDecoration(
@@ -579,6 +581,7 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                           onPublish: () => _confirmPublish(context, challenge),
                           onClose: () => _confirmClose(context, challenge),
                           onDelete: () => _confirmDelete(context, challenge),
+                          onStatusChange: (newStatus) => _ctrl.updateChallengeStatus(challenge.id, newStatus),
                         );
                       },
                     ),
@@ -612,6 +615,8 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                         child: TextField(
                           controller: _setSearchCtrl,
                           onChanged: (v) => _setSearchQuery.value = v,
+                          onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                           style: const TextStyle(fontSize: 11.5),
                           decoration: InputDecoration(
                             hintText: 'Search question sets in ${widget.subjectName}...',

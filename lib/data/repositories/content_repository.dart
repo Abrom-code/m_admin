@@ -15,7 +15,7 @@ class ContentRepository {
       var q = _sb
           .from('tests')
           .select('id, title, type, grade, chapter_id, time, question_count, '
-              'is_premium, description, created_at, updated_at')
+              'is_premium, description, status, created_at, updated_at')
           .eq('subject_id', subjectId);
 
       if (type != null && type.isNotEmpty) {
@@ -63,6 +63,11 @@ class ContentRepository {
       // Validate time: -1 means untimed, never write 0.
       if (data['time'] == 0) data['time'] = -1;
 
+      // Default status to draft if omitted (verification flow).
+      if (!data.containsKey('status') || data['status'] == null) {
+        data['status'] = 'draft';
+      }
+
       // Ensure updated_at is bumped (critical for sync).
       data['updated_at'] = DateTime.now().toUtc().toIso8601String();
 
@@ -72,6 +77,17 @@ class ContentRepository {
       if (data['id'] != null) {
         await recountTestQuestions(AppHelperFunctions.toInt(data['id']) ?? 0);
       }
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  Future<void> updateTestStatus(int testId, String status) async {
+    try {
+      await _sb.from('tests').update({
+        'status': status,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', testId);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }

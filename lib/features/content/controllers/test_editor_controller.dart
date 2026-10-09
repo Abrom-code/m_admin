@@ -36,10 +36,12 @@ class TestEditorController extends GetxController {
   final descriptionCtrl = TextEditingController();
   final isUntimed = false.obs;
   final isPremium = true.obs;
+  final statusValue = 'draft'.obs;
 
   final formKey = GlobalKey<FormState>();
 
   static const validTypes = ['chapter', 'grade', 'entrance', 'model'];
+  static const validStatuses = ['draft', 'verification', 'published', 'inactive', 'archived'];
 
   @override
   void onInit() {
@@ -90,6 +92,8 @@ class TestEditorController extends GetxController {
       timeCtrl.text = time == -1 ? '' : time.toString();
       descriptionCtrl.text = data['description']?.toString() ?? '';
 
+      statusValue.value = data['status']?.toString() ?? 'draft';
+
       // Premium flag — default true when absent (matches student app default).
       final rawPremium = data['is_premium'];
       isPremium.value = rawPremium == null
@@ -131,6 +135,7 @@ class TestEditorController extends GetxController {
             ? null
             : descriptionCtrl.text.trim(),
         'is_premium': isPremium.value,
+        'status': statusValue.value,
       };
 
       await _repo.upsertTest(data);

@@ -15,22 +15,21 @@ class DashboardController extends GetxController {
 
   final stats = Rxn<DashboardStats>();
   final signupSeries = <DailyPoint>[].obs;
-  final revenueSeries = <DailyPoint>[].obs;
   final subjectTestCounts = <SubjectTestCount>[].obs;
   final subscriptionFunnel = <FunnelPoint>[].obs;
   final streamSplit = <StreamPoint>[].obs;
 
-  // Question Reports Section
+  // Question Reports & Notes Section
   final questionReportGroups = <QuestionReportGroupModel>[].obs;
   final pendingQuestionReportsCount = 0.obs;
+  final noteReviewersCount = 0.obs;
+  final noteReviewsCount = 0.obs;
   final isReportsLoading = false.obs;
 
   // ── Sensitive KPI Visibility Toggles ─────────────────────────────
   final isActiveHidden = false.obs;
-  final isPriceHidden = false.obs;
 
   void toggleActiveVisibility() => isActiveHidden.value = !isActiveHidden.value;
-  void togglePriceVisibility() => isPriceHidden.value = !isPriceHidden.value;
 
   // ── Chart Controls ───────────────────────────────────────────────
   final isLoading = false.obs;
@@ -38,7 +37,6 @@ class DashboardController extends GetxController {
   final errorMessage = RxnString();
   final rangeDays = 30.obs;
   final customDateRange = Rxn<DateTimeRange>();
-  final selectedMethodFilter = RxnString();
 
   @override
   void onInit() {
@@ -59,27 +57,15 @@ class DashboardController extends GetxController {
     reloadChartSeries();
   }
 
-  void setMethodFilter(String? method) {
-    if (selectedMethodFilter.value == method) return;
-    selectedMethodFilter.value = method;
-    reloadChartSeries();
-  }
-
   Future<void> reloadChartSeries() async {
     try {
       isChartLoading.value = true;
       final range = customDateRange.value;
-      final Future<List<DailyPoint>> signupsFuture = range != null
-          ? _repo.fetchSignupsDaily(null, range.start, range.end)
-          : _repo.fetchSignupsDaily(rangeDays.value);
+      final points = range != null
+          ? await _repo.fetchSignupsDaily(null, range.start, range.end)
+          : await _repo.fetchSignupsDaily(rangeDays.value);
 
-      final Future<List<DailyPoint>> revenueFuture = range != null
-          ? _repo.fetchRevenueDaily(null, range.start, range.end, selectedMethodFilter.value)
-          : _repo.fetchRevenueDaily(rangeDays.value, null, null, selectedMethodFilter.value);
-
-      final results = await Future.wait([signupsFuture, revenueFuture]);
-      signupSeries.value = results[0];
-      revenueSeries.value = results[1];
+      signupSeries.value = points;
     } catch (e) {
       errorMessage.value = AppExceptionHandler.handle(e).message;
     } finally {
@@ -98,15 +84,10 @@ class DashboardController extends GetxController {
           ? _repo.fetchSignupsDaily(null, range.start, range.end)
           : _repo.fetchSignupsDaily(rangeDays.value);
 
-      final Future<List<DailyPoint>> revenueFuture = range != null
-          ? _repo.fetchRevenueDaily(null, range.start, range.end, selectedMethodFilter.value)
-          : _repo.fetchRevenueDaily(rangeDays.value, null, null, selectedMethodFilter.value);
-
       // Fan out all queries in parallel.
       final results = await Future.wait([
         _repo.fetchStats(),
         signupsFuture,
-        revenueFuture,
         _repo.fetchSubjectTestCounts(),
         _repo.fetchSubscriptionFunnel(),
         _repo.fetchStreamSplit(),
@@ -115,16 +96,22 @@ class DashboardController extends GetxController {
 
       stats.value = results[0] as DashboardStats;
       signupSeries.value = results[1] as List<DailyPoint>;
-      revenueSeries.value = results[2] as List<DailyPoint>;
-      subjectTestCounts.value = results[3] as List<SubjectTestCount>;
-      subscriptionFunnel.value = results[4] as List<FunnelPoint>;
-      streamSplit.value = results[5] as List<StreamPoint>;
+      subjectTestCounts.value = results[2] as List<SubjectTestCount>;
+      subscriptionFunnel.value = results[3] as List<FunnelPoint>;
+      streamSplit.value = results[4] as List<StreamPoint>;
+
+      if (stats.value != null) {
+        pendingQuestionReportsCount.value = stats.value!.reportedQuestionsCount;
+        noteReviewersCount.value = stats.value!.noteReviewersCount;
+        noteReviewsCount.value = stats.value!.noteReviewsCount;
+      }
 
       // Keep the sidebar badge consistent with the KPI stat so they always
       // show the same number regardless of which refreshed last.
       final pending = stats.value?.pendingPayments ?? 0;
       if (Get.isRegistered<AdminNavController>()) {
         AdminNavController.instance.pendingPaymentCount.value = pending;
+        AdminNavController.instance.reportedQuestionCount.value = pendingQuestionReportsCount.value;
       }
     } catch (e) {
       errorMessage.value = AppExceptionHandler.handle(e).message;
@@ -137,10 +124,11 @@ class DashboardController extends GetxController {
   Future<void> loadQuestionReports() async {
     try {
       isReportsLoading.value = true;
-      final raw = await _reportsRepo.fetchReports(status: 'pending', pageSize: 50);
-      final groups = QuestionReportGroupModel.groupReports(raw, sortBy: 'count_desc');
-      questionReportGroups.value = groups;
-      pendingQuestionReportsCount.value = await _reportsRepo.countPendingReports();
+      final count = await _reportsRepo.countPendingReports();
+      pendingQuestionReportsCount.value = count;
+      if (Get.isRegistered<AdminNavController>()) {
+        AdminNavController.instance.reportedQuestionCount.value = count;
+      }
     } catch (_) {
       // Non-blocking for general dashboard stats
     } finally {

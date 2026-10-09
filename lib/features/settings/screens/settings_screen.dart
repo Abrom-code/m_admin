@@ -6,6 +6,9 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/data/services/admin_notification_service.dart';
+import 'package:m_admin/features/payments/controllers/payments_controller.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/utils/constants/app_env.dart';
 import 'package:m_admin/utils/constants/colors.dart';
@@ -365,7 +368,7 @@ class SettingsScreen extends StatelessWidget {
     final controller = Get.put(SettingsController());
 
     return AdminScaffold(
-      pageIndex: 10,
+      pageIndex: AdminNavPage.settings,
       onRefresh: () async {
         await controller.loadSettings();
         await controller.checkDatabaseHealth();
@@ -374,6 +377,8 @@ class SettingsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _DatabaseOverviewSection(controller),
+          const SizedBox(height: AppSizes.spaceBtwSections),
+          const _AdminLocalNotificationsSection(),
           const SizedBox(height: AppSizes.spaceBtwSections),
           _StudentAppSection(controller),
           const SizedBox(height: AppSizes.spaceBtwSections),
@@ -1688,3 +1693,199 @@ class _WebhookSection extends StatelessWidget {
     );
   }
 }
+
+// ── Admin Local Notifications Section ──────────────────────────────────────
+
+class _AdminLocalNotificationsSection extends StatefulWidget {
+  const _AdminLocalNotificationsSection();
+
+  @override
+  State<_AdminLocalNotificationsSection> createState() =>
+      _AdminLocalNotificationsSectionState();
+}
+
+class _AdminLocalNotificationsSectionState
+    extends State<_AdminLocalNotificationsSection> {
+  bool? _notificationsEnabled;
+  bool _isTesting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermission();
+  }
+
+  Future<void> _checkPermission() async {
+    if (Get.isRegistered<AdminNotificationService>()) {
+      final enabled =
+          await AdminNotificationService.instance.areNotificationsEnabled();
+      if (mounted) {
+        setState(() => _notificationsEnabled = enabled);
+      }
+    }
+  }
+
+  Future<void> _requestPermission() async {
+    if (Get.isRegistered<AdminNotificationService>()) {
+      final granted =
+          await AdminNotificationService.instance.requestPermission();
+      if (mounted) {
+        setState(() => _notificationsEnabled = granted);
+      }
+      if (granted) {
+        SnackbarHelper.success(
+          'Permission Granted',
+          'Admin local notifications are now enabled on this device.',
+        );
+      } else {
+        SnackbarHelper.warning(
+          'Permission Denied',
+          'Please enable notifications for M-Admin in your device OS Settings.',
+        );
+      }
+    }
+  }
+
+  Future<void> _sendTestAlert() async {
+    setState(() => _isTesting = true);
+    try {
+      if (Get.isRegistered<AdminNotificationService>()) {
+        await AdminNotificationService.instance.testNotification();
+        SnackbarHelper.success(
+          'Test Notification Dispatched',
+          'Check your notification bar / heads-up banner.',
+        );
+      }
+    } catch (e) {
+      SnackbarHelper.error('Failed', '$e');
+    } finally {
+      if (mounted) setState(() => _isTesting = false);
+    }
+  }
+
+  Future<void> _checkPendingNow() async {
+    if (Get.isRegistered<PaymentsController>()) {
+      await PaymentsController.instance.refreshCounts();
+      final pending =
+          PaymentsController.instance.counts['pending'] ?? 0;
+      if (pending > 0) {
+        SnackbarHelper.info(
+          'Pending Payments Found ($pending)',
+          'Local notification was triggered for $pending pending review(s).',
+        );
+      } else {
+        SnackbarHelper.success(
+          'Queue Clear',
+          'Zero pending payments awaiting review.',
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSizes.md),
+      decoration: BoxDecoration(
+        color: dark ? AppColors.darkSurface : AppColors.white,
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                ),
+                child: const Icon(
+                  Iconsax.notification_bing_copy,
+                  size: 16,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: AppSizes.sm),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Admin Device Alerts (Local Notifications)',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'Heads-up local alerts when pending payments arrive',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              if (_notificationsEnabled != null)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: (_notificationsEnabled == true
+                            ? AppColors.success
+                            : AppColors.error)
+                        .withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    _notificationsEnabled == true ? 'Active' : 'Disabled in OS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: _notificationsEnabled == true
+                          ? AppColors.success
+                          : AppColors.error,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSizes.md),
+          Text(
+            'The admin app uses local OS notifications (vibration, sound, and banner) to alert you whenever a student submits a payment receipt. Notifications trigger immediately on Realtime events, on app launch, and via automatic 20-second background polling.',
+            style: TextStyle(
+              fontSize: 12,
+              color: dark ? Colors.white70 : AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: AppSizes.md),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                onPressed: _isTesting ? null : _sendTestAlert,
+                icon: const Icon(Icons.notifications_active_rounded, size: 16),
+                label: const Text('Send Test Alert', style: TextStyle(fontSize: 12)),
+              ),
+              OutlinedButton.icon(
+                onPressed: _requestPermission,
+                icon: const Icon(Icons.security_rounded, size: 16),
+                label: const Text('Request Permission', style: TextStyle(fontSize: 12)),
+              ),
+              OutlinedButton.icon(
+                onPressed: _checkPendingNow,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Check Pending Now', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+

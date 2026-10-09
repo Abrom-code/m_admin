@@ -4,8 +4,54 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/features/notes/models/admin_note_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 
+class _RatingAgg {
+  final double average;
+  final int count;
+  final Map<int, int> distribution;
+  const _RatingAgg({
+    required this.average,
+    required this.count,
+    required this.distribution,
+  });
+}
+
 class NotesRepository {
   final _sb = Supabase.instance.client;
+
+  /// Helper to fetch and aggregate student ratings from public.note_ratings
+  Future<Map<int, _RatingAgg>> _fetchRatingsAgg() async {
+    try {
+      final rows = await _sb.from('note_ratings').select('note_id, rating');
+      final map = <int, List<int>>{};
+      for (final r in rows) {
+        final noteId = (r['note_id'] as num?)?.toInt();
+        final rating = (r['rating'] as num?)?.toInt();
+        if (noteId != null && rating != null && rating > 0) {
+          map.putIfAbsent(noteId, () => []).add(rating);
+        }
+      }
+
+      final aggMap = <int, _RatingAgg>{};
+      for (final entry in map.entries) {
+        final list = entry.value;
+        final count = list.length;
+        final sum = list.fold<int>(0, (a, b) => a + b);
+        final avg = count > 0 ? (sum / count) : 0.0;
+        final dist = <int, int>{1: 0, 2: 0, 3: 0, 4: 0, 5: 0};
+        for (final val in list) {
+          dist[val] = (dist[val] ?? 0) + 1;
+        }
+        aggMap[entry.key] = _RatingAgg(
+          average: avg,
+          count: count,
+          distribution: dist,
+        );
+      }
+      return aggMap;
+    } catch (_) {
+      return {};
+    }
+  }
 
   /// Fetches notes optionally filtered by [subjectId] and/or [grade].
   Future<List<AdminNoteModel>> fetchNotes({
@@ -27,9 +73,20 @@ class NotesRepository {
           .order('chapter_number', ascending: true)
           .order('order_index', ascending: true);
 
-      return (rows as List)
-          .map((r) => AdminNoteModel.fromJson(Map<String, dynamic>.from(r)))
-          .toList();
+      final ratingsAgg = await _fetchRatingsAgg();
+
+      return (rows as List).map((r) {
+        final note = AdminNoteModel.fromJson(Map<String, dynamic>.from(r));
+        final agg = ratingsAgg[note.id];
+        if (agg != null) {
+          return note.copyWith(
+            averageRating: agg.average,
+            ratingCount: agg.count,
+            ratingDistribution: agg.distribution,
+          );
+        }
+        return note;
+      }).toList();
     } catch (e) {
       // Fallback without relation join if foreign key alias differs
       try {
@@ -43,9 +100,21 @@ class NotesRepository {
         final rows = await fallbackQuery
             .order('grade', ascending: true)
             .order('chapter_number', ascending: true);
-        return (rows as List)
-            .map((r) => AdminNoteModel.fromJson(Map<String, dynamic>.from(r)))
-            .toList();
+
+        final ratingsAgg = await _fetchRatingsAgg();
+
+        return (rows as List).map((r) {
+          final note = AdminNoteModel.fromJson(Map<String, dynamic>.from(r));
+          final agg = ratingsAgg[note.id];
+          if (agg != null) {
+            return note.copyWith(
+              averageRating: agg.average,
+              ratingCount: agg.count,
+              ratingDistribution: agg.distribution,
+            );
+          }
+          return note;
+        }).toList();
       } catch (fallbackError) {
         throw AppExceptionHandler.handle(fallbackError);
       }
@@ -253,7 +322,7 @@ class NotesRepository {
       }
       final rows = await query.order('chapter_number', ascending: true);
       return List<Map<String, dynamic>>.from(rows);
-    } catch (_) {
+    } catch (e) {
       return [];
     }
   }

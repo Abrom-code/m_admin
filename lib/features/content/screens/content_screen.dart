@@ -117,7 +117,7 @@ class ContentScreen extends StatelessWidget {
     final controller = Get.put(ContentController());
 
     return AdminScaffold(
-      pageIndex: 4,
+      pageIndex: AdminNavPage.content,
       onRefresh: controller.loadSubjects,
       scrollable: false,
       body: Column(
@@ -294,8 +294,8 @@ class _ContentFilterBar extends StatelessWidget {
             child: TextField(
               controller: controller.searchController,
               onChanged: controller.onSearchChanged,
-              onSubmitted: (_) => FocusScope.of(context).unfocus(),
-              onTapOutside: (_) => FocusScope.of(context).unfocus(),
+              onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               style: const TextStyle(fontSize: 12.5),
               decoration: InputDecoration(
                 isDense: true,
@@ -322,6 +322,7 @@ class _ContentFilterBar extends StatelessWidget {
                       onPressed: () {
                         controller.searchController.clear();
                         controller.onSearchChanged('');
+                        FocusManager.instance.primaryFocus?.unfocus();
                       },
                       visualDensity: VisualDensity.compact,
                     );
@@ -474,7 +475,7 @@ class _SubjectsPanel extends StatelessWidget {
           tooltip: 'Manage Tests',
           icon: const Icon(Icons.arrow_forward_ios_rounded, size: 13),
           onPressed: () {
-            FocusScope.of(context).unfocus();
+            FocusManager.instance.primaryFocus?.unfocus();
             Get.toNamed(
               AdminRoutes.contentSubject,
               arguments: {'subject': subject},
@@ -482,7 +483,7 @@ class _SubjectsPanel extends StatelessWidget {
           },
         ),
         onRowTap: (subject) {
-          FocusScope.of(context).unfocus();
+          FocusManager.instance.primaryFocus?.unfocus();
           Get.toNamed(
             AdminRoutes.contentSubject,
             arguments: {'subject': subject},
@@ -631,7 +632,7 @@ class _ContentReportsCard extends StatelessWidget {
       child: InkWell(
         onTap: () {
           if (Get.isRegistered<AdminNavController>()) {
-            AdminNavController.instance.changePage(7);
+            AdminNavController.instance.changePage(AdminNavPage.reportedQuestions);
           } else {
             Get.toNamed(AdminRoutes.questionReports);
           }

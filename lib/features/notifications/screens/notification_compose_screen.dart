@@ -288,6 +288,8 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
                         else ...[
                           TextField(
                             controller: _userSearchCtrl,
+                            onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                            onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                             decoration: InputDecoration(
                               labelText: 'Search by name or email',
                               prefixIcon: const Icon(

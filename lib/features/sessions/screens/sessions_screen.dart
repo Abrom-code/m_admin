@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
@@ -258,7 +259,7 @@ class SessionsScreen extends StatelessWidget {
     final controller = Get.put(SessionsController());
 
     return AdminScaffold(
-      pageIndex: 7,
+      pageIndex: AdminNavPage.sessions,
       onRefresh: controller.load,
       scrollable: false,
       body: Column(
@@ -416,8 +417,8 @@ class _SessionFilterBar extends StatelessWidget {
               child: TextField(
                 controller: controller.searchController,
                 onChanged: controller.onSearchChanged,
-                onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                 style: const TextStyle(fontSize: 12.5),
                 decoration: InputDecoration(
                   isDense: true,
@@ -444,6 +445,7 @@ class _SessionFilterBar extends StatelessWidget {
                         onPressed: () {
                           controller.searchController.clear();
                           controller.onSearchChanged('');
+                          FocusManager.instance.primaryFocus?.unfocus();
                         },
                         visualDensity: VisualDensity.compact,
                       );

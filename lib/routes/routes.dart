@@ -15,6 +15,8 @@ class AdminRoutes {
   static const payments = '/payments';
   static const paymentDetail = '/payments/detail';
 
+  static const revenue = '/revenue';
+
   static const notifications = '/notifications';
   static const notificationCompose = '/notifications/compose';
 

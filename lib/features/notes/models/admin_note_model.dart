@@ -16,6 +16,9 @@ class AdminNoteModel {
   final DateTime? createdAt;
   final String? subjectName;
   final String? chapterTitle;
+  final double averageRating;
+  final int ratingCount;
+  final Map<int, int>? ratingDistribution;
 
   const AdminNoteModel({
     required this.id,
@@ -35,6 +38,9 @@ class AdminNoteModel {
     this.createdAt,
     this.subjectName,
     this.chapterTitle,
+    this.averageRating = 0.0,
+    this.ratingCount = 0,
+    this.ratingDistribution,
   });
 
   /// Human-readable file size in MB or KB
@@ -59,6 +65,30 @@ class AdminNoteModel {
   String get formattedPages {
     if (pageCount <= 0) return '—';
     return '$pageCount ${pageCount == 1 ? 'page' : 'pages'}';
+  }
+
+  /// Whether any students have rated this note
+  bool get hasRatings => ratingCount > 0;
+
+  /// High student engagement but low rating (< 3.0 stars with >= 2 ratings, or < 3.5 with >= 5 ratings).
+  /// Signals problematic or confusing note content that urgently needs admin review.
+  bool get isNeedsAttention {
+    if (ratingCount < 2) return false;
+    return averageRating < 3.0 || (ratingCount >= 5 && averageRating < 3.5);
+  }
+
+  /// Urgency score weighting rating count heavily when rating is low.
+  /// Urgency = ratingCount * (5.0 - averageRating).
+  /// Higher score = more urgent for admin review.
+  double get attentionUrgencyScore {
+    if (ratingCount == 0) return 0.0;
+    return ratingCount * (5.0 - averageRating);
+  }
+
+  /// Formatted rating string e.g. "4.5 ★ (28)" or "No ratings"
+  String get formattedRating {
+    if (ratingCount <= 0) return 'No ratings';
+    return '${averageRating.toStringAsFixed(1)} ★ ($ratingCount)';
   }
 
   factory AdminNoteModel.fromJson(Map<String, dynamic> map) {
@@ -88,6 +118,20 @@ class AdminNoteModel {
       chapterTitle = map['chapter_title']?.toString();
     }
 
+    final avgRating = (map['average_rating'] as num?)?.toDouble() ??
+        (map['avg_rating'] as num?)?.toDouble() ??
+        0.0;
+    final rCount = (map['rating_count'] as num?)?.toInt() ??
+        (map['ratings_count'] as num?)?.toInt() ??
+        0;
+
+    Map<int, int>? rDist;
+    if (map['rating_distribution'] is Map) {
+      rDist = (map['rating_distribution'] as Map).map(
+        (key, value) => MapEntry((key as num).toInt(), (value as num).toInt()),
+      );
+    }
+
     return AdminNoteModel(
       id: (map['id'] as num?)?.toInt() ?? 0,
       subjectId: (map['subject_id'] as num?)?.toInt() ?? 0,
@@ -113,6 +157,9 @@ class AdminNoteModel {
       createdAt: parsedCreatedAt,
       subjectName: subjectName,
       chapterTitle: chapterTitle,
+      averageRating: avgRating,
+      ratingCount: rCount,
+      ratingDistribution: rDist,
     );
   }
 
@@ -156,6 +203,9 @@ class AdminNoteModel {
     DateTime? createdAt,
     String? subjectName,
     String? chapterTitle,
+    double? averageRating,
+    int? ratingCount,
+    Map<int, int>? ratingDistribution,
   }) {
     return AdminNoteModel(
       id: id ?? this.id,
@@ -175,6 +225,9 @@ class AdminNoteModel {
       createdAt: createdAt ?? this.createdAt,
       subjectName: subjectName ?? this.subjectName,
       chapterTitle: chapterTitle ?? this.chapterTitle,
+      averageRating: averageRating ?? this.averageRating,
+      ratingCount: ratingCount ?? this.ratingCount,
+      ratingDistribution: ratingDistribution ?? this.ratingDistribution,
     );
   }
 }

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/features/users/controllers/users_controller.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
@@ -22,7 +23,7 @@ class UsersScreen extends StatelessWidget {
     final controller = Get.put(UsersController());
 
     return AdminScaffold(
-      pageIndex: 3,
+      pageIndex: AdminNavPage.users,
       onRefresh: controller.loadAll,
       scrollable: false,
       body: Column(
@@ -215,8 +216,8 @@ class _UserFilterBar extends StatelessWidget {
             child: TextField(
               controller: controller.searchController,
               onChanged: controller.onSearchChanged,
-              onSubmitted: (_) => FocusScope.of(context).unfocus(),
-              onTapOutside: (_) => FocusScope.of(context).unfocus(),
+              onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               style: const TextStyle(fontSize: 12.5),
               decoration: InputDecoration(
                 isDense: true,
@@ -243,6 +244,7 @@ class _UserFilterBar extends StatelessWidget {
                       onPressed: () {
                         controller.searchController.clear();
                         controller.onSearchChanged('');
+                        FocusManager.instance.primaryFocus?.unfocus();
                       },
                       visualDensity: VisualDensity.compact,
                     );
@@ -451,7 +453,7 @@ class _UserTable extends StatelessWidget {
   }
 
   void _openDetail(BuildContext context, AdminUserModel user) {
-    FocusScope.of(context).unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
     final wide = MediaQuery.sizeOf(context).width >= 1100;
     if (wide) {
       showDialog(

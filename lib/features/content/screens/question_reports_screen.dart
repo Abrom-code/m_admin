@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/content/controllers/question_reports_controller.dart';
 import 'package:m_admin/features/content/models/question_report_admin_model.dart';
 import 'package:m_admin/features/content/screens/test_editor_screen.dart';
@@ -20,7 +21,7 @@ class QuestionReportsScreen extends StatelessWidget {
     final canPop = Navigator.of(context).canPop();
 
     final content = AdminScaffold(
-      pageIndex: 7,
+      pageIndex: AdminNavPage.reportedQuestions,
       onRefresh: () async {
         await controller.loadReports();
         await controller.loadPendingCount();
@@ -229,14 +230,35 @@ class _FilterSearchBar extends StatelessWidget {
                 child: TextField(
                   controller: controller.searchController,
                   onChanged: controller.onSearchChanged,
+                  onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                  onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                   style: const TextStyle(fontSize: 12.5),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     isDense: true,
                     hintText: 'Search by question, student name, or comment...',
-                    hintStyle: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    prefixIcon: Icon(Iconsax.search_normal_copy, size: 16, color: AppColors.textSecondary),
+                    hintStyle: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    prefixIcon: const Icon(Iconsax.search_normal_copy, size: 16, color: AppColors.textSecondary),
+                    suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: controller.searchController,
+                      builder: (_, value, _) {
+                        if (value.text.isEmpty) return const SizedBox.shrink();
+                        return IconButton(
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 15,
+                            color: AppColors.textSecondary,
+                          ),
+                          onPressed: () {
+                            controller.searchController.clear();
+                            controller.onSearchChanged('');
+                            FocusManager.instance.primaryFocus?.unfocus();
+                          },
+                          visualDensity: VisualDensity.compact,
+                        );
+                      },
+                    ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   ),
                 ),
               );

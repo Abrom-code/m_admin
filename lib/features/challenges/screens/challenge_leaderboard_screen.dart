@@ -309,6 +309,8 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                               controller: _searchCtrl,
                               autofocus: false,
                               onChanged: (v) => _ctrl.searchQuery.value = v,
+                              onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                               style: const TextStyle(fontSize: 12.5),
                               decoration: InputDecoration(
                                 hintText: 'Search student name, ID or rank...',

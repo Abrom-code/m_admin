@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -21,6 +21,7 @@ class ChallengeCard extends StatelessWidget {
     required this.onPublish,
     required this.onDelete,
     this.onClose,
+    this.onStatusChange,
   });
 
   final LeaderboardChallengeModel challenge;
@@ -30,6 +31,7 @@ class ChallengeCard extends StatelessWidget {
   final VoidCallback onPublish;
   final VoidCallback onDelete;
   final VoidCallback? onClose;
+  final void Function(String newStatus)? onStatusChange;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +52,9 @@ class ChallengeCard extends StatelessWidget {
         break;
       case 'closed':
         statusBadgeColor = AppColors.grey;
+        break;
+      case 'archived':
+        statusBadgeColor = const Color(0xFF6B7280);
         break;
       default:
         statusBadgeColor = AppColors.warning;
@@ -93,22 +98,136 @@ class ChallengeCard extends StatelessWidget {
             // ── Row 1: Header (Badges + ID Pill + Delete Button) ──
             Row(
               children: [
-                // Status Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                  decoration: BoxDecoration(
-                    color: statusBadgeColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    challenge.status.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      color: statusBadgeColor,
+                // Interactive Status Badge Changer
+                if (onStatusChange != null)
+                  PopupMenuButton<String>(
+                    tooltip: 'Change Status (Draft, Scheduled, Live, Closed...)',
+                    padding: EdgeInsets.zero,
+                    position: PopupMenuPosition.under,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                      side: BorderSide(
+                        color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                      ),
+                    ),
+                    onSelected: onStatusChange,
+                    itemBuilder: (ctx) => [
+                      PopupMenuItem(
+                        value: 'live',
+                        height: 36,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.play_circle_fill_rounded, size: 14, color: AppColors.success),
+                            const SizedBox(width: 8),
+                            const Text('Live (Active Now)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            if (statusLower == 'live') ...[
+                              const Spacer(),
+                              const Icon(Icons.check, size: 14, color: AppColors.success),
+                            ],
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'scheduled',
+                        height: 36,
+                        child: Row(
+                          children: [
+                            const Icon(Iconsax.calendar_1_copy, size: 14, color: AppColors.secondary),
+                            const SizedBox(width: 8),
+                            const Text('Scheduled', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            if (statusLower == 'scheduled') ...[
+                              const Spacer(),
+                              const Icon(Icons.check, size: 14, color: AppColors.secondary),
+                            ],
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'draft',
+                        height: 36,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.edit_note_rounded, size: 14, color: AppColors.warning),
+                            const SizedBox(width: 8),
+                            const Text('Draft (Unpublished)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            if (statusLower == 'draft') ...[
+                              const Spacer(),
+                              const Icon(Icons.check, size: 14, color: AppColors.warning),
+                            ],
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'closed',
+                        height: 36,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.stop_circle_outlined, size: 14, color: AppColors.grey),
+                            const SizedBox(width: 8),
+                            const Text('Closed / Ended', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            if (statusLower == 'closed') ...[
+                              const Spacer(),
+                              const Icon(Icons.check, size: 14, color: AppColors.grey),
+                            ],
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'archived',
+                        height: 36,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.archive_outlined, size: 14, color: Color(0xFF6B7280)),
+                            const SizedBox(width: 8),
+                            const Text('Archived', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            if (statusLower == 'archived') ...[
+                              const Spacer(),
+                              const Icon(Icons.check, size: 14, color: Color(0xFF6B7280)),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: statusBadgeColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: statusBadgeColor.withValues(alpha: 0.5), width: 0.6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            challenge.status.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: statusBadgeColor,
+                            ),
+                          ),
+                          const SizedBox(width: 1),
+                          Icon(Icons.arrow_drop_down, size: 12, color: statusBadgeColor),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: statusBadgeColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      challenge.status.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: statusBadgeColor,
+                      ),
                     ),
                   ),
-                ),
                 const SizedBox(width: 5),
 
                 // Audience Stream Badge

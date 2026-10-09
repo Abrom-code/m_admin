@@ -1,5 +1,3 @@
-import 'package:m_admin/features/content/models/question_report_admin_model.dart';
-import 'package:m_admin/features/content/screens/test_editor_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -25,7 +23,7 @@ class DashboardScreen extends StatelessWidget {
     final controller = Get.put(DashboardController());
 
     return AdminScaffold(
-      pageIndex: 0,
+      pageIndex: AdminNavPage.dashboard,
       onRefresh: controller.load,
       body: Obx(() {
         if (controller.isLoading.value && controller.stats.value == null) {
@@ -106,8 +104,6 @@ class DashboardScreen extends StatelessWidget {
                           children: [
                             _RecentReceiptsQueue(rows: stats.recentReceipts),
                             const SizedBox(height: AppSizes.spaceBtwItems),
-                            const _QuestionReportsQueue(),
-                            const SizedBox(height: AppSizes.spaceBtwItems),
                             const FunnelCard(),
                             const SizedBox(height: AppSizes.spaceBtwItems),
                             const PaidUnpaidDonutCard(),
@@ -127,8 +123,6 @@ class DashboardScreen extends StatelessWidget {
                     const SignupChartCard(),
                     const SizedBox(height: AppSizes.spaceBtwItems),
                     _RecentReceiptsQueue(rows: stats.recentReceipts),
-                    const SizedBox(height: AppSizes.spaceBtwItems),
-                    const _QuestionReportsQueue(),
                     const SizedBox(height: AppSizes.spaceBtwItems),
                     const FunnelCard(),
                     const SizedBox(height: AppSizes.spaceBtwItems),
@@ -227,7 +221,7 @@ class _DashboardTopBar extends StatelessWidget {
           children: [
             if (pendingCount > 0)
               InkWell(
-                onTap: () => AdminNavController.instance.changePage(1),
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.payments),
                 borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                 child: Container(
                   padding:
@@ -265,7 +259,7 @@ class _DashboardTopBar extends StatelessWidget {
               const SizedBox(width: 8),
             if (pendingReportsCount > 0)
               InkWell(
-                onTap: () => AdminNavController.instance.changePage(7),
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.reportedQuestions),
                 borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                 child: Container(
                   padding:
@@ -342,9 +336,9 @@ class _ContentKpiGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final count = constraints.maxWidth >= 1050
-            ? 5
-            : (constraints.maxWidth >= 650 ? 3 : 2);
+        final count = constraints.maxWidth >= 1300
+            ? 6
+            : (constraints.maxWidth >= 800 ? 3 : 2);
 
         return GridView(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -362,7 +356,7 @@ class _ContentKpiGrid extends StatelessWidget {
               tag: 'All Time',
               tagColor: AppColors.primary,
               subtext: '${stats.newUsersThisWeek} new this week',
-              onTap: () => AdminNavController.instance.changePage(3),
+              onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
             ),
             Obx(() {
               final activeHidden = DashboardController.instance.isActiveHidden.value;
@@ -375,7 +369,7 @@ class _ContentKpiGrid extends StatelessWidget {
                 hasEyeToggle: true,
                 isEyeHidden: activeHidden,
                 onEyeToggle: DashboardController.instance.toggleActiveVisibility,
-                onTap: () => AdminNavController.instance.changePage(3),
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
               );
             }),
             _ContentKpiCard(
@@ -389,7 +383,7 @@ class _ContentKpiGrid extends StatelessWidget {
                   ? 'Click to review queue'
                   : 'All verified',
               onTap: stats.pendingPayments > 0
-                  ? () => AdminNavController.instance.changePage(1)
+                  ? () => AdminNavController.instance.changePage(AdminNavPage.payments)
                   : null,
             ),
             _ContentKpiCard(
@@ -398,42 +392,38 @@ class _ContentKpiGrid extends StatelessWidget {
               tag: '7-day pace',
               tagColor: AppColors.info,
               subtext: 'Weekly momentum',
-              onTap: () => AdminNavController.instance.changePage(3),
+              onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
             ),
             Obx(() {
-              final priceHidden = DashboardController.instance.isPriceHidden.value;
+              final reportedCount = DashboardController.instance.pendingQuestionReportsCount.value;
               return _ContentKpiCard(
-                title: 'GROSS REVENUE',
-                value: priceHidden ? 'ETB ••••••' : _fmtRevenue(stats.totalRevenue),
-                tag: 'ETB Total',
-                tagColor: AppColors.success,
-                subtext: 'Click for breakdown ➔',
-                hasEyeToggle: true,
-                isEyeHidden: priceHidden,
-                onEyeToggle: DashboardController.instance.togglePriceVisibility,
-                onTap: () => _showRevenueDialog(Get.context!),
+                title: 'REPORTED QUESTIONS',
+                value: NumberFormat('#,##0').format(reportedCount),
+                tag: reportedCount > 0 ? 'Action Needed' : 'All Clear',
+                tagColor: reportedCount > 0 ? AppColors.error : AppColors.success,
+                subtext: reportedCount > 0
+                    ? '$reportedCount pending question ${reportedCount == 1 ? "report" : "reports"}'
+                    : 'All questions in good shape',
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.reportedQuestions),
+              );
+            }),
+            Obx(() {
+              final reviewers = DashboardController.instance.noteReviewersCount.value;
+              final reviews = DashboardController.instance.noteReviewsCount.value;
+              return _ContentKpiCard(
+                title: 'NOTE REVIEWERS',
+                value: NumberFormat('#,##0').format(reviewers),
+                tag: reviews > 0 ? '$reviews reviews' : 'Feedback',
+                tagColor: const Color(0xFFF59E0B),
+                subtext: reviews > 0
+                    ? '$reviews student ${reviews == 1 ? "rating" : "ratings"} recorded'
+                    : 'Student notes feedback',
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.notes),
               );
             }),
           ],
         );
       },
-    );
-  }
-
-  String _fmtRevenue(double amount) {
-    if (amount >= 1000000) {
-      return '${(amount / 1000000).toStringAsFixed(2)}M';
-    }
-    if (amount >= 1000) {
-      return NumberFormat('#,##0').format(amount);
-    }
-    return NumberFormat('#,##0.00').format(amount);
-  }
-
-  void _showRevenueDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => const _RevenueDetailDialog(),
     );
   }
 }
@@ -615,7 +605,7 @@ class _RecentReceiptsQueue extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               InkWell(
-                onTap: () => AdminNavController.instance.changePage(1),
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.payments),
                 child: const Text(
                   'View All Queue ➔',
                   style: TextStyle(
@@ -792,625 +782,3 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
-// ── Revenue Detail Dialog ──────────────────────────────────────────────────
-
-class _RevenueDetailDialog extends StatefulWidget {
-  const _RevenueDetailDialog();
-
-  @override
-  State<_RevenueDetailDialog> createState() => _RevenueDetailDialogState();
-}
-
-class _RevenueDetailDialogState extends State<_RevenueDetailDialog> {
-  DateTimeRange? _selectedRange;
-  bool _isLoading = false;
-  double? _rangeRevenue;
-  String? _errorMessage;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedRange = DateTimeRange(
-      start: DateTime.now().subtract(const Duration(days: 30)),
-      end: DateTime.now(),
-    );
-    _loadRevenue();
-  }
-
-  Future<void> _loadRevenue() async {
-    if (_selectedRange == null) return;
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final repo = DashboardRepository();
-      final revenueData = await repo.fetchRevenueDaily(
-        null,
-        _selectedRange!.start,
-        _selectedRange!.end,
-      );
-      final total =
-          revenueData.fold<double>(0, (sum, point) => sum + point.value);
-
-      setState(() {
-        _rangeRevenue = total;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to load revenue';
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _pickDateRange() async {
-    final dark = AppHelperFunctions.isDark(context);
-
-    final range = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      initialDateRange: _selectedRange,
-      saveText: 'Apply',
-      builder: (context, child) {
-        final base = dark ? ThemeData.dark() : ThemeData.light();
-        return Theme(
-          data: base.copyWith(
-            colorScheme: dark
-                ? ColorScheme.dark(
-                    primary: AppColors.primary,
-                    onPrimary: Colors.white,
-                    surface: AppColors.darkCard,
-                    onSurface: AppColors.white,
-                    secondaryContainer:
-                        AppColors.primary.withValues(alpha: 0.2),
-                    onSecondaryContainer: AppColors.primary,
-                  )
-                : ColorScheme.light(
-                    primary: AppColors.primary,
-                    onPrimary: Colors.white,
-                    surface: Colors.white,
-                    onSurface: Colors.black87,
-                    secondaryContainer:
-                        AppColors.primary.withValues(alpha: 0.12),
-                    onSecondaryContainer: AppColors.primary,
-                  ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
-              ),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (range != null) {
-      setState(() => _selectedRange = range);
-      _loadRevenue();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = AppHelperFunctions.isDark(context);
-    final controller = Get.find<DashboardController>();
-
-    return Dialog(
-      backgroundColor: dark ? AppColors.darkCard : AppColors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
-      ),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 480),
-        padding: const EdgeInsets.all(AppSizes.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Revenue Breakdown',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                ),
-                Obx(() => IconButton(
-                  tooltip: controller.isPriceHidden.value ? 'Show price' : 'Hide price',
-                  icon: Icon(
-                    controller.isPriceHidden.value
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    size: AppSizes.iconMd,
-                    color: AppColors.textSecondary,
-                  ),
-                  onPressed: controller.togglePriceVisibility,
-                )),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded),
-                  iconSize: AppSizes.iconMd,
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSizes.spaceBtwItems),
-            AdminCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'TOTAL REVENUE (ALL TIME)',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.6,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSizes.xs),
-                  Obx(() {
-                    final total = controller.stats.value?.totalRevenue ?? 0;
-                    final priceHidden = controller.isPriceHidden.value;
-                    return Text(
-                      priceHidden
-                          ? 'ETB ••••••'
-                          : 'ETB ${NumberFormat('#,##0.00').format(total)}',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.success,
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSizes.spaceBtwItems),
-            const Text(
-              'FILTER BY DATE RANGE',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.6,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: AppSizes.xs),
-            OutlinedButton.icon(
-              onPressed: _pickDateRange,
-              icon: const Icon(Iconsax.calendar_copy, size: AppSizes.iconSm),
-              label: Text(
-                _selectedRange == null
-                    ? 'Select date range'
-                    : '${DateFormat('MMM d, y').format(_selectedRange!.start)} - ${DateFormat('MMM d, y').format(_selectedRange!.end)}',
-              ),
-              style: OutlinedButton.styleFrom(
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.all(AppSizes.md),
-              ),
-            ),
-            const SizedBox(height: AppSizes.sm),
-            AdminCard(
-              child: _isLoading
-                  ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(AppSizes.md),
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  : _errorMessage != null
-                      ? Padding(
-                          padding: const EdgeInsets.all(AppSizes.md),
-                          child: Text(
-                            _errorMessage!,
-                            style: const TextStyle(
-                              color: AppColors.error,
-                              fontSize: 13,
-                            ),
-                          ),
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'REVENUE IN SELECTED RANGE',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.5,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: AppSizes.xs),
-                            Obx(() => Text(
-                              controller.isPriceHidden.value
-                                  ? 'ETB ••••••'
-                                  : 'ETB ${NumberFormat('#,##0.00').format(_rangeRevenue ?? 0)}',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                color: dark
-                                    ? AppColors.white
-                                    : AppColors.textPrimary,
-                              ),
-                            )),
-                          ],
-                        ),
-            ),
-            const SizedBox(height: AppSizes.spaceBtwItems),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                AdminNavController.instance.changePage(1);
-              },
-              child: const Text('View Payments Queue'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-
-// ── 3b. Question Reports Queue ─────────────────────────────────────────────
-
-class _QuestionReportsQueue extends StatelessWidget {
-  const _QuestionReportsQueue();
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = AppHelperFunctions.isDark(context);
-    final controller = Get.find<DashboardController>();
-
-    return AdminCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'REPORTED QUESTIONS QUEUE',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.6,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Obx(() {
-                    final p = controller.pendingQuestionReportsCount.value;
-                    if (p <= 0) return const SizedBox.shrink();
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                      decoration: BoxDecoration(
-                        color: AppColors.error,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '$p',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-              InkWell(
-                onTap: () => AdminNavController.instance.changePage(7),
-                child: const Text(
-                  'View All Reports ➔',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Sorted top-to-bottom by report count. Click "Fixed" to remove from database.',
-            style: TextStyle(
-              fontSize: 10.5,
-              color: dark ? AppColors.darkGrey : AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: AppSizes.sm),
-          Obx(() {
-            if (controller.isReportsLoading.value && controller.questionReportGroups.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-              );
-            }
-
-            final groups = controller.questionReportGroups;
-            if (groups.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSizes.md),
-                child: Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.check_circle_outline_rounded, size: 16, color: AppColors.success),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'No pending question reports. All questions in good shape!',
-                          style: TextStyle(
-                            color: dark ? AppColors.darkGrey : AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            return ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: groups.take(4).length,
-              separatorBuilder: (context, index) => Divider(
-                height: 16,
-                color: dark
-                    ? AppColors.darkGrey.withValues(alpha: 0.15)
-                    : AppColors.grey.withValues(alpha: 0.3),
-              ),
-              itemBuilder: (context, i) {
-                final group = groups[i];
-                return _ReportedQuestionItem(
-                  group: group,
-                  controller: controller,
-                  dark: dark,
-                );
-              },
-            );
-          }),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReportedQuestionItem extends StatelessWidget {
-  const _ReportedQuestionItem({
-    required this.group,
-    required this.controller,
-    required this.dark,
-  });
-
-  final QuestionReportGroupModel group;
-  final DashboardController controller;
-  final bool dark;
-
-  @override
-  Widget build(BuildContext context) {
-    final count = group.reportCount;
-    final isMultiple = count > 1;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Top row: Report count badge + Subject/Test info + Date
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: isMultiple
-                    ? AppColors.error.withValues(alpha: 0.15)
-                    : AppColors.warning.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: isMultiple
-                      ? AppColors.error.withValues(alpha: 0.4)
-                      : AppColors.warning.withValues(alpha: 0.4),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Iconsax.flag_copy,
-                    size: 10,
-                    color: isMultiple ? AppColors.error : AppColors.warning,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    count == 1 ? '1 REPORT' : '$count REPORTS',
-                    style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.bold,
-                      color: isMultiple ? AppColors.error : AppColors.warning,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 6),
-            if (group.subjectName != null) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  group.subjectName!,
-                  style: const TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-            ],
-            Expanded(
-              child: Text(
-                group.testTitle ?? '',
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: dark ? AppColors.darkGrey : AppColors.textSecondary,
-                ),
-              ),
-            ),
-            if (group.latestReportDate != null)
-              Text(
-                DateFormat('d MMM').format(group.latestReportDate!),
-                style: TextStyle(
-                  fontSize: 10,
-                  color: dark ? AppColors.darkGrey : AppColors.textSecondary,
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 6),
-
-        // Question text snippet
-        Text(
-          group.questionText,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: dark ? AppColors.white : AppColors.textPrimary,
-            height: 1.3,
-          ),
-        ),
-        const SizedBox(height: 4),
-
-        // Student reason and comment
-        if (group.reports.isNotEmpty) ...[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${group.primaryReason}: ',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.bold,
-                  color: dark ? Colors.amber[300] : const Color(0xFFB45309),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  group.reports.first.comment != null && group.reports.first.comment!.isNotEmpty
-                      ? '“${group.reports.first.comment}”'
-                      : 'Reported by ${group.reports.first.userName}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontStyle: FontStyle.italic,
-                    color: dark ? AppColors.darkGrey : AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-        const SizedBox(height: 8),
-
-        // Action buttons: Edit Question + Fixed (Remove from DB)
-        Align(
-          alignment: Alignment.centerRight,
-          child: Wrap(
-            alignment: WrapAlignment.end,
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              if (group.testId != null && group.subjectId != null)
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Get.to(() => TestEditorScreen(
-                          subjectId: group.subjectId!,
-                          testId: group.testId,
-                          subjectName: group.subjectName ?? '',
-                        ));
-                  },
-                  icon: const Icon(Iconsax.edit_2_copy, size: 12),
-                  label: const Text('Edit Question', style: TextStyle(fontSize: 11)),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-              ElevatedButton.icon(
-                onPressed: () => _confirmFixAndRemove(context),
-                icon: const Icon(Icons.check_circle_rounded, size: 12),
-                label: const Text('Fixed (Remove)', style: TextStyle(fontSize: 11)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _confirmFixAndRemove(BuildContext context) {
-    final count = group.reportCount;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Question Fixed?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        content: Text(
-          'Marking this question as fixed will permanently remove ${count == 1 ? 'this report' : 'all $count reports for this question'} from the database.',
-          style: const TextStyle(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              controller.fixAndRemoveQuestionGroup(group);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Confirm & Remove from DB'),
-          ),
-        ],
-      ),
-    );
-  }
-}

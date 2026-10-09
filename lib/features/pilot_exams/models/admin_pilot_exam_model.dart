@@ -6,6 +6,7 @@ class AdminPilotExamModel {
   final int grade;
   final bool isPremium;
   final bool isActive;
+  final String status;
   final DateTime? createdAt;
   final List<AdminPilotExamSubjectModel> subjects;
 
@@ -17,9 +18,13 @@ class AdminPilotExamModel {
     this.grade = 12,
     this.isPremium = true,
     this.isActive = true,
+    this.status = 'published',
     this.createdAt,
     this.subjects = const [],
   });
+
+  bool get isDraft => status.toLowerCase() == 'draft' || status.toLowerCase() == 'verification' || !isActive;
+  bool get isPublished => status.toLowerCase() == 'published' && isActive;
 
   int get subjectCount => subjects.length;
 
@@ -53,6 +58,8 @@ class AdminPilotExamModel {
         rawActive == '1' ||
         rawActive == 'true';
 
+    final rawStatus = map['status']?.toString() ?? (isAct ? 'published' : 'draft');
+
     // If subjects was joined in the JSON query
     List<AdminPilotExamSubjectModel> joinedSubjects = subjects;
     if (map['pilot_exam_subjects'] is List) {
@@ -69,6 +76,7 @@ class AdminPilotExamModel {
       grade: (map['grade'] as num?)?.toInt() ?? 12,
       isPremium: isPrem,
       isActive: isAct,
+      status: rawStatus,
       createdAt: parsedCreatedAt,
       subjects: joinedSubjects,
     );
@@ -82,6 +90,7 @@ class AdminPilotExamModel {
       'grade': grade,
       'is_premium': isPremium,
       'is_active': isActive,
+      'status': status,
     };
     if (includeId && id > 0) {
       map['id'] = id;
@@ -97,6 +106,7 @@ class AdminPilotExamModel {
     int? grade,
     bool? isPremium,
     bool? isActive,
+    String? status,
     DateTime? createdAt,
     List<AdminPilotExamSubjectModel>? subjects,
   }) {
@@ -108,6 +118,7 @@ class AdminPilotExamModel {
       grade: grade ?? this.grade,
       isPremium: isPremium ?? this.isPremium,
       isActive: isActive ?? this.isActive,
+      status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       subjects: subjects ?? this.subjects,
     );

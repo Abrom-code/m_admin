@@ -325,6 +325,74 @@ class _TestForm extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: AppSizes.spaceBtwInputFields),
+            // Verification Status
+            Obx(
+              () => DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: controller.statusValue.value.isEmpty
+                    ? 'draft'
+                    : controller.statusValue.value,
+                decoration: InputDecoration(
+                  labelText: 'Verification / Test Status',
+                  helperText: controller.statusValue.value == 'published'
+                      ? 'Live for all students nationwide'
+                      : controller.statusValue.value == 'verification'
+                          ? 'In review - only visible to admins'
+                          : controller.statusValue.value == 'inactive'
+                              ? 'Inactive - temporarily disabled'
+                              : controller.statusValue.value == 'archived'
+                                  ? 'Archived - hidden from all'
+                                  : 'Draft - visible only to admins for inspection',
+                  prefixIcon: Icon(
+                    controller.statusValue.value == 'published'
+                        ? Icons.cloud_done_rounded
+                        : controller.statusValue.value == 'verification'
+                            ? Icons.rate_review_outlined
+                            : controller.statusValue.value == 'inactive'
+                                ? Icons.pause_circle_outline_rounded
+                                : controller.statusValue.value == 'archived'
+                                    ? Icons.archive_outlined
+                                    : Icons.lock_clock_rounded,
+                    color: controller.statusValue.value == 'published'
+                        ? AppColors.success
+                        : controller.statusValue.value == 'verification'
+                            ? const Color(0xFF0284C7)
+                            : controller.statusValue.value == 'inactive'
+                                ? AppColors.grey
+                                : controller.statusValue.value == 'archived'
+                                    ? const Color(0xFF6B7280)
+                                    : AppColors.warning,
+                    size: 20,
+                  ),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'draft',
+                    child: Text('Draft (Unverified)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'verification',
+                    child: Text('In Verification'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'published',
+                    child: Text('Published (Live for Students)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'inactive',
+                    child: Text('Inactive (Disabled)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'archived',
+                    child: Text('Archived'),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) controller.statusValue.value = v;
+                },
+              ),
+            ),
           ],
         ),
       ),

@@ -219,22 +219,36 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                     style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold),
                                   ),
                                   const Spacer(),
-                                  if (_ctrl.isEditingExisting)
-                                    Container(
+                                  Obx(() {
+                                    final st = _ctrl.status.value.toLowerCase();
+                                    Color c = AppColors.warning;
+                                    if (st == 'live') {
+                                      c = AppColors.success;
+                                    } else if (st == 'scheduled') {
+                                      c = AppColors.secondary;
+                                    } else if (st == 'closed') {
+                                      c = AppColors.grey;
+                                    } else if (st == 'archived') {
+                                      c = const Color(0xFF6B7280);
+                                    }
+
+                                    return Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                                       decoration: BoxDecoration(
-                                        color: AppColors.primary.withValues(alpha: 0.12),
+                                        color: c.withValues(alpha: 0.12),
                                         borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: c.withValues(alpha: 0.3)),
                                       ),
                                       child: Text(
-                                        _ctrl.status.value.toUpperCase(),
-                                        style: const TextStyle(
+                                        st.toUpperCase(),
+                                        style: TextStyle(
                                           fontSize: 9.5,
                                           fontWeight: FontWeight.bold,
-                                          color: AppColors.primary,
+                                          color: c,
                                         ),
                                       ),
-                                    ),
+                                    );
+                                  }),
                                 ],
                               ),
                               const Divider(height: 24),
@@ -507,6 +521,58 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                     color: _ctrl.isPremium.value ? AppColors.warning : AppColors.textSecondary,
                                     size: 20,
                                   ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Obx(
+                                () => DropdownButtonFormField<String>(
+                                  initialValue: _ctrl.status.value.isEmpty ? 'draft' : _ctrl.status.value.toLowerCase(),
+                                  style: TextStyle(fontSize: 12.5, color: dark ? Colors.white : Colors.black),
+                                  decoration: InputDecoration(
+                                    labelText: 'Challenge Status *',
+                                    helperText: _ctrl.status.value.toLowerCase() == 'live'
+                                        ? 'Live round — active for students to play now'
+                                        : _ctrl.status.value.toLowerCase() == 'scheduled'
+                                            ? 'Scheduled — will become live at start time'
+                                            : _ctrl.status.value.toLowerCase() == 'closed'
+                                                ? 'Closed — ended / no new attempts allowed'
+                                                : _ctrl.status.value.toLowerCase() == 'archived'
+                                                    ? 'Archived — hidden from main active lists'
+                                                    : 'Draft — hidden from students until published',
+                                    prefixIcon: Icon(
+                                      _ctrl.status.value.toLowerCase() == 'live'
+                                          ? Icons.play_circle_fill_rounded
+                                          : _ctrl.status.value.toLowerCase() == 'scheduled'
+                                              ? Iconsax.calendar_1_copy
+                                              : _ctrl.status.value.toLowerCase() == 'closed'
+                                                  ? Icons.stop_circle_outlined
+                                                  : _ctrl.status.value.toLowerCase() == 'archived'
+                                                      ? Icons.archive_outlined
+                                                      : Icons.edit_note_rounded,
+                                      size: 18,
+                                      color: _ctrl.status.value.toLowerCase() == 'live'
+                                          ? AppColors.success
+                                          : _ctrl.status.value.toLowerCase() == 'scheduled'
+                                              ? AppColors.secondary
+                                              : _ctrl.status.value.toLowerCase() == 'closed'
+                                                  ? AppColors.grey
+                                                  : _ctrl.status.value.toLowerCase() == 'archived'
+                                                      ? const Color(0xFF6B7280)
+                                                      : AppColors.warning,
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(value: 'draft', child: Text('Draft (Unpublished)')),
+                                    DropdownMenuItem(value: 'scheduled', child: Text('Scheduled')),
+                                    DropdownMenuItem(value: 'live', child: Text('Live (Active Now)')),
+                                    DropdownMenuItem(value: 'closed', child: Text('Closed / Ended')),
+                                    DropdownMenuItem(value: 'archived', child: Text('Archived')),
+                                  ],
+                                  onChanged: (val) {
+                                    if (val != null) _ctrl.status.value = val;
+                                  },
                                 ),
                               ),
                             ],

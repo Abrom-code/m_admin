@@ -6,7 +6,7 @@ import 'package:get/get.dart';
 
 class AppDeviceUtils {
   static void hideKeyboard(BuildContext context) {
-    FocusScope.of(context).requestFocus(FocusNode());
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   static Future<void> setStatusBarColor(Color color) async {

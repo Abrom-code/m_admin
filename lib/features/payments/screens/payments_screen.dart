@@ -5,6 +5,7 @@ import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/payments/controllers/payments_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/payments/screens/payment_detail_screen.dart';
@@ -12,6 +13,7 @@ import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
+import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 /// The modern payment review queue and audit console.
 class PaymentsScreen extends StatelessWidget {
@@ -22,7 +24,7 @@ class PaymentsScreen extends StatelessWidget {
     final controller = Get.find<PaymentsController>();
 
     return AdminScaffold(
-      pageIndex: 1,
+      pageIndex: AdminNavPage.payments,
       onRefresh: controller.refreshAll,
       scrollable: false,
       body: Column(
@@ -222,8 +224,8 @@ class _ModernFilterBar extends StatelessWidget {
             child: TextField(
               controller: controller.searchController,
               onChanged: controller.onSearchChanged,
-              onSubmitted: (_) => FocusScope.of(context).unfocus(),
-              onTapOutside: (_) => FocusScope.of(context).unfocus(),
+              onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               style: const TextStyle(fontSize: 12.5),
               decoration: InputDecoration(
                 isDense: true,
@@ -250,6 +252,7 @@ class _ModernFilterBar extends StatelessWidget {
                       onPressed: () {
                         controller.searchController.clear();
                         controller.onSearchChanged('');
+                        FocusManager.instance.primaryFocus?.unfocus();
                       },
                       visualDensity: VisualDensity.compact,
                     );
@@ -315,6 +318,24 @@ class _ModernFilterBar extends StatelessWidget {
                   ),
                 );
               }),
+
+              // Test Local Notification Button
+              IconButton(
+                tooltip: 'Test local notification',
+                visualDensity: VisualDensity.compact,
+                onPressed: () async {
+                  await controller.sendTestNotification();
+                  SnackbarHelper.info(
+                    'Notification Dispatched',
+                    'A test alert was sent. Check your status bar / notification tray.',
+                  );
+                },
+                icon: const Icon(
+                  Iconsax.notification_bing_copy,
+                  size: AppSizes.iconSm,
+                  color: AppColors.primary,
+                ),
+              ),
             ],
           );
 
@@ -548,7 +569,7 @@ class _ModernTable extends StatelessWidget {
   }
 
   void _openDetail(BuildContext context, PaymentReview row) {
-    FocusScope.of(context).unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
     final wide = MediaQuery.sizeOf(context).width >= 1200;
 
     if (wide) {
