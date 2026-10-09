@@ -30,7 +30,7 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
 
   int? _selectedGrade;
   bool _isPremium = true;
-  bool _isActive = false;
+  String _status = 'draft';
 
   final List<AdminPilotExamSubjectModel> _subjectsList = [];
   List<Map<String, dynamic>> _availableSubjects = [];
@@ -49,7 +49,8 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
 
     _selectedGrade = (e != null && e.grade > 0 && e.grade <= 12) ? e.grade : null;
     _isPremium = e?.isPremium ?? true;
-    _isActive = e?.isActive ?? false;
+    _status = e?.status ?? (e?.isActive == true ? 'published' : 'draft');
+    if (_status.isEmpty) _status = 'draft';
 
     if (e != null) {
       _subjectsList.addAll(e.subjects);
@@ -107,8 +108,8 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
         'description': _descCtrl.text.trim(),
         'grade': _selectedGrade ?? 0,
         'is_premium': _isPremium,
-        'is_active': _isActive,
-        'status': _isActive ? 'published' : 'draft',
+        'is_active': _status == 'published',
+        'status': _status,
       };
 
       if (isEditing && widget.exam!.id > 0) {
@@ -258,19 +259,59 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
                     ),
                     const SizedBox(height: AppSizes.spaceBtwInputFields),
 
-                    // Toggles: Active and Premium
+                    // Status and Premium Controls
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            value: _isActive,
-                            onChanged: (v) => setState(() => _isActive = v),
-                            title: const Text('Publish Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                            subtitle: Text(_isActive ? 'Published & live for students' : 'Draft / Unverified (hidden from students)', style: const TextStyle(fontSize: 11)),
+                          flex: 3,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _status,
+                            decoration: InputDecoration(
+                              labelText: 'Exam Status *',
+                              helperText: _status == 'published'
+                                  ? 'Live for students nationwide'
+                                  : _status == 'inactive'
+                                      ? 'Temporarily deactivated / hidden'
+                                      : _status == 'archived'
+                                          ? 'Archived exam'
+                                          : 'Draft / Unverified (hidden from students)',
+                              prefixIcon: Icon(
+                                _status == 'published'
+                                    ? Icons.cloud_done_rounded
+                                    : _status == 'inactive'
+                                        ? Icons.pause_circle_outline_rounded
+                                        : _status == 'archived'
+                                            ? Icons.archive_outlined
+                                            : Icons.edit_note_rounded,
+                                size: 20,
+                                color: _status == 'published'
+                                    ? AppColors.success
+                                    : _status == 'inactive'
+                                        ? AppColors.grey
+                                        : _status == 'archived'
+                                            ? AppColors.secondary
+                                            : AppColors.warning,
+                              ),
+                            ),
+                            items: const [
+                              DropdownMenuItem(value: 'draft', child: Text('Draft (Unverified)')),
+                              DropdownMenuItem(value: 'published', child: Text('Published (Live for Students)')),
+                              DropdownMenuItem(value: 'inactive', child: Text('Inactive (Deactivated)')),
+                              DropdownMenuItem(value: 'archived', child: Text('Archived')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _status = val;
+                                });
+                              }
+                            },
                           ),
                         ),
+                        const SizedBox(width: AppSizes.spaceBtwInputFields),
                         Expanded(
+                          flex: 2,
                           child: SwitchListTile(
                             contentPadding: EdgeInsets.zero,
                             value: _isPremium,

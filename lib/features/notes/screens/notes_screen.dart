@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/common/widgets/loaders/circular_loading.dart';
 import 'package:m_admin/features/notes/controllers/notes_controller.dart';
@@ -23,7 +24,7 @@ class NotesScreen extends StatelessWidget {
     final isNarrow = MediaQuery.of(context).size.width < 600;
 
     return AdminScaffold(
-      pageIndex: 5,
+      pageIndex: AdminNavPage.notes,
       onRefresh: ctrl.loadNotes,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -12,6 +12,9 @@ class DashboardStats {
     required this.newUsersThisWeek,
     required this.totalRevenue,
     required this.recentReceipts,
+    this.reportedQuestionsCount = 0,
+    this.noteReviewersCount = 0,
+    this.noteReviewsCount = 0,
   });
 
   final int totalUsers;
@@ -20,17 +23,28 @@ class DashboardStats {
   final int newUsersThisWeek;
   final double totalRevenue;
   final List<RecentReceiptRow> recentReceipts;
+  final int reportedQuestionsCount;
+  final int noteReviewersCount;
+  final int noteReviewsCount;
 
   /// Derived: users without an active subscription.
   int get unpaidUsers => totalUsers - paidUsers;
 
-  DashboardStats copyWith({int? pendingPayments}) => DashboardStats(
+  DashboardStats copyWith({
+    int? pendingPayments,
+    int? reportedQuestionsCount,
+    int? noteReviewersCount,
+    int? noteReviewsCount,
+  }) => DashboardStats(
     totalUsers: totalUsers,
     paidUsers: paidUsers,
     pendingPayments: pendingPayments ?? this.pendingPayments,
     newUsersThisWeek: newUsersThisWeek,
     totalRevenue: totalRevenue,
     recentReceipts: recentReceipts,
+    reportedQuestionsCount: reportedQuestionsCount ?? this.reportedQuestionsCount,
+    noteReviewersCount: noteReviewersCount ?? this.noteReviewersCount,
+    noteReviewsCount: noteReviewsCount ?? this.noteReviewsCount,
   );
 }
 
@@ -151,7 +165,7 @@ class DashboardRepository {
           .toUtc()
           .toIso8601String();
 
-      // All 6 queries fire in parallel — including recent receipts.
+      // All queries fire in parallel — including recent receipts, reports, and note reviews.
       final results = await Future.wait<dynamic>([
         _sb.from('users').select('id').count(CountOption.exact),          // 0: total
         _sb
@@ -181,6 +195,16 @@ class DashboardRepository {
             )
             .order('created_at', ascending: false)
             .limit(6),                                                     // 5: recent
+        _sb
+            .from('question_reports')
+            .select('id')
+            .eq('status', 'pending')
+            .count(CountOption.exact)
+            .catchError((_) => null),                                      // 6: pending reports
+        _sb
+            .from('note_ratings')
+            .select('user_id')
+            .catchError((_) => <dynamic>[]),                               // 7: note ratings/reviewers
       ]);
 
       final total = (results[0] as dynamic).count as int;
@@ -196,6 +220,17 @@ class DashboardRepository {
 
       final recentRows = results[5] as List<dynamic>;
 
+      final reportedCount = (results[6] as dynamic)?.count as int? ?? 0;
+
+      final ratingRows = (results[7] as List<dynamic>?) ?? <dynamic>[];
+      final totalReviews = ratingRows.length;
+      final uniqueReviewers = ratingRows
+          .map((r) => r['user_id']?.toString())
+          .where((id) => id != null && id.isNotEmpty)
+          .toSet()
+          .length;
+      final noteReviewers = uniqueReviewers > 0 ? uniqueReviewers : totalReviews;
+
       return DashboardStats(
         totalUsers: total,
         paidUsers: paid,
@@ -205,6 +240,9 @@ class DashboardRepository {
         recentReceipts: recentRows
             .map((r) => RecentReceiptRow.fromJson(Map<String, dynamic>.from(r)))
             .toList(),
+        reportedQuestionsCount: reportedCount,
+        noteReviewersCount: noteReviewers,
+        noteReviewsCount: totalReviews,
       );
     } catch (e) {
       throw AppExceptionHandler.handle(e);

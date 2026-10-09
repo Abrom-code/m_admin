@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/common/widgets/loaders/circular_loading.dart';
 import 'package:m_admin/features/pilot_exams/controllers/pilot_exams_controller.dart';
@@ -21,7 +22,7 @@ class PilotExamsScreen extends StatelessWidget {
     final dark = AppHelperFunctions.isDark(context);
 
     return AdminScaffold(
-      pageIndex: 6,
+      pageIndex: AdminNavPage.pilotExams,
       onRefresh: ctrl.loadPilotExams,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -29,10 +30,12 @@ class PilotExamsScreen extends StatelessWidget {
           // ── Stats Summary Ribbon ───────────────────────────────────────
           Obx(() {
             final all = ctrl.exams;
-            final activeCount = all.where((e) => e.isActive).length;
+            final publishedCount = all.where((e) => e.status.toLowerCase() == 'published' || e.isActive).length;
+            final draftCount = all.where((e) => e.status.toLowerCase() == 'draft').length;
+            final inactiveCount = all.where((e) => e.status.toLowerCase() == 'inactive').length;
             final premiumCount = all.where((e) => e.isPremium).length;
             final totalSubjects = all.fold<int>(0, (sum, e) => sum + e.subjectCount);
-            final sFilter = ctrl.statusFilter.value;
+            final sFilter = ctrl.statusFilter.value?.toLowerCase();
 
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -48,18 +51,36 @@ class PilotExamsScreen extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   _CompactRibbonCard(
-                    label: 'Active',
-                    value: NumberFormat('#,##0').format(activeCount),
+                    label: 'Published',
+                    value: NumberFormat('#,##0').format(publishedCount),
                     dotColor: AppColors.success,
                     icon: Iconsax.tick_circle_copy,
-                    isSelected: sFilter == 'active',
-                    onTap: () => ctrl.setStatusFilter(sFilter == 'active' ? null : 'active'),
+                    isSelected: sFilter == 'published' || sFilter == 'active',
+                    onTap: () => ctrl.setStatusFilter((sFilter == 'published' || sFilter == 'active') ? null : 'published'),
+                  ),
+                  const SizedBox(width: 8),
+                  _CompactRibbonCard(
+                    label: 'Draft',
+                    value: NumberFormat('#,##0').format(draftCount),
+                    dotColor: AppColors.warning,
+                    icon: Iconsax.edit_2_copy,
+                    isSelected: sFilter == 'draft',
+                    onTap: () => ctrl.setStatusFilter(sFilter == 'draft' ? null : 'draft'),
+                  ),
+                  const SizedBox(width: 8),
+                  _CompactRibbonCard(
+                    label: 'Inactive',
+                    value: NumberFormat('#,##0').format(inactiveCount),
+                    dotColor: AppColors.grey,
+                    icon: Iconsax.pause_copy,
+                    isSelected: sFilter == 'inactive',
+                    onTap: () => ctrl.setStatusFilter(sFilter == 'inactive' ? null : 'inactive'),
                   ),
                   const SizedBox(width: 8),
                   _CompactRibbonCard(
                     label: 'Premium',
                     value: NumberFormat('#,##0').format(premiumCount),
-                    dotColor: AppColors.warning,
+                    dotColor: const Color(0xFFEAB308),
                     icon: Iconsax.crown_copy,
                     isSelected: sFilter == 'premium',
                     onTap: () => ctrl.setStatusFilter(sFilter == 'premium' ? null : 'premium'),
@@ -473,47 +494,132 @@ class _PilotExamCard extends StatelessWidget {
                           ),
                           const SizedBox(width: AppSizes.xs),
 
-                          // Verification / Active status badge
-                          Tooltip(
-                            message: exam.isActive
-                                ? 'Published & live for students (click to unpublish)'
-                                : 'Draft / Unverified (click to verify & publish)',
-                            child: InkWell(
-                              onTap: () => controller.toggleActive(exam),
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: exam.isActive
-                                      ? AppColors.success.withValues(alpha: 0.14)
-                                      : AppColors.warning.withValues(alpha: 0.16),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: exam.isActive ? AppColors.success : AppColors.warning,
-                                    width: 0.8,
+                          // Status Changer Badge (PopupMenuButton)
+                          Builder(
+                            builder: (context) {
+                              final statusLower = exam.status.toLowerCase();
+                              Color badgeColor;
+                              IconData badgeIcon;
+                              String badgeLabel;
+
+                              if (statusLower == 'published' || (exam.isActive && statusLower != 'draft' && statusLower != 'inactive' && statusLower != 'archived')) {
+                                badgeColor = AppColors.success;
+                                badgeIcon = Icons.cloud_done_rounded;
+                                badgeLabel = 'PUBLISHED';
+                              } else if (statusLower == 'inactive') {
+                                badgeColor = AppColors.grey;
+                                badgeIcon = Icons.pause_circle_outline_rounded;
+                                badgeLabel = 'INACTIVE';
+                              } else if (statusLower == 'archived') {
+                                badgeColor = AppColors.secondary;
+                                badgeIcon = Icons.archive_outlined;
+                                badgeLabel = 'ARCHIVED';
+                              } else {
+                                badgeColor = AppColors.warning;
+                                badgeIcon = Icons.edit_note_rounded;
+                                badgeLabel = 'DRAFT';
+                              }
+
+                              return PopupMenuButton<String>(
+                                tooltip: 'Change Status (Draft, Published, Inactive...)',
+                                padding: EdgeInsets.zero,
+                                position: PopupMenuPosition.under,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                                  side: BorderSide(
+                                    color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
                                   ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      exam.isActive ? Icons.cloud_done_rounded : Icons.lock_clock_rounded,
-                                      size: 11,
-                                      color: exam.isActive ? AppColors.success : AppColors.warning,
+                                onSelected: (newStatus) => controller.updateStatus(exam, newStatus),
+                                itemBuilder: (ctx) => [
+                                  PopupMenuItem(
+                                    value: 'published',
+                                    height: 36,
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.cloud_done_rounded, size: 14, color: AppColors.success),
+                                        const SizedBox(width: 8),
+                                        const Text('Published (Live for students)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                        if (badgeLabel == 'PUBLISHED') ...[
+                                          const Spacer(),
+                                          const Icon(Icons.check, size: 14, color: AppColors.success),
+                                        ],
+                                      ],
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      exam.isActive ? 'PUBLISHED' : 'UNVERIFIED',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: exam.isActive ? AppColors.success : AppColors.warning,
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'draft',
+                                    height: 36,
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.edit_note_rounded, size: 14, color: AppColors.warning),
+                                        const SizedBox(width: 8),
+                                        const Text('Draft (Unverified / Hidden)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                        if (badgeLabel == 'DRAFT') ...[
+                                          const Spacer(),
+                                          const Icon(Icons.check, size: 14, color: AppColors.warning),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'inactive',
+                                    height: 36,
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.pause_circle_outline_rounded, size: 14, color: AppColors.grey),
+                                        const SizedBox(width: 8),
+                                        const Text('Inactive (Deactivated)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                        if (badgeLabel == 'INACTIVE') ...[
+                                          const Spacer(),
+                                          const Icon(Icons.check, size: 14, color: AppColors.grey),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'archived',
+                                    height: 36,
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.archive_outlined, size: 14, color: AppColors.secondary),
+                                        const SizedBox(width: 8),
+                                        const Text('Archived', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                        if (badgeLabel == 'ARCHIVED') ...[
+                                          const Spacer(),
+                                          const Icon(Icons.check, size: 14, color: AppColors.secondary),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: badgeColor.withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: badgeColor, width: 0.8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(badgeIcon, size: 11, color: badgeColor),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        badgeLabel,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color: badgeColor,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 2),
+                                      Icon(Icons.arrow_drop_down, size: 13, color: badgeColor),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ),
+                              );
+                            },
                           ),
                           const SizedBox(width: AppSizes.xs),
 

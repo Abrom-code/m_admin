@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/features/users/controllers/users_controller.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
@@ -22,7 +23,7 @@ class UsersScreen extends StatelessWidget {
     final controller = Get.put(UsersController());
 
     return AdminScaffold(
-      pageIndex: 3,
+      pageIndex: AdminNavPage.users,
       onRefresh: controller.loadAll,
       scrollable: false,
       body: Column(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
+import 'package:m_admin/data/services/admin_notification_service.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
 import 'package:m_admin/features/challenges/screens/challenges_list_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
@@ -10,6 +11,7 @@ import 'package:m_admin/features/dashboard/screens/dashboard_screen.dart';
 import 'package:m_admin/features/notes/screens/notes_screen.dart';
 import 'package:m_admin/features/notifications/screens/notifications_screen.dart';
 import 'package:m_admin/features/payments/screens/payments_screen.dart';
+import 'package:m_admin/features/revenue/screens/revenue_screen.dart';
 import 'package:m_admin/features/pilot_exams/screens/pilot_exams_screen.dart';
 import 'package:m_admin/features/sessions/screens/sessions_screen.dart';
 import 'package:m_admin/features/settings/screens/settings_screen.dart';
@@ -37,6 +39,20 @@ class AdminShell extends StatefulWidget {
 
 class _AdminShellState extends State<AdminShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestNotificationPermission();
+    });
+  }
+
+  Future<void> _requestNotificationPermission() async {
+    if (Get.isRegistered<AdminNotificationService>()) {
+      await AdminNotificationService.instance.requestPermission();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +156,13 @@ class _AdminBottomNavBar extends StatelessWidget {
 
     return Obx(() {
       final currentIdx = nav.selectedIndex.value;
-      const bottomNavPages = [1, 2, 3, 4, 8];
+      const bottomNavPages = [
+        AdminNavPage.payments,
+        AdminNavPage.notifications,
+        AdminNavPage.users,
+        AdminNavPage.content,
+        AdminNavPage.challenges,
+      ];
       final matchedIdx = bottomNavPages.indexOf(currentIdx);
       final selectedDest = matchedIdx >= 0 ? matchedIdx : 0;
 
@@ -257,6 +279,7 @@ class _Pages extends StatelessWidget {
       const pages = <Widget>[
         DashboardScreen(),
         PaymentsScreen(),
+        RevenueScreen(),
         NotificationsScreen(),
         UsersScreen(),
         ContentScreen(),

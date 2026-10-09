@@ -48,16 +48,24 @@ class PilotExamsController extends GetxController {
 
   List<AdminPilotExamModel> get filteredExams {
     final query = searchQuery.value.trim().toLowerCase();
+    final filter = statusFilter.value?.toLowerCase();
 
     return exams.where((exam) {
       if (selectedGrade.value != null && exam.grade != selectedGrade.value) {
         return false;
       }
-      if (statusFilter.value == 'active' && !exam.isActive) {
-        return false;
-      }
-      if (statusFilter.value == 'premium' && !exam.isPremium) {
-        return false;
+      if (filter != null) {
+        if (filter == 'active' || filter == 'published') {
+          if (!exam.isActive && exam.status.toLowerCase() != 'published') return false;
+        } else if (filter == 'draft') {
+          if (exam.status.toLowerCase() != 'draft') return false;
+        } else if (filter == 'inactive') {
+          if (exam.status.toLowerCase() != 'inactive') return false;
+        } else if (filter == 'archived') {
+          if (exam.status.toLowerCase() != 'archived') return false;
+        } else if (filter == 'premium') {
+          if (!exam.isPremium) return false;
+        }
       }
       if (query.isNotEmpty) {
         final titleMatch = exam.title.toLowerCase().contains(query);
@@ -84,6 +92,28 @@ class PilotExamsController extends GetxController {
     }
   }
 
+  Future<void> updateStatus(AdminPilotExamModel exam, String newStatus) async {
+    try {
+      final s = newStatus.trim().toLowerCase();
+      final isAct = s == 'published' || s == 'active';
+      final updated = exam.copyWith(
+        status: s,
+        isActive: isAct,
+      );
+      await _repo.updatePilotExamStatus(exam.id, s);
+      final index = exams.indexWhere((e) => e.id == exam.id);
+      if (index >= 0) {
+        exams[index] = updated;
+      }
+      SnackbarHelper.success(
+        'Status Updated',
+        'Pilot Exam "${exam.title}" is now ${s.toUpperCase()}.',
+      );
+    } catch (e) {
+      SnackbarHelper.error('Update failed', e.toString());
+    }
+  }
+
   Future<void> toggleActive(AdminPilotExamModel exam) async {
     try {
       final newActive = !exam.isActive;
@@ -92,7 +122,7 @@ class PilotExamsController extends GetxController {
         isActive: newActive,
         status: newStatus,
       );
-      await _repo.upsertPilotExam(updated.toJson());
+      await _repo.updatePilotExamStatus(exam.id, newStatus);
       final index = exams.indexWhere((e) => e.id == exam.id);
       if (index >= 0) {
         exams[index] = updated;

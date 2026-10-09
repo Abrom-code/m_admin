@@ -581,6 +581,7 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                           onPublish: () => _confirmPublish(context, challenge),
                           onClose: () => _confirmClose(context, challenge),
                           onDelete: () => _confirmDelete(context, challenge),
+                          onStatusChange: (newStatus) => _ctrl.updateChallengeStatus(challenge.id, newStatus),
                         );
                       },
                     ),

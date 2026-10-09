@@ -43,7 +43,11 @@ class PaymentsController extends GetxController {
   final searchController = TextEditingController();
 
   Timer? _debounce;
+  Timer? _pollTimer;
   RealtimeChannel? _channel;
+
+  int? _lastNotifiedPendingCount;
+  bool _hasDoneInitialPendingCheck = false;
 
   bool isActing(String id) => actingIds.contains(id);
 
@@ -53,11 +57,22 @@ class PaymentsController extends GetxController {
     loadQueue();
     refreshCounts();
     _subscribeRealtime();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    // Fallback polling every 20s so new pending payments are ALWAYS detected
+    // even if Supabase Realtime drops, reconnects, or table publication is inactive.
+    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      refreshCounts();
+    });
   }
 
   @override
   void onClose() {
     _debounce?.cancel();
+    _pollTimer?.cancel();
     searchController.dispose();
     if (_channel != null) {
       Supabase.instance.client.removeChannel(_channel!);
@@ -100,12 +115,58 @@ class PaymentsController extends GetxController {
         for (var i = 0; i < kPaymentTabs.length; i++) kPaymentTabs[i]: results[i],
       };
 
+      final pending = counts['pending'] ?? 0;
+
       // Keep the sidebar badge honest.
       if (Get.isRegistered<AdminNavController>()) {
-        AdminNavController.instance.pendingPaymentCount.value =
-            counts['pending'] ?? 0;
+        AdminNavController.instance.pendingPaymentCount.value = pending;
       }
+
+      // Check and send local notification for pending payments.
+      _checkAndNotifyPending(pending);
     } catch (_) {
+    }
+  }
+
+  void _checkAndNotifyPending(int pending) {
+    if (pending <= 0) {
+      _lastNotifiedPendingCount = 0;
+      _hasDoneInitialPendingCheck = true;
+      return;
+    }
+
+    if (!_hasDoneInitialPendingCheck) {
+      // First check on launch: notify admin of existing pending payments!
+      _hasDoneInitialPendingCheck = true;
+      _lastNotifiedPendingCount = pending;
+      if (Get.isRegistered<AdminNotificationService>()) {
+        AdminNotificationService.instance.pendingPaymentsAlert(count: pending);
+      }
+      return;
+    }
+
+    // Subsequent checks: notify if pending count increased
+    if (pending > (_lastNotifiedPendingCount ?? 0)) {
+      final newCount = pending - (_lastNotifiedPendingCount ?? 0);
+      _lastNotifiedPendingCount = pending;
+      if (Get.isRegistered<AdminNotificationService>()) {
+        if (newCount == 1) {
+          AdminNotificationService.instance.newPendingPayment(paymentMethod: '');
+        } else {
+          AdminNotificationService.instance.pendingPaymentsAlert(count: pending);
+        }
+      }
+      if (activeTab.value == 'pending' || activeTab.value == 'all') {
+        if (page.value == 0) loadQueue();
+      }
+    } else {
+      _lastNotifiedPendingCount = pending;
+    }
+  }
+
+  Future<void> sendTestNotification() async {
+    if (Get.isRegistered<AdminNotificationService>()) {
+      await AdminNotificationService.instance.testNotification();
     }
   }
 
@@ -381,7 +442,7 @@ class PaymentsController extends GetxController {
       _channel = Supabase.instance.client
           .channel('admin_payment_receipts')
           .onPostgresChanges(
-            event: PostgresChangeEvent.insert,
+            event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'payment_receipts',
             callback: (payload) {
@@ -389,9 +450,11 @@ class PaymentsController extends GetxController {
               if (activeTab.value == 'pending' || activeTab.value == 'all') {
                 if (page.value == 0) loadQueue();
               }
-              final method =
-                  payload.newRecord['payment_method']?.toString() ?? '';
-              _notifyNewPayment(method);
+              if (payload.eventType == PostgresChangeEvent.insert) {
+                final method =
+                    payload.newRecord['payment_method']?.toString() ?? '';
+                _notifyNewPayment(method);
+              }
             },
           )
           .subscribe((status, [error]) {

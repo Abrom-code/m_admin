@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/notifications/controllers/notifications_controller.dart';
 import 'package:m_admin/features/notifications/models/admin_notification_model.dart';
 import 'package:m_admin/features/notifications/screens/notification_compose_screen.dart';
@@ -18,7 +19,7 @@ class NotificationsScreen extends StatelessWidget {
     final controller = Get.put(NotificationsController());
 
     return AdminScaffold(
-      pageIndex: 2,
+      pageIndex: AdminNavPage.notifications,
       onRefresh: controller.load,
       scrollable: false,
       body: Column(

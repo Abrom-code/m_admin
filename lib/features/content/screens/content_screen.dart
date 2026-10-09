@@ -117,7 +117,7 @@ class ContentScreen extends StatelessWidget {
     final controller = Get.put(ContentController());
 
     return AdminScaffold(
-      pageIndex: 4,
+      pageIndex: AdminNavPage.content,
       onRefresh: controller.loadSubjects,
       scrollable: false,
       body: Column(
@@ -632,7 +632,7 @@ class _ContentReportsCard extends StatelessWidget {
       child: InkWell(
         onTap: () {
           if (Get.isRegistered<AdminNavController>()) {
-            AdminNavController.instance.changePage(7);
+            AdminNavController.instance.changePage(AdminNavPage.reportedQuestions);
           } else {
             Get.toNamed(AdminRoutes.questionReports);
           }

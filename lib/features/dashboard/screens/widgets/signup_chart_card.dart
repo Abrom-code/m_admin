@@ -4,16 +4,12 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
-import 'package:m_admin/common/widgets/charts/bar_chart_painter.dart';
 import 'package:m_admin/common/widgets/charts/line_chart_painter.dart';
 import 'package:m_admin/data/repositories/dashboard_repository.dart';
 import 'package:m_admin/features/dashboard/controllers/dashboard_controller.dart';
-import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
-
-enum ChartMetricMode { signups, revenue }
 
 class SignupChartCard extends StatefulWidget {
   const SignupChartCard({super.key});
@@ -23,7 +19,6 @@ class SignupChartCard extends StatefulWidget {
 }
 
 class _SignupChartCardState extends State<SignupChartCard> {
-  ChartMetricMode _metricMode = ChartMetricMode.signups;
   int? _selectedIndex;
 
   Future<void> _pickDateRange(
@@ -89,49 +84,6 @@ class _SignupChartCardState extends State<SignupChartCard> {
     }
   }
 
-  Widget _buildMethodTabs(DashboardController controller, bool dark) {
-    return Obx(() {
-      final activeMethod = controller.selectedMethodFilter.value;
-
-      final tabs = [
-        (key: null, label: 'All', color: AppColors.success, icon: Iconsax.category_2_copy),
-        (key: 'telebirr', label: 'Telebirr', color: AppColors.primary, icon: Iconsax.wallet_2_copy),
-        (key: 'cbe', label: 'CBE', color: AppColors.info, icon: Iconsax.card_copy),
-        (key: 'abyssinia', label: 'Abyssinia', color: AppColors.amberAccent, icon: Iconsax.bank_copy),
-      ];
-
-      return Container(
-        padding: const EdgeInsets.all(2.5),
-        decoration: BoxDecoration(
-          color: dark
-              ? AppColors.darkSurface
-              : AppColors.grey.withValues(alpha: 0.25),
-          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-          border: Border.all(
-            color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-            width: 0.8,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: tabs.map((t) {
-            final isSelected = activeMethod == t.key;
-            return _MethodTabPill(
-              label: t.label,
-              icon: t.icon,
-              isSelected: isSelected,
-              activeColor: t.color,
-              onTap: () {
-                setState(() => _selectedIndex = null);
-                controller.setMethodFilter(t.key);
-              },
-            );
-          }).toList(),
-        ),
-      );
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final controller = DashboardController.instance;
@@ -144,37 +96,33 @@ class _SignupChartCardState extends State<SignupChartCard> {
           // ── Header Controls ─────────────────────────────────────
           LayoutBuilder(
             builder: (context, constraints) {
-              final isCompact = constraints.maxWidth < 750;
+              final isCompact = constraints.maxWidth < 620;
 
-              final switcher = Container(
-                padding: const EdgeInsets.all(2.5),
-                decoration: BoxDecoration(
-                  color: dark
-                      ? AppColors.darkSurface
-                      : AppColors.grey.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _TabPill(
-                      label: 'Student Signups',
-                      isSelected: _metricMode == ChartMetricMode.signups,
-                      activeColor: AppColors.info,
-                      onTap: () => setState(() {
-                        _metricMode = ChartMetricMode.signups;
-                      }),
+              final titleWidget = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.info.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                     ),
-                    _TabPill(
-                      label: 'Gross Revenue',
-                      isSelected: _metricMode == ChartMetricMode.revenue,
-                      activeColor: AppColors.success,
-                      onTap: () => setState(() {
-                        _metricMode = ChartMetricMode.revenue;
-                      }),
+                    child: const Icon(
+                      Iconsax.user_cirlce_add_copy,
+                      size: 16,
+                      color: AppColors.info,
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Student Signups & Growth',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: dark ? AppColors.white : AppColors.textPrimary,
+                    ),
+                  ),
+                ],
               );
 
               final rangeSelector = Obx(() {
@@ -283,90 +231,39 @@ class _SignupChartCardState extends State<SignupChartCard> {
                 );
               });
 
-              Widget topRow;
               if (isCompact) {
-                topRow = Column(
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    switcher,
+                    titleWidget,
                     const SizedBox(height: AppSizes.sm),
                     rangeSelector,
                   ],
                 );
-              } else {
-                topRow = Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    switcher,
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: rangeSelector,
-                      ),
-                    ),
-                  ],
-                );
               }
 
-              if (_metricMode == ChartMetricMode.revenue) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    topRow,
-                    const SizedBox(height: AppSizes.sm),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          'METHOD:',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.6,
-                            color: dark ? Colors.white60 : AppColors.textSecondary,
-                          ),
-                        ),
-                        _buildMethodTabs(controller, dark),
-                      ],
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  titleWidget,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: rangeSelector,
                     ),
-                  ],
-                );
-              }
-
-              return topRow;
+                  ),
+                ],
+              );
             },
           ),
           const SizedBox(height: AppSizes.md),
 
           // ── Chart Content & Summaries ───────────────────────────
           Obx(() {
-            final isSignups = _metricMode == ChartMetricMode.signups;
-            final series =
-                isSignups ? controller.signupSeries : controller.revenueSeries;
-            final activeMethod = controller.selectedMethodFilter.value;
+            final series = controller.signupSeries;
+            const chartColor = AppColors.info;
             final days = controller.rangeDays.value;
-
-            final Color chartColor;
-            if (isSignups) {
-              chartColor = AppColors.info;
-            } else {
-              switch (activeMethod) {
-                case 'telebirr':
-                  chartColor = AppColors.primary;
-                  break;
-                case 'cbe':
-                  chartColor = AppColors.info;
-                  break;
-                case 'abyssinia':
-                  chartColor = AppColors.amberAccent;
-                  break;
-                default:
-                  chartColor = AppColors.success;
-              }
-            }
 
             final customRange = controller.customDateRange.value;
             final rangeLabel = customRange != null
@@ -381,7 +278,7 @@ class _SignupChartCardState extends State<SignupChartCard> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
+                      const SizedBox(
                         width: 28,
                         height: 28,
                         child: CircularProgressIndicator(
@@ -437,24 +334,10 @@ class _SignupChartCardState extends State<SignupChartCard> {
             Widget? tooltipWidget;
             if (_selectedIndex != null && _selectedIndex! < series.length) {
               final selPoint = series[_selectedIndex!];
-              final String formattedAmount;
-              if (isSignups) {
-                formattedAmount = '${NumberFormat('#,##0').format(selPoint.value.round())} students';
-              } else if (controller.isPriceHidden.value) {
-                formattedAmount = 'ETB ••••••';
-              } else {
-                final base = 'ETB ${NumberFormat('#,##0.00').format(selPoint.value)}';
-                final method = controller.selectedMethodFilter.value;
-                formattedAmount = method != null
-                    ? '$base (${PaymentMethodInfo.labelOf(method)})'
-                    : base;
-              }
+              final formattedAmount =
+                  '${NumberFormat('#,##0').format(selPoint.value.round())} students';
               final formattedDate =
                   DateFormat('MMM d, yyyy').format(selPoint.day);
-
-              final hasBreakdown = !isSignups &&
-                  activeMethod == null &&
-                  selPoint.methodBreakdown.isNotEmpty;
 
               tooltipWidget = Container(
                 padding:
@@ -488,72 +371,20 @@ class _SignupChartCardState extends State<SignupChartCard> {
                     const SizedBox(height: 2),
                     Text(
                       formattedAmount,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w800,
                         color: chartColor,
                       ),
                     ),
-                    if (hasBreakdown && !controller.isPriceHidden.value) ...[
-                      const SizedBox(height: 4),
-                      Divider(height: 1, color: dark ? Colors.white12 : Colors.black12),
-                      const SizedBox(height: 4),
-                      for (final entry in selPoint.methodBreakdown.entries)
-                        if (entry.value > 0)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 0.5),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  PaymentMethodInfo.labelOf(entry.key),
-                                  style: const TextStyle(
-                                    fontSize: 9.5,
-                                    color: AppColors.textSecondary,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'ETB ${NumberFormat('#,##0').format(entry.value)}',
-                                  style: TextStyle(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: dark ? Colors.white : AppColors.textPrimary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                    ],
                   ],
                 ),
               );
             }
 
-            final String totalLabel = isSignups
-                ? 'TOTAL IN RANGE'
-                : (activeMethod != null
-                    ? 'TOTAL (${PaymentMethodInfo.labelOf(activeMethod).toUpperCase()})'
-                    : 'TOTAL GROSS REVENUE');
-
-            final String totalValue = isSignups
-                ? NumberFormat('#,##0').format(total.round())
-                : (controller.isPriceHidden.value
-                    ? 'ETB ••••••'
-                    : 'ETB ${NumberFormat('#,##0').format(total)}');
-
-            final String peakValue = isSignups
-                ? '${peak.round()}'
-                : (controller.isPriceHidden.value
-                    ? 'ETB ••••••'
-                    : 'ETB ${NumberFormat.compact().format(peak)}');
-
-            final String avgValue = isSignups
-                ? avg.toStringAsFixed(1)
-                : (controller.isPriceHidden.value
-                    ? 'ETB ••••••'
-                    : 'ETB ${avg.toStringAsFixed(0)}');
+            final String totalValue = NumberFormat('#,##0').format(total.round());
+            final String peakValue = '${peak.round()}';
+            final String avgValue = avg.toStringAsFixed(1);
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -565,15 +396,15 @@ class _SignupChartCardState extends State<SignupChartCard> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     _MetricStatItem(
-                      label: totalLabel,
+                      label: 'TOTAL IN RANGE',
                       value: totalValue,
-                      unit: isSignups ? 'students' : 'revenue',
+                      unit: 'students',
                       color: chartColor,
                     ),
                     _MetricStatItem(
                       label: 'PEAK DAY',
                       value: peakValue,
-                      unit: isSignups ? 'students / day' : 'highest day',
+                      unit: 'students / day',
                       color: AppColors.textSecondary,
                     ),
                     _MetricStatItem(
@@ -586,30 +417,17 @@ class _SignupChartCardState extends State<SignupChartCard> {
                 ),
                 const SizedBox(height: AppSizes.md),
 
-                // ── Chart Canvas (Line for Signups, Bar for Gross Revenue) ──
-                if (isSignups)
-                  AdminLineChart(
-                    points: points,
-                    color: chartColor,
-                    height: 175,
-                    selectedIndex: _selectedIndex,
-                    onPointSelected: (idx) {
-                      setState(() => _selectedIndex = idx);
-                    },
-                    tooltipContent: tooltipWidget,
-                  )
-                else
-                  AdminBarChart(
-                    points: series,
-                    color: chartColor,
-                    height: 175,
-                    selectedIndex: _selectedIndex,
-                    showBreakdown: activeMethod == null,
-                    onPointSelected: (idx) {
-                      setState(() => _selectedIndex = idx);
-                    },
-                    tooltipContent: tooltipWidget,
-                  ),
+                // ── Chart Canvas (Line for Signups) ────────────────
+                AdminLineChart(
+                  points: points,
+                  color: chartColor,
+                  height: 175,
+                  selectedIndex: _selectedIndex,
+                  onPointSelected: (idx) {
+                    setState(() => _selectedIndex = idx);
+                  },
+                  tooltipContent: tooltipWidget,
+                ),
                 const SizedBox(height: 6),
 
                 // ── Date Axis Labels ───────────────────────────────
@@ -618,117 +436,6 @@ class _SignupChartCardState extends State<SignupChartCard> {
             );
           }),
         ],
-      ),
-    );
-  }
-}
-
-// ── Tab Pill Switcher ───────────────────────────────────────────────────────
-
-class _TabPill extends StatelessWidget {
-  const _TabPill({
-    required this.label,
-    required this.isSelected,
-    required this.activeColor,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isSelected;
-  final Color activeColor;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm - 1),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: isSelected ? activeColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm - 1),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: activeColor.withValues(alpha: 0.3),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? Colors.white : AppColors.textSecondary,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Payment Method Tab Pill ─────────────────────────────────────────────────
-
-class _MethodTabPill extends StatelessWidget {
-  const _MethodTabPill({
-    required this.label,
-    required this.icon,
-    required this.isSelected,
-    required this.activeColor,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool isSelected;
-  final Color activeColor;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm - 1),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5.5),
-        decoration: BoxDecoration(
-          color: isSelected ? activeColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm - 1),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: activeColor.withValues(alpha: 0.3),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1.5),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 13,
-              color: isSelected ? Colors.white : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 4.5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? Colors.white : AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

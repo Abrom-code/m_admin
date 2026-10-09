@@ -414,7 +414,7 @@ class SubjectTestCountCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               InkWell(
-                onTap: () => AdminNavController.instance.changePage(4), // 4 = Content Screen
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.content),
                 child: const Text(
                   'Manage in Content ➔',
                   style: TextStyle(
@@ -527,7 +527,7 @@ class SubjectTestCountCard extends StatelessWidget {
     final color = hasZero ? AppColors.error : AppColors.primary;
 
     return InkWell(
-      onTap: () => AdminNavController.instance.changePage(4), // Navigate to Content
+      onTap: () => AdminNavController.instance.changePage(AdminNavPage.content),
       borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),

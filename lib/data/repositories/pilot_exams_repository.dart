@@ -69,6 +69,20 @@ class PilotExamsRepository {
     }
   }
 
+  /// Updates the status and active flag of a pilot exam.
+  Future<void> updatePilotExamStatus(int id, String status) async {
+    try {
+      final s = status.trim().toLowerCase();
+      final isAct = s == 'published' || s == 'active';
+      await _sb.from('pilot_exams').update({
+        'status': s,
+        'is_active': isAct,
+      }).eq('id', id);
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
   /// Deletes a pilot exam and its associated subject configurations.
   Future<void> deletePilotExam(int id) async {
     try {

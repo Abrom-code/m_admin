@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/features/challenges/controllers/challenges_list_controller.dart';
 import 'package:m_admin/features/challenges/models/challenge_model.dart';
@@ -42,7 +43,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
       behavior: HitTestBehavior.translucent,
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: AdminScaffold(
-        pageIndex: 6,
+        pageIndex: AdminNavPage.challenges,
         scrollable: false,
         onRefresh: _ctrl.loadAll,
         body: Column(
@@ -334,6 +335,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                                 onPublish: () => _confirmPublish(context, challenge),
                                 onClose: () => _confirmClose(context, challenge),
                                 onDelete: () => _confirmDelete(context, challenge),
+                                onStatusChange: (newStatus) => _ctrl.updateChallengeStatus(challenge.id, newStatus),
                               );
                             },
                           ),

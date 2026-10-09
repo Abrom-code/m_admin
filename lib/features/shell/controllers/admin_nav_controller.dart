@@ -23,6 +23,22 @@ class AdminNavItem {
 
 enum AdminNavBadge { pendingPayments, unreadAlerts, reportedQuestions }
 
+/// Page index constants for shell navigation.
+abstract final class AdminNavPage {
+  static const int dashboard = 0;
+  static const int payments = 1;
+  static const int revenue = 2;
+  static const int notifications = 3;
+  static const int users = 4;
+  static const int content = 5;
+  static const int notes = 6;
+  static const int pilotExams = 7;
+  static const int reportedQuestions = 8;
+  static const int challenges = 9;
+  static const int sessions = 10;
+  static const int settings = 11;
+}
+
 /// Drives the shell's sidebar and its `IndexedStack`.
 class AdminNavController extends GetxController {
   static AdminNavController get instance => Get.find();
@@ -41,6 +57,7 @@ class AdminNavController extends GetxController {
       icon: Iconsax.receipt_copy,
       badgeSource: AdminNavBadge.pendingPayments,
     ),
+    AdminNavItem(label: 'Revenue', icon: Iconsax.wallet_3_copy),
     AdminNavItem(
       label: 'Notifications',
       icon: Iconsax.notification_copy,

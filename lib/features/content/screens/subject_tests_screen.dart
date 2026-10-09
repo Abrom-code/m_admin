@@ -41,8 +41,11 @@ class TestRow {
   final String? description;
 
   bool get isUntimed => time == -1;
-  bool get isDraft => status.toLowerCase() == 'draft' || status.toLowerCase() == 'verification';
+  bool get isDraft => status.toLowerCase() == 'draft';
+  bool get isVerification => status.toLowerCase() == 'verification';
   bool get isPublished => status.toLowerCase() == 'published';
+  bool get isInactive => status.toLowerCase() == 'inactive';
+  bool get isArchived => status.toLowerCase() == 'archived';
 
   Color get typeColor {
     switch (type.toLowerCase()) {
@@ -142,6 +145,35 @@ class SubjectTestsController extends GetxController {
       error.value = AppExceptionHandler.handle(e).message;
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> updateTestStatus(TestRow test, String newStatus) async {
+    try {
+      final s = newStatus.trim().toLowerCase();
+      await _repo.updateTestStatus(test.id, s);
+      final idx = tests.indexWhere((t) => t.id == test.id);
+      if (idx >= 0) {
+        tests[idx] = TestRow(
+          id: test.id,
+          title: test.title,
+          type: test.type,
+          grade: test.grade,
+          chapterId: test.chapterId,
+          time: test.time,
+          questionCount: test.questionCount,
+          isPremium: test.isPremium,
+          status: s,
+          updatedAt: DateTime.now(),
+          description: test.description,
+        );
+      }
+      SnackbarHelper.success(
+        'Status Updated',
+        'Test "${test.title.isNotEmpty ? test.title : '#${test.id}'}" is now ${s.toUpperCase()}.',
+      );
+    } catch (e) {
+      SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
     }
   }
 
@@ -946,6 +978,7 @@ class _ChapterTestsViewState extends State<_ChapterTestsView> {
                                 onDelete: () =>
                                     _confirmDelete(context, test, ctrl),
                                 onToggleStatus: () => ctrl.toggleTestStatus(test),
+                                onStatusChange: (newStatus) => ctrl.updateTestStatus(test, newStatus),
                               );
                             },
                           ),
@@ -1022,6 +1055,7 @@ class _ChapterTestsViewState extends State<_ChapterTestsView> {
                               onDelete: () =>
                                   _confirmDelete(context, test, ctrl),
                               onToggleStatus: () => ctrl.toggleTestStatus(test),
+                              onStatusChange: (newStatus) => ctrl.updateTestStatus(test, newStatus),
                             );
                           },
                         ),
@@ -1360,6 +1394,7 @@ class _GradeTestsViewState extends State<_GradeTestsView> {
                             onDelete: () =>
                                 _confirmDelete(context, test, ctrl),
                             onToggleStatus: () => ctrl.toggleTestStatus(test),
+                            onStatusChange: (newStatus) => ctrl.updateTestStatus(test, newStatus),
                           );
                         },
                       ),
@@ -1758,46 +1793,12 @@ class _EntranceAndModelExamsViewState
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: exam.isPublished
-                                      ? AppColors.success.withValues(alpha: 0.12)
-                                      : AppColors.warning.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  exam.isPublished ? 'PUBLISHED' : 'UNVERIFIED',
-                                  style: TextStyle(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: exam.isPublished
-                                        ? AppColors.success
-                                        : AppColors.warning,
-                                  ),
-                                ),
+                              _TestStatusBadge(
+                                status: exam.status,
+                                onStatusChange: (newStatus) =>
+                                    ctrl.updateTestStatus(exam, newStatus),
                               ),
                               const Spacer(),
-                              IconButton(
-                                tooltip: exam.isPublished
-                                    ? 'Unpublish Exam (hide from students)'
-                                    : 'Verify & Publish Exam (make live)',
-                                visualDensity: VisualDensity.compact,
-                                icon: Icon(
-                                  exam.isPublished
-                                      ? Icons.cloud_done_rounded
-                                      : Icons.cloud_upload_outlined,
-                                  size: 15,
-                                  color: exam.isPublished
-                                      ? AppColors.success
-                                      : AppColors.warning,
-                                ),
-                                onPressed: () => ctrl.toggleTestStatus(exam),
-                              ),
                               IconButton(
                                 tooltip: 'Edit Exam Details',
                                 visualDensity: VisualDensity.compact,
@@ -1915,6 +1916,192 @@ class _EntranceAndModelExamsViewState
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// ── REUSABLE TEST STATUS BADGE & CHANGER ─────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _TestStatusBadge extends StatelessWidget {
+  const _TestStatusBadge({
+    required this.status,
+    this.onStatusChange,
+  });
+
+  final String status;
+  final void Function(String newStatus)? onStatusChange;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final s = status.trim().toLowerCase();
+
+    Color badgeColor;
+    IconData badgeIcon;
+    String badgeLabel;
+
+    switch (s) {
+      case 'published':
+        badgeColor = AppColors.success;
+        badgeIcon = Icons.cloud_done_rounded;
+        badgeLabel = 'PUBLISHED';
+        break;
+      case 'verification':
+        badgeColor = const Color(0xFF0284C7);
+        badgeIcon = Icons.rate_review_outlined;
+        badgeLabel = 'VERIFICATION';
+        break;
+      case 'inactive':
+        badgeColor = AppColors.grey;
+        badgeIcon = Icons.pause_circle_outline_rounded;
+        badgeLabel = 'INACTIVE';
+        break;
+      case 'archived':
+        badgeColor = const Color(0xFF6B7280);
+        badgeIcon = Icons.archive_outlined;
+        badgeLabel = 'ARCHIVED';
+        break;
+      case 'draft':
+      default:
+        badgeColor = AppColors.warning;
+        badgeIcon = Icons.edit_note_rounded;
+        badgeLabel = 'DRAFT';
+        break;
+    }
+
+    if (onStatusChange == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+        decoration: BoxDecoration(
+          color: badgeColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Text(
+          badgeLabel,
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            color: badgeColor,
+          ),
+        ),
+      );
+    }
+
+    return PopupMenuButton<String>(
+      tooltip: 'Change Status (Draft, Published, Inactive...)',
+      padding: EdgeInsets.zero,
+      position: PopupMenuPosition.under,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        side: BorderSide(
+          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+        ),
+      ),
+      onSelected: onStatusChange,
+      itemBuilder: (ctx) => [
+        PopupMenuItem(
+          value: 'published',
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(Icons.cloud_done_rounded, size: 14, color: AppColors.success),
+              const SizedBox(width: 8),
+              const Text('Published (Live for Students)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              if (s == 'published') ...[
+                const Spacer(),
+                const Icon(Icons.check, size: 14, color: AppColors.success),
+              ],
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'draft',
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(Icons.edit_note_rounded, size: 14, color: AppColors.warning),
+              const SizedBox(width: 8),
+              const Text('Draft (Unverified)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              if (s == 'draft') ...[
+                const Spacer(),
+                const Icon(Icons.check, size: 14, color: AppColors.warning),
+              ],
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'verification',
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(Icons.rate_review_outlined, size: 14, color: Color(0xFF0284C7)),
+              const SizedBox(width: 8),
+              const Text('In Verification', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              if (s == 'verification') ...[
+                const Spacer(),
+                const Icon(Icons.check, size: 14, color: Color(0xFF0284C7)),
+              ],
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'inactive',
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(Icons.pause_circle_outline_rounded, size: 14, color: AppColors.grey),
+              const SizedBox(width: 8),
+              const Text('Inactive (Deactivated)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              if (s == 'inactive') ...[
+                const Spacer(),
+                const Icon(Icons.check, size: 14, color: AppColors.grey),
+              ],
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'archived',
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(Icons.archive_outlined, size: 14, color: Color(0xFF6B7280)),
+              const SizedBox(width: 8),
+              const Text('Archived', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              if (s == 'archived') ...[
+                const Spacer(),
+                const Icon(Icons.check, size: 14, color: Color(0xFF6B7280)),
+              ],
+            ],
+          ),
+        ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+        decoration: BoxDecoration(
+          color: badgeColor.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: badgeColor.withValues(alpha: 0.5), width: 0.6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(badgeIcon, size: 10, color: badgeColor),
+            const SizedBox(width: 3),
+            Text(
+              badgeLabel,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: badgeColor,
+              ),
+            ),
+            const SizedBox(width: 1),
+            Icon(Icons.arrow_drop_down, size: 12, color: badgeColor),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // ── REUSABLE TEST ROW ITEM ───────────────────────────────────────────────────
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -1924,12 +2111,14 @@ class _TestRowItem extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     this.onToggleStatus,
+    this.onStatusChange,
   });
 
   final TestRow test;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback? onToggleStatus;
+  final void Function(String newStatus)? onStatusChange;
 
   @override
   Widget build(BuildContext context) {
@@ -2029,23 +2218,10 @@ class _TestRowItem extends StatelessWidget {
           ),
           const SizedBox(width: 6),
 
-          // Status pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-            decoration: BoxDecoration(
-              color: test.isPublished
-                  ? AppColors.success.withValues(alpha: 0.12)
-                  : AppColors.warning.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(3),
-            ),
-            child: Text(
-              test.isPublished ? 'PUBLISHED' : 'UNVERIFIED',
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-                color: test.isPublished ? AppColors.success : AppColors.warning,
-              ),
-            ),
+          // Status Changer Badge
+          _TestStatusBadge(
+            status: test.status,
+            onStatusChange: onStatusChange ?? (onToggleStatus != null ? (_) => onToggleStatus!() : null),
           ),
           const SizedBox(width: 8),
 

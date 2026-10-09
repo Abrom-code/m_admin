@@ -41,7 +41,7 @@ class TestEditorController extends GetxController {
   final formKey = GlobalKey<FormState>();
 
   static const validTypes = ['chapter', 'grade', 'entrance', 'model'];
-  static const validStatuses = ['draft', 'verification', 'published', 'archived'];
+  static const validStatuses = ['draft', 'verification', 'published', 'inactive', 'archived'];
 
   @override
   void onInit() {
