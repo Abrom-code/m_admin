@@ -26,6 +26,7 @@ class NotesScreen extends StatelessWidget {
     return AdminScaffold(
       pageIndex: AdminNavPage.notes,
       onRefresh: ctrl.loadNotes,
+      physics: const ClampingScrollPhysics(),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -176,13 +177,10 @@ class NotesScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSizes.sm + 4),
+                const SizedBox(height: AppSizes.sm + 2),
 
-                // Filters Row: Grade Chips, Subject Dropdown, Sort Dropdown
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                // ── 1. Grade Chips Row ──
+                Row(
                   children: [
                     const Text(
                       'Grade:',
@@ -192,130 +190,164 @@ class NotesScreen extends StatelessWidget {
                         color: AppColors.textSecondary,
                       ),
                     ),
-                    _GradeChip(
-                      label: 'All',
-                      grade: null,
-                      controller: ctrl,
-                    ),
-                    _GradeChip(
-                      label: 'G9',
-                      grade: 9,
-                      controller: ctrl,
-                      tooltip: 'Grade 9',
-                    ),
-                    _GradeChip(
-                      label: 'G10',
-                      grade: 10,
-                      controller: ctrl,
-                      tooltip: 'Grade 10',
-                    ),
-                    _GradeChip(
-                      label: 'G11',
-                      grade: 11,
-                      controller: ctrl,
-                      tooltip: 'Grade 11',
-                    ),
-                    _GradeChip(
-                      label: 'G12',
-                      grade: 12,
-                      controller: ctrl,
-                      tooltip: 'Grade 12',
-                    ),
-                    const SizedBox(width: 4),
-
-                    // Subject dropdown
-                    Obx(() {
-                      final subjects = ctrl.subjects;
-                      return Container(
-                        height: 30,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: dark ? AppColors.darkSurface : AppColors.lightGrey,
-                          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                          border: Border.all(
-                            color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                          ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _GradeChip(
+                              label: 'All',
+                              grade: null,
+                              controller: ctrl,
+                            ),
+                            const SizedBox(width: 5),
+                            _GradeChip(
+                              label: 'G9',
+                              grade: 9,
+                              controller: ctrl,
+                              tooltip: 'Grade 9',
+                            ),
+                            const SizedBox(width: 5),
+                            _GradeChip(
+                              label: 'G10',
+                              grade: 10,
+                              controller: ctrl,
+                              tooltip: 'Grade 10',
+                            ),
+                            const SizedBox(width: 5),
+                            _GradeChip(
+                              label: 'G11',
+                              grade: 11,
+                              controller: ctrl,
+                              tooltip: 'Grade 11',
+                            ),
+                            const SizedBox(width: 5),
+                            _GradeChip(
+                              label: 'G12',
+                              grade: 12,
+                              controller: ctrl,
+                              tooltip: 'Grade 12',
+                            ),
+                          ],
                         ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<int?>(
-                            value: ctrl.selectedSubjectId.value,
-                            isDense: true,
-                            hint: const Text('All Subjects', style: TextStyle(fontSize: 11)),
-                            items: [
-                              const DropdownMenuItem<int?>(
-                                value: null,
-                                child: Text('All Subjects', style: TextStyle(fontSize: 11)),
-                              ),
-                              ...subjects.map((s) => DropdownMenuItem<int?>(
-                                    value: s['id'] as int?,
-                                    child: Text(
-                                      s['name']?.toString() ?? '',
-                                      style: const TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSizes.sm),
+
+                // ── 2. Subjects Dropdown, Rate/Sort Dropdown, and Reset Icon Button ──
+                Row(
+                  children: [
+                    // Subjects dropdown
+                    Expanded(
+                      child: Obx(() {
+                        final subjects = ctrl.subjects;
+                        return Container(
+                          height: 32,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: dark ? AppColors.darkSurface : AppColors.lightGrey,
+                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                            border: Border.all(
+                              color: ctrl.selectedSubjectId.value != null
+                                  ? AppColors.primary
+                                  : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+                            ),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<int?>(
+                              value: ctrl.selectedSubjectId.value,
+                              isDense: true,
+                              isExpanded: true,
+                              icon: const Icon(Icons.arrow_drop_down, size: 18),
+                              hint: const Text('All Subjects', style: TextStyle(fontSize: 11.5)),
+                              items: [
+                                const DropdownMenuItem<int?>(
+                                  value: null,
+                                  child: Text('All Subjects', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
+                                ),
+                                ...subjects.map((s) => DropdownMenuItem<int?>(
+                                      value: s['id'] as int?,
+                                      child: Text(
+                                        s['name']?.toString() ?? '',
+                                        style: const TextStyle(fontSize: 11.5),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    )),
+                              ],
+                              onChanged: ctrl.setSubjectFilter,
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Rate / Sort dropdown
+                    Expanded(
+                      child: Obx(() {
+                        final isCustomSort = ctrl.sortOption.value != 'default';
+                        return Container(
+                          height: 32,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: dark ? AppColors.darkSurface : AppColors.lightGrey,
+                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                            border: Border.all(
+                              color: isCustomSort
+                                  ? (ctrl.sortOption.value == 'urgency' ? AppColors.error : AppColors.primary)
+                                  : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+                              width: isCustomSort ? 1.2 : 1.0,
+                            ),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: ctrl.sortOption.value,
+                              isDense: true,
+                              isExpanded: true,
+                              icon: const Icon(Icons.arrow_drop_down, size: 18),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'default',
+                                  child: Text('Rate: Default Order', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'highest_rating',
+                                  child: Text('Rate: Highest Rated ★', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'lowest_rating',
+                                  child: Text('Rate: Lowest Rated', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'most_rated',
+                                  child: Text('Rate: Most Reviews', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'urgency',
+                                  child: Text(
+                                    'Rate: ⚠️ Needs Review',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.error,
                                     ),
-                                  )),
-                            ],
-                            onChanged: ctrl.setSubjectFilter,
-                          ),
-                        ),
-                      );
-                    }),
-
-                    // Sort dropdown
-                    Obx(() {
-                      return Container(
-                        height: 30,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: dark ? AppColors.darkSurface : AppColors.lightGrey,
-                          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                          border: Border.all(
-                            color: ctrl.sortOption.value == 'urgency'
-                                ? AppColors.error
-                                : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
-                            width: ctrl.sortOption.value == 'urgency' ? 1.2 : 1.0,
-                          ),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: ctrl.sortOption.value,
-                            isDense: true,
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'default',
-                                child: Text('Sort: Default', style: TextStyle(fontSize: 11)),
-                              ),
-                              DropdownMenuItem(
-                                value: 'urgency',
-                                child: Text(
-                                  'Sort: ⚠️ Low Rating (High Reviews)',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.error,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                              ),
-                              DropdownMenuItem(
-                                value: 'lowest_rating',
-                                child: Text('Sort: Lowest Rated', style: TextStyle(fontSize: 11)),
-                              ),
-                              DropdownMenuItem(
-                                value: 'highest_rating',
-                                child: Text('Sort: Highest Rated', style: TextStyle(fontSize: 11)),
-                              ),
-                              DropdownMenuItem(
-                                value: 'most_rated',
-                                child: Text('Sort: Most Reviews', style: TextStyle(fontSize: 11)),
-                              ),
-                            ],
-                            onChanged: (val) {
-                              if (val != null) ctrl.setSortOption(val);
-                            },
+                              ],
+                              onChanged: (val) {
+                                if (val != null) ctrl.setSortOption(val);
+                              },
+                            ),
                           ),
-                        ),
-                      );
-                    }),
+                        );
+                      }),
+                    ),
 
+                    // Reset button: icon only in the same row!
                     Obx(() {
                       final hasFilter = ctrl.selectedGrade.value != null ||
                           ctrl.selectedSubjectId.value != null ||
@@ -325,14 +357,31 @@ class NotesScreen extends StatelessWidget {
                           ctrl.searchQuery.value.isNotEmpty;
                       if (!hasFilter) return const SizedBox.shrink();
 
-                      return TextButton.icon(
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          visualDensity: VisualDensity.compact,
+                      return Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: IconButton(
+                            tooltip: 'Reset all filters',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            onPressed: ctrl.clearFilters,
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            style: IconButton.styleFrom(
+                              backgroundColor: dark
+                                  ? AppColors.darkSurface
+                                  : AppColors.grey.withValues(alpha: 0.15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                                side: BorderSide(
+                                  color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                        onPressed: ctrl.clearFilters,
-                        icon: const Icon(Icons.refresh, size: 16),
-                        label: const Text('Reset', style: TextStyle(fontSize: 12)),
                       );
                     }),
                   ],
@@ -389,6 +438,24 @@ class NotesScreen extends StatelessWidget {
               );
             }
 
+            if (ctrl.sortOption.value != 'default') {
+              final sortedList = ctrl.filteredNotes;
+              return RepaintBoundary(
+                child: AdminSection(
+                  title: '${ctrl.sortOptionLabel} (${sortedList.length})',
+                  child: Column(
+                    children: sortedList.map((note) {
+                      return _NoteTile(
+                        note: note,
+                        controller: ctrl,
+                        isNarrow: isNarrow,
+                      );
+                    }).toList(),
+                  ),
+                ),
+              );
+            }
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: grouped.entries.map((entry) {
@@ -397,16 +464,18 @@ class NotesScreen extends StatelessWidget {
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: AppSizes.spaceBtwSections),
-                  child: AdminSection(
-                    title: '$subjectName (${subjectNotes.length})',
-                    child: Column(
-                      children: subjectNotes.map((note) {
-                        return _NoteTile(
-                          note: note,
-                          controller: ctrl,
-                          isNarrow: isNarrow,
-                        );
-                      }).toList(),
+                  child: RepaintBoundary(
+                    child: AdminSection(
+                      title: '$subjectName (${subjectNotes.length})',
+                      child: Column(
+                        children: subjectNotes.map((note) {
+                          return _NoteTile(
+                            note: note,
+                            controller: ctrl,
+                            isNarrow: isNarrow,
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
                 );
@@ -534,19 +603,29 @@ class _GradeChip extends StatelessWidget {
       final dark = AppHelperFunctions.isDark(context);
 
       final chip = FilterChip(
-        label: Text(label, style: const TextStyle(fontSize: 11)),
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+            color: selected
+                ? (dark ? Colors.white : AppColors.primary)
+                : (dark ? AppColors.white : AppColors.textPrimary),
+          ),
+        ),
         selected: selected,
+        showCheckmark: false,
         onSelected: (_) => controller.setGradeFilter(selected ? null : grade),
         visualDensity: VisualDensity.compact,
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
         backgroundColor: dark ? AppColors.darkSurface : AppColors.lightGrey,
-        selectedColor: AppColors.primary.withValues(alpha: 0.18),
-        checkmarkColor: AppColors.primary,
+        selectedColor: AppColors.primary.withValues(alpha: dark ? 0.28 : 0.16),
         side: BorderSide(
           color: selected
               ? AppColors.primary
               : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+          width: selected ? 1.4 : 1.0,
         ),
       );
 

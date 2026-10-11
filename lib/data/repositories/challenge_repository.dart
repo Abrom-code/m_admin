@@ -97,13 +97,21 @@ class ChallengeRepository {
     final title = payload['title']?.toString() ?? 'Challenge';
     String? setId = payload['set_id']?.toString();
 
-    // 1. Try upserting directly
+    final hasId = payload['id'] != null && payload['id'].toString().isNotEmpty;
+
+    // 1. Try upserting or inserting directly
     try {
-      final row = await _sb
-          .from('leaderboard_challenges')
-          .upsert(payload)
-          .select('*, subjects(name), challenge_questions(id)')
-          .single();
+      final row = hasId
+          ? await _sb
+              .from('leaderboard_challenges')
+              .upsert(payload)
+              .select('*, subjects(name), challenge_questions(id)')
+              .single()
+          : await _sb
+              .from('leaderboard_challenges')
+              .insert(payload)
+              .select('*, subjects(name), challenge_questions(id)')
+              .single();
 
       return LeaderboardChallengeModel.fromJson(row);
     } on PostgrestException catch (e) {
@@ -121,11 +129,17 @@ class ChallengeRepository {
           }
           if (setId != null && setId.isNotEmpty) {
             payload['set_id'] = setId;
-            final row = await _sb
-                .from('leaderboard_challenges')
-                .upsert(payload)
-                .select('*, subjects(name), challenge_questions(id)')
-                .single();
+            final row = hasId
+                ? await _sb
+                    .from('leaderboard_challenges')
+                    .upsert(payload)
+                    .select('*, subjects(name), challenge_questions(id)')
+                    .single()
+                : await _sb
+                    .from('leaderboard_challenges')
+                    .insert(payload)
+                    .select('*, subjects(name), challenge_questions(id)')
+                    .single();
             return LeaderboardChallengeModel.fromJson(row);
           }
         } catch (_) {}
@@ -134,11 +148,17 @@ class ChallengeRepository {
       // If DB doesn't have set_id column at all:
       if (payload.containsKey('set_id')) {
         payload.remove('set_id');
-        final row = await _sb
-            .from('leaderboard_challenges')
-            .upsert(payload)
-            .select('*, subjects(name), challenge_questions(id)')
-            .single();
+        final row = hasId
+            ? await _sb
+                .from('leaderboard_challenges')
+                .upsert(payload)
+                .select('*, subjects(name), challenge_questions(id)')
+                .single()
+            : await _sb
+                .from('leaderboard_challenges')
+                .insert(payload)
+                .select('*, subjects(name), challenge_questions(id)')
+                .single();
         return LeaderboardChallengeModel.fromJson(row);
       }
 

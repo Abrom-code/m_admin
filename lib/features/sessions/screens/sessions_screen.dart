@@ -14,6 +14,15 @@ import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
+// ── Filter Enum ──────────────────────────────────────────────────────
+
+enum SessionFilter {
+  all,
+  locked,
+  readyToPair,
+  blockedAuth,
+}
+
 // ── Model ────────────────────────────────────────────────────────────
 
 class SessionRow {
@@ -26,6 +35,10 @@ class SessionRow {
     this.osVersion,
     this.lastActiveAt,
     this.updatedAt,
+    this.blockedCount = 0,
+    this.lastBlockedAt,
+    this.lastBlockedDeviceModel,
+    this.lastBlockedNote,
   });
 
   final String userId;
@@ -36,8 +49,13 @@ class SessionRow {
   final String? osVersion;
   final DateTime? lastActiveAt;
   final DateTime? updatedAt;
+  final int blockedCount;
+  final DateTime? lastBlockedAt;
+  final String? lastBlockedDeviceModel;
+  final String? lastBlockedNote;
 
   bool get isLocked => deviceId.trim().isNotEmpty;
+  bool get hasBlockedAuth => blockedCount > 0;
   String get firebaseUid => userId;
 
   SessionRow copyWith({
@@ -49,6 +67,10 @@ class SessionRow {
     String? osVersion,
     DateTime? lastActiveAt,
     DateTime? updatedAt,
+    int? blockedCount,
+    DateTime? lastBlockedAt,
+    String? lastBlockedDeviceModel,
+    String? lastBlockedNote,
   }) {
     return SessionRow(
       userId: userId ?? this.userId,
@@ -59,10 +81,17 @@ class SessionRow {
       osVersion: osVersion ?? this.osVersion,
       lastActiveAt: lastActiveAt ?? this.lastActiveAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      blockedCount: blockedCount ?? this.blockedCount,
+      lastBlockedAt: lastBlockedAt ?? this.lastBlockedAt,
+      lastBlockedDeviceModel: lastBlockedDeviceModel ?? this.lastBlockedDeviceModel,
+      lastBlockedNote: lastBlockedNote ?? this.lastBlockedNote,
     );
   }
 
-  factory SessionRow.fromJson(Map<String, dynamic> j) {
+  factory SessionRow.fromJson(
+    Map<String, dynamic> j, {
+    List<Map<String, dynamic>> blockedAttempts = const [],
+  }) {
     final user = j['users'] as Map<String, dynamic>? ?? {};
     final fName = user['first_name']?.toString() ?? '';
     final lName = user['last_name']?.toString() ?? '';
@@ -70,6 +99,8 @@ class SessionRow {
     final resolvedName = fullName.isNotEmpty
         ? fullName
         : ('$fName $lName'.trim().isNotEmpty ? '$fName $lName'.trim() : null);
+
+    final latestBlocked = blockedAttempts.isNotEmpty ? blockedAttempts.first : null;
 
     return SessionRow(
       userId: (j['user_id'] ?? j['firebase_uid'])?.toString() ?? '',
@@ -80,6 +111,12 @@ class SessionRow {
       osVersion: j['os_version']?.toString(),
       lastActiveAt: j['last_active_at'] != null ? DateTime.tryParse(j['last_active_at'].toString()) : null,
       updatedAt: j['updated_at'] != null ? DateTime.tryParse(j['updated_at'].toString()) : null,
+      blockedCount: blockedAttempts.length,
+      lastBlockedAt: latestBlocked?['created_at'] != null
+          ? DateTime.tryParse(latestBlocked!['created_at'].toString())
+          : null,
+      lastBlockedDeviceModel: latestBlocked?['device_model']?.toString(),
+      lastBlockedNote: latestBlocked?['note']?.toString(),
     );
   }
 }
@@ -98,6 +135,7 @@ class SessionsController extends GetxController {
   final actingUids = <String>{}.obs;
   final searchQuery = ''.obs;
   final searchController = TextEditingController();
+  final selectedFilter = SessionFilter.all.obs;
 
   final page = 0.obs;
   static const pageSize = 30;
@@ -105,6 +143,7 @@ class SessionsController extends GetxController {
   int get totalSessions => allRows.length;
   int get lockedCount => allRows.where((r) => r.isLocked).length;
   int get unlockedCount => allRows.where((r) => !r.isLocked).length;
+  int get blockedAuthCount => allRows.where((r) => r.hasBlockedAuth).length;
 
   @override
   void onInit() {
@@ -123,7 +162,8 @@ class SessionsController extends GetxController {
       isLoading.value = true;
       errorMessage.value = null;
 
-      final data = await _sb
+      // 1. Query sessions
+      final sessionData = await _sb
           .from('user_sessions')
           .select('''
             user_id, device_id, device_model, os_version, last_active_at, updated_at,
@@ -131,12 +171,81 @@ class SessionsController extends GetxController {
           ''')
           .order('updated_at', ascending: false);
 
-      final list = (data as List)
-          .map((r) => SessionRow.fromJson(Map<String, dynamic>.from(r)))
-          .toList();
+      // 2. Query blocked authentication attempts from device_history
+      List<Map<String, dynamic>> blockedHistory = [];
+      try {
+        final historyData = await _sb
+            .from('device_history')
+            .select('user_id, device_id, device_model, os_version, note, created_at')
+            .eq('action', 'BLOCKED_ATTEMPT')
+            .order('created_at', ascending: false);
+        blockedHistory = List<Map<String, dynamic>>.from(historyData as List);
+      } catch (e) {
+        debugPrint('[SessionsController] Error fetching device_history: $e');
+      }
+
+      // Group blocked attempts by user_id
+      final Map<String, List<Map<String, dynamic>>> blockedByUser = {};
+      for (final item in blockedHistory) {
+        final uid = item['user_id']?.toString();
+        if (uid != null && uid.isNotEmpty) {
+          blockedByUser.putIfAbsent(uid, () => []).add(item);
+        }
+      }
+
+      final list = (sessionData as List).map((r) {
+        final rowMap = Map<String, dynamic>.from(r);
+        final uid = (rowMap['user_id'] ?? rowMap['firebase_uid'])?.toString() ?? '';
+        final userBlocked = blockedByUser[uid] ?? [];
+        return SessionRow.fromJson(rowMap, blockedAttempts: userBlocked);
+      }).toList();
+
+      // Include users with blocked attempts who might not be in active user_sessions
+      final existingUids = list.map((r) => r.userId).toSet();
+      final missingUids = blockedByUser.keys.where((uid) => !existingUids.contains(uid)).toList();
+      if (missingUids.isNotEmpty) {
+        try {
+          final missingUsersData = await _sb
+              .from('users')
+              .select('id, first_name, last_name, full_name, email')
+              .inFilter('id', missingUids);
+          final missingUsersMap = {
+            for (final u in (missingUsersData as List))
+              u['id'].toString(): Map<String, dynamic>.from(u)
+          };
+          for (final uid in missingUids) {
+            final u = missingUsersMap[uid] ?? {};
+            final attempts = blockedByUser[uid]!;
+            final latest = attempts.first;
+            final fName = u['first_name']?.toString() ?? '';
+            final lName = u['last_name']?.toString() ?? '';
+            final fullName = u['full_name']?.toString() ?? '';
+            final resolvedName = fullName.isNotEmpty
+                ? fullName
+                : ('$fName $lName'.trim().isNotEmpty ? '$fName $lName'.trim() : null);
+
+            list.add(SessionRow(
+              userId: uid,
+              userName: resolvedName,
+              userEmail: u['email']?.toString(),
+              deviceId: '',
+              deviceModel: null,
+              osVersion: null,
+              lastActiveAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString()) : null,
+              updatedAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString()) : null,
+              blockedCount: attempts.length,
+              lastBlockedAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString()) : null,
+              lastBlockedDeviceModel: latest['device_model']?.toString(),
+              lastBlockedNote: latest['note']?.toString(),
+            ));
+          }
+        } catch (e) {
+          debugPrint('[SessionsController] Error fetching missing users for blocked attempts: $e');
+        }
+      }
 
       allRows.value = list;
-      _applySearch();
+      _applyFilterAndSearch();
     } catch (e) {
       errorMessage.value = AppExceptionHandler.handle(e).message;
     } finally {
@@ -144,25 +253,47 @@ class SessionsController extends GetxController {
     }
   }
 
+  void setFilter(SessionFilter filter) {
+    if (selectedFilter.value == filter) {
+      if (filter != SessionFilter.all) {
+        selectedFilter.value = SessionFilter.all;
+      }
+    } else {
+      selectedFilter.value = filter;
+    }
+    page.value = 0;
+    _applyFilterAndSearch();
+  }
+
   void onSearchChanged(String query) {
     searchQuery.value = query.trim().toLowerCase();
     page.value = 0;
-    _applySearch();
+    _applyFilterAndSearch();
   }
 
-  void _applySearch() {
-    if (searchQuery.value.isEmpty) {
-      rows.value = allRows;
-    } else {
-      final q = searchQuery.value;
-      rows.value = allRows.where((r) {
-        return r.userId.toLowerCase().contains(q) ||
-            (r.userName?.toLowerCase().contains(q) ?? false) ||
-            (r.userEmail?.toLowerCase().contains(q) ?? false) ||
-            r.deviceId.toLowerCase().contains(q) ||
-            (r.deviceModel?.toLowerCase().contains(q) ?? false);
-      }).toList();
-    }
+  void _applyFilterAndSearch() {
+    final q = searchQuery.value;
+    final filter = selectedFilter.value;
+
+    rows.value = allRows.where((r) {
+      final matchesFilter = switch (filter) {
+        SessionFilter.all => true,
+        SessionFilter.locked => r.isLocked,
+        SessionFilter.readyToPair => !r.isLocked,
+        SessionFilter.blockedAuth => r.hasBlockedAuth,
+      };
+
+      if (!matchesFilter) return false;
+
+      if (q.isEmpty) return true;
+      return r.userId.toLowerCase().contains(q) ||
+          (r.userName?.toLowerCase().contains(q) ?? false) ||
+          (r.userEmail?.toLowerCase().contains(q) ?? false) ||
+          r.deviceId.toLowerCase().contains(q) ||
+          (r.deviceModel?.toLowerCase().contains(q) ?? false) ||
+          (r.lastBlockedDeviceModel?.toLowerCase().contains(q) ?? false) ||
+          (r.lastBlockedNote?.toLowerCase().contains(q) ?? false);
+    }).toList();
   }
 
   List<SessionRow> get pagedRows {
@@ -211,12 +342,7 @@ class SessionsController extends GetxController {
       final idxAll = allRows.indexWhere((r) => r.userId == session.userId);
       if (idxAll != -1) allRows[idxAll] = updated;
 
-      final idx = rows.indexWhere((r) => r.userId == session.userId);
-      if (idx != -1) {
-        rows[idx] = updated;
-        rows.refresh();
-      }
-
+      _applyFilterAndSearch();
       SnackbarHelper.success('Device Reset', 'Device lock removed. User can pair a new phone on next login.');
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
@@ -238,7 +364,7 @@ class SessionsController extends GetxController {
           .eq('user_id', session.userId);
 
       allRows.removeWhere((r) => r.userId == session.userId);
-      rows.removeWhere((r) => r.userId == session.userId);
+      _applyFilterAndSearch();
       SnackbarHelper.success('Session deleted', 'User session removed successfully.');
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
@@ -276,7 +402,7 @@ class SessionsScreen extends StatelessWidget {
   }
 }
 
-// ── 1. Session Metrics Ribbon ──────────────────────────────────────────────
+// ── 1. Session Metrics Ribbon / Filter Buttons ──────────────────────────────
 
 class _SessionMetricRibbon extends StatelessWidget {
   const _SessionMetricRibbon({required this.controller});
@@ -288,6 +414,8 @@ class _SessionMetricRibbon extends StatelessWidget {
     final dark = AppHelperFunctions.isDark(context);
 
     return Obx(() {
+      final currentFilter = controller.selectedFilter.value;
+
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -298,6 +426,8 @@ class _SessionMetricRibbon extends StatelessWidget {
               icon: Iconsax.devices_copy,
               color: AppColors.primary,
               dark: dark,
+              isSelected: currentFilter == SessionFilter.all,
+              onTap: () => controller.setFilter(SessionFilter.all),
             ),
             const SizedBox(width: 8),
             _SessionMetricPill(
@@ -306,6 +436,8 @@ class _SessionMetricRibbon extends StatelessWidget {
               icon: Iconsax.shield_tick_copy,
               color: AppColors.success,
               dark: dark,
+              isSelected: currentFilter == SessionFilter.locked,
+              onTap: () => controller.setFilter(SessionFilter.locked),
             ),
             const SizedBox(width: 8),
             _SessionMetricPill(
@@ -314,6 +446,18 @@ class _SessionMetricRibbon extends StatelessWidget {
               icon: Icons.lock_open_rounded,
               color: AppColors.warning,
               dark: dark,
+              isSelected: currentFilter == SessionFilter.readyToPair,
+              onTap: () => controller.setFilter(SessionFilter.readyToPair),
+            ),
+            const SizedBox(width: 8),
+            _SessionMetricPill(
+              label: 'Blocked Auth',
+              value: '${controller.blockedAuthCount}',
+              icon: Icons.gpp_bad_rounded,
+              color: AppColors.error,
+              dark: dark,
+              isSelected: currentFilter == SessionFilter.blockedAuth,
+              onTap: () => controller.setFilter(SessionFilter.blockedAuth),
             ),
           ],
         ),
@@ -329,6 +473,8 @@ class _SessionMetricPill extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.dark,
+    this.isSelected = false,
+    this.onTap,
   });
 
   final String label;
@@ -336,55 +482,89 @@ class _SessionMetricPill extends StatelessWidget {
   final IconData icon;
   final Color color;
   final bool dark;
+  final bool isSelected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: dark ? AppColors.darkSurface : AppColors.white,
+    final bgColor = isSelected
+        ? color.withValues(alpha: dark ? 0.22 : 0.12)
+        : (dark ? AppColors.darkSurface : AppColors.white);
+    final borderColor = isSelected
+        ? color
+        : (dark ? AppColors.darkBorder : AppColors.borderPrimary);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-        border: Border.all(
-          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: dark ? AppColors.white : AppColors.textPrimary,
+        hoverColor: color.withValues(alpha: 0.08),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+            border: Border.all(
+              color: borderColor,
+              width: isSelected ? 1.6 : 1.0,
             ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.18),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: color,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: isSelected ? color : (dark ? AppColors.white : color),
               ),
-            ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected
+                      ? (dark ? Colors.white : color)
+                      : (dark ? AppColors.white : AppColors.textPrimary),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSelected ? color : color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : color,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-// ── 2. Search Toolbar ──────────────────────────────────────────────────────
+// ── 2. Search & Filter Bar ─────────────────────────────────────────────────
 
 class _SessionFilterBar extends StatelessWidget {
   const _SessionFilterBar({required this.controller});
@@ -457,6 +637,48 @@ class _SessionFilterBar extends StatelessWidget {
               ),
             ),
           ),
+          Obx(() {
+            final filter = controller.selectedFilter.value;
+            if (filter == SessionFilter.all) return const SizedBox.shrink();
+
+            final (name, color) = switch (filter) {
+              SessionFilter.locked => ('Locked', AppColors.success),
+              SessionFilter.readyToPair => ('Ready to Pair', AppColors.warning),
+              SessionFilter.blockedAuth => ('Blocked Auth', AppColors.error),
+              _ => ('Filtered', AppColors.primary),
+            };
+
+            return Padding(
+              padding: const EdgeInsets.only(left: AppSizes.sm),
+              child: InkWell(
+                onTap: () => controller.setFilter(SessionFilter.all),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: color.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Filter: $name',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: color,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.close_rounded, size: 13, color: color),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
           const SizedBox(width: AppSizes.sm),
           IconButton(
             tooltip: 'Refresh Sessions',
@@ -481,14 +703,28 @@ class _SessionTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(
       () => AdminDataTable<SessionRow>(
-        minWidth: 780,
+        minWidth: 840,
         rows: controller.pagedRows,
         isLoading: controller.isLoading.value,
         error: controller.errorMessage.value,
         onRetry: controller.load,
         onRefresh: controller.load,
-        emptyTitle: 'No active device sessions found',
-        emptyMessage: 'Sessions are registered when students open the mobile app.',
+        emptyTitle: switch (controller.selectedFilter.value) {
+          SessionFilter.blockedAuth => 'No blocked login attempts',
+          SessionFilter.readyToPair => 'No devices ready to pair',
+          SessionFilter.locked => 'No locked devices',
+          SessionFilter.all => controller.searchQuery.value.isNotEmpty
+              ? 'No matching sessions'
+              : 'No active device sessions found',
+        },
+        emptyMessage: switch (controller.selectedFilter.value) {
+          SessionFilter.blockedAuth => 'No unauthorized login attempts have been logged.',
+          SessionFilter.readyToPair => 'All current accounts have an assigned device lock.',
+          SessionFilter.locked => 'No current accounts have an active device lock.',
+          SessionFilter.all => controller.searchQuery.value.isNotEmpty
+              ? 'Try adjusting your search terms.'
+              : 'Sessions are registered when students open the mobile app.',
+        },
         page: controller.page.value,
         pageSize: SessionsController.pageSize,
         totalCount: controller.rows.length,
@@ -505,9 +741,9 @@ class _SessionTable extends StatelessWidget {
             cell: (_, row) => _DeviceIdCell(session: row),
           ),
           AdminColumn(
-            label: 'LOCK STATUS',
-            width: 155,
-            cell: (_, row) => _LockStatusCell(isLocked: row.isLocked),
+            label: 'LOCK & SECURITY STATUS',
+            width: 175,
+            cell: (_, row) => _LockStatusCell(session: row),
           ),
           AdminColumn(
             label: 'LAST ACTIVE',
@@ -515,6 +751,7 @@ class _SessionTable extends StatelessWidget {
             cell: (_, row) => _LastActiveCell(date: row.lastActiveAt ?? row.updatedAt),
           ),
         ],
+        actionsWidth: 130,
         rowActions: (context, row) => Obx(() {
           final isActing = controller.actingUids.contains(row.userId);
           if (isActing) {
@@ -524,55 +761,78 @@ class _SessionTable extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             );
           }
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (row.isLocked) ...[
+          return FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (row.hasBlockedAuth) ...[
+                  IconButton(
+                    tooltip: 'View Blocked Auth Details',
+                    iconSize: 17,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _showBlockedDetailsDialog(context, row, controller),
+                    icon: const Icon(
+                      Icons.gpp_bad_rounded,
+                      color: AppColors.error,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                ],
+                if (row.isLocked) ...[
+                  IconButton(
+                    tooltip: 'Reset Device Lock (Allow New Phone)',
+                    iconSize: 17,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () async {
+                      final name = row.userName ?? row.userEmail ?? row.userId;
+                      final ok = await AppDialogBoxes.confirm(
+                        title: 'Reset Device Lock',
+                        message:
+                            'Are you sure you want to reset device lock for $name? '
+                            'They will be permitted to pair a new phone on their next login.',
+                        confirmLabel: 'Reset Device',
+                        isDestructive: false,
+                      );
+                      if (ok) controller.resetDevice(row);
+                    },
+                    icon: const Icon(
+                      Icons.phonelink_erase_rounded,
+                      color: AppColors.warning,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                ],
                 IconButton(
-                  tooltip: 'Reset Device Lock (Allow New Phone)',
-                  iconSize: 18,
+                  tooltip: 'Revoke session',
+                  iconSize: 17,
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                   visualDensity: VisualDensity.compact,
                   onPressed: () async {
                     final name = row.userName ?? row.userEmail ?? row.userId;
                     final ok = await AppDialogBoxes.confirm(
-                      title: 'Reset Device Lock',
+                      title: 'Revoke device session',
                       message:
-                          'Are you sure you want to reset device lock for $name? '
-                          'They will be permitted to pair a new phone on their next login.',
-                      confirmLabel: 'Reset Device',
-                      isDestructive: false,
+                          'Are you sure you want to remove the session for $name? '
+                          'The user session will be removed from the database.',
+                      confirmLabel: 'Revoke',
+                      isDestructive: true,
                     );
-                    if (ok) controller.resetDevice(row);
+                    if (ok) controller.deleteSession(row);
                   },
                   icon: const Icon(
-                    Icons.phonelink_erase_rounded,
-                    color: AppColors.warning,
+                    Icons.delete_outline_rounded,
+                    color: AppColors.error,
                   ),
                 ),
-                const SizedBox(width: 2),
               ],
-              IconButton(
-                tooltip: 'Revoke session',
-                iconSize: 18,
-                visualDensity: VisualDensity.compact,
-                onPressed: () async {
-                  final name = row.userName ?? row.userEmail ?? row.userId;
-                  final ok = await AppDialogBoxes.confirm(
-                    title: 'Revoke device session',
-                    message:
-                        'Are you sure you want to remove the session for $name? '
-                        'The user session will be removed from the database.',
-                    confirmLabel: 'Revoke',
-                    isDestructive: true,
-                  );
-                  if (ok) controller.deleteSession(row);
-                },
-                icon: const Icon(
-                  Icons.delete_outline_rounded,
-                  color: AppColors.error,
-                ),
-              ),
-            ],
+            ),
           );
         }),
       ),
@@ -734,36 +994,74 @@ class _DeviceIdCell extends StatelessWidget {
 }
 
 class _LockStatusCell extends StatelessWidget {
-  const _LockStatusCell({required this.isLocked});
-  final bool isLocked;
+  const _LockStatusCell({required this.session});
+  final SessionRow session;
 
   @override
   Widget build(BuildContext context) {
+    final isLocked = session.isLocked;
     final color = isLocked ? AppColors.success : AppColors.warning;
-    final label = isLocked ? 'LOCKED (1 DEVICE)' : 'READY TO PAIR';
+    final label = isLocked ? 'LOCKED' : 'READY TO PAIR';
     final icon = isLocked ? Icons.smartphone_rounded : Icons.lock_open_rounded;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.bold,
-              color: color,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 12, color: color),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (session.hasBlockedAuth) ...[
+          const SizedBox(height: 4),
+          Tooltip(
+            message: session.lastBlockedNote ??
+                'Blocked login attempt from ${session.lastBlockedDeviceModel ?? 'unauthorized device'}'
+                '${session.lastBlockedAt != null ? ' (${DateFormat('d MMM, HH:mm').format(session.lastBlockedAt!)})' : ''}',
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: AppColors.error.withValues(alpha: 0.3), width: 0.8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.gpp_bad_rounded, size: 11, color: AppColors.error),
+                  const SizedBox(width: 4),
+                  Text(
+                    'BLOCKED (${session.blockedCount})',
+                    style: const TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.error,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -785,4 +1083,142 @@ class _LastActiveCell extends StatelessWidget {
       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
     );
   }
+}
+
+// ── 5. Blocked Details Dialog ──────────────────────────────────────────────
+
+void _showBlockedDetailsDialog(
+  BuildContext context,
+  SessionRow session,
+  SessionsController controller,
+) {
+  final dark = AppHelperFunctions.isDark(context);
+  final name = session.userName ?? session.userEmail ?? session.userId;
+
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: dark ? AppColors.darkCard : AppColors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.gpp_bad_rounded, color: AppColors.error, size: 20),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Blocked Unauthorized Attempt',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 440,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _dialogDetailRow('Target Account', name, dark),
+            if (session.userEmail != null && session.userEmail != name)
+              _dialogDetailRow('Email', session.userEmail!, dark),
+            _dialogDetailRow('Account User ID', session.userId, dark, isMonospace: true),
+            const Divider(height: 20),
+            _dialogDetailRow(
+              'Currently Bound Device',
+              session.isLocked
+                  ? (session.deviceModel != null && session.deviceModel!.isNotEmpty
+                      ? '${session.deviceModel} (${session.deviceId})'
+                      : session.deviceId)
+                  : 'None (Ready to Pair)',
+              dark,
+            ),
+            _dialogDetailRow(
+              'Blocked Attempts Count',
+              '${session.blockedCount} attempt(s)',
+              dark,
+              valueColor: AppColors.error,
+              isBold: true,
+            ),
+            if (session.lastBlockedDeviceModel != null)
+              _dialogDetailRow('Attempted From Device', session.lastBlockedDeviceModel!, dark),
+            if (session.lastBlockedAt != null)
+              _dialogDetailRow(
+                'Latest Attempt Time',
+                DateFormat('MMM d, yyyy • hh:mm a').format(session.lastBlockedAt!),
+                dark,
+              ),
+            if (session.lastBlockedNote != null)
+              _dialogDetailRow('System Note', session.lastBlockedNote!, dark),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Close'),
+        ),
+        if (session.isLocked)
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              controller.resetDevice(session);
+            },
+            icon: const Icon(Icons.phonelink_erase_rounded, size: 16),
+            label: const Text('Reset Device Lock'),
+          ),
+      ],
+    ),
+  );
+}
+
+Widget _dialogDetailRow(
+  String label,
+  String value,
+  bool dark, {
+  bool isMonospace = false,
+  bool isBold = false,
+  Color? valueColor,
+}) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 140,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: isMonospace ? 'monospace' : null,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+              color: valueColor ?? (dark ? AppColors.white : AppColors.textPrimary),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }

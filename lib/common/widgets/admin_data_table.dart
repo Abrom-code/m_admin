@@ -57,6 +57,7 @@ class AdminDataTable<T> extends StatelessWidget {
     this.totalCount,
     this.onPageChanged,
     this.minWidth = 900,
+    this.actionsWidth = 130,
   });
 
   final List<AdminColumn<T>> columns;
@@ -94,6 +95,9 @@ class AdminDataTable<T> extends StatelessWidget {
   /// Below this width the table scrolls horizontally rather than crushing
   /// columns into illegibility.
   final double minWidth;
+
+  /// Width reserved for [rowActions] and its header spacer.
+  final double actionsWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -153,6 +157,7 @@ class AdminDataTable<T> extends StatelessWidget {
               _HeaderRow<T>(
                 columns: columns,
                 hasActions: rowActions != null,
+                actionsWidth: actionsWidth,
                 sortKey: sortKey,
                 sortAscending: sortAscending,
                 onSort: onSort,
@@ -201,6 +206,7 @@ class AdminDataTable<T> extends StatelessWidget {
         columns: columns,
         onTap: onRowTap,
         rowActions: rowActions,
+        actionsWidth: actionsWidth,
       ),
     );
 
@@ -217,6 +223,7 @@ class _HeaderRow<T> extends StatelessWidget {
   const _HeaderRow({
     required this.columns,
     required this.hasActions,
+    this.actionsWidth = 130,
     required this.sortKey,
     required this.sortAscending,
     required this.onSort,
@@ -224,6 +231,7 @@ class _HeaderRow<T> extends StatelessWidget {
 
   final List<AdminColumn<T>> columns;
   final bool hasActions;
+  final double actionsWidth;
   final String? sortKey;
   final bool sortAscending;
   final void Function(String key, bool ascending)? onSort;
@@ -256,7 +264,7 @@ class _HeaderRow<T> extends StatelessWidget {
                 onSort: onSort,
               ),
             ),
-          if (hasActions) const SizedBox(width: 120),
+          if (hasActions) SizedBox(width: actionsWidth),
         ],
       ),
     );
@@ -342,12 +350,14 @@ class _BodyRow<T> extends StatelessWidget {
     required this.columns,
     required this.onTap,
     required this.rowActions,
+    this.actionsWidth = 130,
   });
 
   final T row;
   final List<AdminColumn<T>> columns;
   final void Function(T row)? onTap;
   final Widget Function(BuildContext context, T row)? rowActions;
+  final double actionsWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -377,10 +387,14 @@ class _BodyRow<T> extends StatelessWidget {
               ),
             if (rowActions != null)
               SizedBox(
-                width: 120,
+                width: actionsWidth,
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: rowActions!(context, row),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: rowActions!(context, row),
+                  ),
                 ),
               ),
           ],

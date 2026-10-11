@@ -118,14 +118,28 @@ class NotesController extends GetxController {
           if (a.hasRatings && !b.hasRatings) return -1;
           if (!a.hasRatings && b.hasRatings) return 1;
           if (!a.hasRatings && !b.hasRatings) return 0;
-          return a.averageRating.compareTo(b.averageRating);
+          final cmp = a.averageRating.compareTo(b.averageRating);
+          if (cmp != 0) return cmp;
+          return b.ratingCount.compareTo(a.ratingCount);
         });
         break;
       case 'highest_rating':
-        list.sort((a, b) => b.averageRating.compareTo(a.averageRating));
+        // Highest average rating first (only rated notes first, unrated at the end)
+        list.sort((a, b) {
+          if (a.hasRatings && !b.hasRatings) return -1;
+          if (!a.hasRatings && b.hasRatings) return 1;
+          if (!a.hasRatings && !b.hasRatings) return 0;
+          final cmp = b.averageRating.compareTo(a.averageRating);
+          if (cmp != 0) return cmp;
+          return b.ratingCount.compareTo(a.ratingCount);
+        });
         break;
       case 'most_rated':
-        list.sort((a, b) => b.ratingCount.compareTo(a.ratingCount));
+        list.sort((a, b) {
+          final cmp = b.ratingCount.compareTo(a.ratingCount);
+          if (cmp != 0) return cmp;
+          return b.averageRating.compareTo(a.averageRating);
+        });
         break;
       default:
         // Default DB sort
@@ -151,6 +165,16 @@ class NotesController extends GetxController {
   int get needsAttentionCount => notes.where((n) => n.isNeedsAttention).length;
   int get totalRatedNotesCount => notes.where((n) => n.hasRatings).length;
   int get totalStudentReviewsCount => notes.fold<int>(0, (sum, n) => sum + n.ratingCount);
+
+  String get sortOptionLabel {
+    return switch (sortOption.value) {
+      'urgency' => 'Needs Review (Low Rating, High Reviews)',
+      'lowest_rating' => 'Lowest Rated Notes',
+      'highest_rating' => 'Highest Rated Notes',
+      'most_rated' => 'Most Reviewed Notes',
+      _ => 'All Notes',
+    };
+  }
 
   void setSortOption(String sort) {
     sortOption.value = sort;
@@ -217,5 +241,6 @@ class NotesController extends GetxController {
     ratingFilter.value = null;
     sortOption.value = 'default';
     searchQuery.value = '';
+    searchController.clear();
   }
 }

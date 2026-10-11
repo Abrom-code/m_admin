@@ -23,6 +23,7 @@ class AdminScaffold extends StatefulWidget {
     this.maxContentWidth = 1200,
     this.scrollable = true,
     this.banner,
+    this.physics,
   });
 
   /// Index in [AdminNavController.items] / the shell's IndexedStack order.
@@ -45,6 +46,10 @@ class AdminScaffold extends StatefulWidget {
   /// Rendered above the body. Used for standing caveats, such as the
   /// dashboard's sync-coverage warning.
   final Widget? banner;
+
+  /// Custom scroll physics when [scrollable] is true. Defaults to [ClampingScrollPhysics]
+  /// for smooth, stutter-free desktop and web scrolling.
+  final ScrollPhysics? physics;
 
   @override
   State<AdminScaffold> createState() => _AdminScaffoldState();
@@ -114,16 +119,19 @@ class _AdminScaffoldState extends State<AdminScaffold> {
 
         if (!widget.scrollable) return padded;
 
+        final scrollPhysics = widget.physics ?? const ClampingScrollPhysics();
+
         // Scrollable pages get pull-to-refresh for free.
         if (widget.onRefresh != null) {
           return RefreshIndicator(
             onRefresh: widget.onRefresh!,
-            notificationPredicate: (notification) => notification.depth == 0,
+            notificationPredicate: (notification) =>
+                notification.depth == 0 &&
+                (notification is! OverscrollNotification ||
+                    notification.dragDetails != null),
             child: SingleChildScrollView(
               controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(
-                parent: BouncingScrollPhysics(),
-              ),
+              physics: scrollPhysics,
               child: padded,
             ),
           );
@@ -131,9 +139,7 @@ class _AdminScaffoldState extends State<AdminScaffold> {
 
         return SingleChildScrollView(
           controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
-          ),
+          physics: scrollPhysics,
           child: padded,
         );
       },

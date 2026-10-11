@@ -37,8 +37,9 @@ class AdminNotificationService extends GetxService {
 
   Future<void> _init() async {
     try {
-      const androidSettings =
-          AndroidInitializationSettings('@mipmap/launcher_icon');
+      const androidSettings = AndroidInitializationSettings(
+        '@mipmap/launcher_icon',
+      );
       const iosSettings = DarwinInitializationSettings(
         requestAlertPermission: true,
         requestBadgePermission: true,
@@ -61,8 +62,10 @@ class AdminNotificationService extends GetxService {
 
       // Create the Android notification channel explicitly with MAX importance
       // so heads-up alerts and sounds work reliably.
-      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
 
       if (androidPlugin != null) {
         await androidPlugin.createNotificationChannel(
@@ -85,7 +88,9 @@ class AdminNotificationService extends GetxService {
   }
 
   void _onNotificationTap(NotificationResponse response) {
-    debugPrint('[AdminNotificationService] Notification tapped: ${response.payload}');
+    debugPrint(
+      '[AdminNotificationService] Notification tapped: ${response.payload}',
+    );
     if (Get.isRegistered<AdminNavController>()) {
       AdminNavController.instance.changePage(AdminNavPage.payments);
     }
@@ -95,8 +100,10 @@ class AdminNotificationService extends GetxService {
   /// Safe to call after UI is mounted.
   Future<bool> requestPermission() async {
     try {
-      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       if (androidPlugin != null) {
         final granted = await androidPlugin.requestNotificationsPermission();
         debugPrint(
@@ -105,8 +112,10 @@ class AdminNotificationService extends GetxService {
         return granted ?? false;
       }
 
-      final iosPlugin = _plugin.resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin>();
+      final iosPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
       if (iosPlugin != null) {
         final granted = await iosPlugin.requestPermissions(
           alert: true,
@@ -126,8 +135,10 @@ class AdminNotificationService extends GetxService {
   /// Checks whether notifications are currently allowed.
   Future<bool> areNotificationsEnabled() async {
     try {
-      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       if (androidPlugin != null) {
         final enabled = await androidPlugin.areNotificationsEnabled();
         return enabled ?? false;
@@ -146,7 +157,9 @@ class AdminNotificationService extends GetxService {
     String? payload,
   }) async {
     if (!_ready) {
-      debugPrint('[AdminNotificationService] Not ready — attempting initialization...');
+      debugPrint(
+        '[AdminNotificationService] Not ready — attempting initialization...',
+      );
       await _init();
     }
 
@@ -183,7 +196,9 @@ class AdminNotificationService extends GetxService {
         ),
         payload: payload ?? 'payments',
       );
-      debugPrint('[AdminNotificationService] Notification delivered: "$title" - "$body"');
+      debugPrint(
+        '[AdminNotificationService] Notification delivered: "$title" - "$body"',
+      );
     } catch (e) {
       debugPrint('[AdminNotificationService] show() error: $e');
     }
