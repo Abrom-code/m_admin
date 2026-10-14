@@ -842,7 +842,9 @@ class _SessionTable extends StatelessWidget {
                   const SizedBox(width: 2),
                 ],
                 IconButton(
-                  tooltip: 'Revoke session',
+                  tooltip: row.isLocked
+                      ? 'Revoke session (Connected)'
+                      : 'Revoke session (Ready to connect)',
                   iconSize: 17,
                   padding: const EdgeInsets.all(4),
                   constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
@@ -859,9 +861,13 @@ class _SessionTable extends StatelessWidget {
                     );
                     if (ok) controller.deleteSession(row);
                   },
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    color: AppColors.error,
+                  icon: Icon(
+                    row.isLocked
+                        ? Icons.phonelink_rounded
+                        : Icons.phonelink_off_rounded,
+                    color: row.isLocked
+                        ? AppColors.success
+                        : AppColors.warning,
                   ),
                 ),
               ],
