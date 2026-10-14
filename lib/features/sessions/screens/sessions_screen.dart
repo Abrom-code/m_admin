@@ -800,47 +800,6 @@ class _SessionTable extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (row.hasBlockedAuth) ...[
-                  IconButton(
-                    tooltip: 'View Blocked Auth Details',
-                    iconSize: 17,
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _showBlockedDetailsDialog(context, row, controller),
-                    icon: const Icon(
-                      Icons.gpp_bad_rounded,
-                      color: AppColors.error,
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                ],
-                if (row.isLocked) ...[
-                  IconButton(
-                    tooltip: 'Reset Device Lock (Allow New Phone)',
-                    iconSize: 17,
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () async {
-                      final name = row.userName ?? row.userEmail ?? row.userId;
-                      final ok = await AppDialogBoxes.confirm(
-                        title: 'Reset Device Lock',
-                        message:
-                            'Are you sure you want to reset device lock for $name? '
-                            'They will be permitted to pair a new phone on their next login.',
-                        confirmLabel: 'Reset Device',
-                        isDestructive: false,
-                      );
-                      if (ok) controller.resetDevice(row);
-                    },
-                    icon: const Icon(
-                      Icons.phonelink_erase_rounded,
-                      color: AppColors.warning,
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                ],
                 IconButton(
                   tooltip: 'Revoke session',
                   iconSize: 17,
@@ -864,6 +823,47 @@ class _SessionTable extends StatelessWidget {
                     color: AppColors.error,
                   ),
                 ),
+                if (row.isLocked) ...[
+                  const SizedBox(width: 2),
+                  IconButton(
+                    tooltip: 'Reset Device Lock (Allow New Phone)',
+                    iconSize: 17,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () async {
+                      final name = row.userName ?? row.userEmail ?? row.userId;
+                      final ok = await AppDialogBoxes.confirm(
+                        title: 'Reset Device Lock',
+                        message:
+                            'Are you sure you want to reset device lock for $name? '
+                            'They will be permitted to pair a new phone on their next login.',
+                        confirmLabel: 'Reset Device',
+                        isDestructive: false,
+                      );
+                      if (ok) controller.resetDevice(row);
+                    },
+                    icon: const Icon(
+                      Icons.phonelink_erase_rounded,
+                      color: AppColors.warning,
+                    ),
+                  ),
+                ],
+                if (row.hasBlockedAuth) ...[
+                  const SizedBox(width: 2),
+                  IconButton(
+                    tooltip: 'View Blocked Auth Details',
+                    iconSize: 17,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _showBlockedDetailsDialog(context, row, controller),
+                    icon: const Icon(
+                      Icons.gpp_bad_rounded,
+                      color: AppColors.error,
+                    ),
+                  ),
+                ],
               ],
             ),
           );
