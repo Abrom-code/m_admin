@@ -111,21 +111,24 @@ class _RevenueScreenState extends State<RevenueScreen> {
             width: 0.8,
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: tabs.map((t) {
-            final isSelected = activeMethod == t.key;
-            return _MethodTabPill(
-              label: t.label,
-              icon: t.icon,
-              isSelected: isSelected,
-              activeColor: t.color,
-              onTap: () {
-                setState(() => _selectedIndex = null);
-                controller.setMethodFilter(t.key);
-              },
-            );
-          }).toList(),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: tabs.map((t) {
+              final isSelected = activeMethod == t.key;
+              return _MethodTabPill(
+                label: t.label,
+                icon: t.icon,
+                isSelected: isSelected,
+                activeColor: t.color,
+                onTap: () {
+                  setState(() => _selectedIndex = null);
+                  controller.setMethodFilter(t.key);
+                },
+              );
+            }).toList(),
+          ),
         ),
       );
     });
@@ -617,10 +620,6 @@ class _RevenueScreenState extends State<RevenueScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: AppSizes.spaceBtwItems),
-
-            // ── 3. Payment Method Breakdown & Queue Link ────────────────
-            _RevenueBreakdownCard(controller: controller),
           ],
         );
       }),
@@ -698,197 +697,6 @@ class _RevenueTopBar extends StatelessWidget {
   }
 }
 
-// ── 3. Breakdown by Payment Method ─────────────────────────────────────────
-
-class _RevenueBreakdownCard extends StatelessWidget {
-  const _RevenueBreakdownCard({required this.controller});
-
-  final RevenueController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = AppHelperFunctions.isDark(context);
-
-    return Obx(() {
-      final series = controller.revenueSeries;
-      final total = series.fold(0.0, (sum, p) => sum + p.value);
-      final priceHidden = controller.isPriceHidden.value;
-
-      final methodTotals = <String, double>{
-        'telebirr': 0.0,
-        'cbe': 0.0,
-        'abyssinia': 0.0,
-      };
-
-      for (final p in series) {
-        for (final entry in p.methodBreakdown.entries) {
-          methodTotals[entry.key] = (methodTotals[entry.key] ?? 0.0) + entry.value;
-        }
-      }
-
-      final methods = [
-        (
-          key: 'telebirr',
-          label: 'Telebirr',
-          color: AppColors.primary,
-          icon: Iconsax.wallet_2_copy,
-          amt: methodTotals['telebirr'] ?? 0.0,
-        ),
-        (
-          key: 'cbe',
-          label: 'Commercial Bank of Ethiopia (CBE)',
-          color: AppColors.info,
-          icon: Iconsax.card_copy,
-          amt: methodTotals['cbe'] ?? 0.0,
-        ),
-        (
-          key: 'abyssinia',
-          label: 'Bank of Abyssinia',
-          color: AppColors.amberAccent,
-          icon: Iconsax.bank_copy,
-          amt: methodTotals['abyssinia'] ?? 0.0,
-        ),
-      ];
-
-      return AdminCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'PAYMENT METHOD BREAKDOWN (SELECTED WINDOW)',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.6,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: () =>
-                      AdminNavController.instance.changePage(AdminNavPage.payments),
-                  icon: const Icon(Iconsax.receipt_item_copy, size: 14),
-                  label: const Text('View Payments Queue', style: TextStyle(fontSize: 12)),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSizes.md),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 600;
-
-                final cards = methods.map((m) {
-                  final pct = total > 0 ? (m.amt / total * 100) : 0.0;
-                  final formattedAmt = priceHidden
-                      ? 'ETB ••••••'
-                      : 'ETB ${NumberFormat('#,##0.00').format(m.amt)}';
-
-                  return Container(
-                    padding: const EdgeInsets.all(AppSizes.md),
-                    decoration: BoxDecoration(
-                      color: dark
-                          ? AppColors.darkSurface
-                          : AppColors.grey.withValues(alpha: 0.2),
-                      borderRadius:
-                          BorderRadius.circular(AppSizes.borderRadiusMd),
-                      border: Border.all(
-                        color: dark
-                            ? AppColors.darkBorder
-                            : AppColors.borderPrimary,
-                        width: 0.8,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: m.color.withValues(alpha: 0.15),
-                                borderRadius:
-                                    BorderRadius.circular(AppSizes.borderRadiusSm),
-                              ),
-                              child: Icon(m.icon, size: 16, color: m.color),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                m.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: m.color.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                '${pct.toStringAsFixed(1)}%',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: m.color,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSizes.sm),
-                        Text(
-                          formattedAmt,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: dark ? Colors.white : AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList();
-
-                if (isWide) {
-                  return Row(
-                    children: [
-                      for (int i = 0; i < cards.length; i++) ...[
-                        if (i > 0) const SizedBox(width: AppSizes.sm),
-                        Expanded(child: cards[i]),
-                      ],
-                    ],
-                  );
-                }
-
-                return Column(
-                  children: [
-                    for (int i = 0; i < cards.length; i++) ...[
-                      if (i > 0) const SizedBox(height: AppSizes.sm),
-                      cards[i],
-                    ],
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      );
-    });
-  }
-}
 
 // ── Payment Method Tab Pill ─────────────────────────────────────────────────
 
