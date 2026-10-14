@@ -15,12 +15,6 @@ class DashboardStats {
     this.reportedQuestionsCount = 0,
     this.noteReviewersCount = 0,
     this.noteReviewsCount = 0,
-    this.totalNotes = 0,
-    this.totalQuestions = 0,
-    this.totalChapters = 0,
-    this.totalChallenges = 0,
-    this.totalPilots = 0,
-    this.totalTests = 0,
   });
 
   final int totalUsers;
@@ -32,12 +26,6 @@ class DashboardStats {
   final int reportedQuestionsCount;
   final int noteReviewersCount;
   final int noteReviewsCount;
-  final int totalNotes;
-  final int totalQuestions;
-  final int totalChapters;
-  final int totalChallenges;
-  final int totalPilots;
-  final int totalTests;
 
   /// Derived: users without an active subscription.
   int get unpaidUsers => totalUsers - paidUsers;
@@ -47,12 +35,6 @@ class DashboardStats {
     int? reportedQuestionsCount,
     int? noteReviewersCount,
     int? noteReviewsCount,
-    int? totalNotes,
-    int? totalQuestions,
-    int? totalChapters,
-    int? totalChallenges,
-    int? totalPilots,
-    int? totalTests,
   }) => DashboardStats(
     totalUsers: totalUsers,
     paidUsers: paidUsers,
@@ -63,12 +45,6 @@ class DashboardStats {
     reportedQuestionsCount: reportedQuestionsCount ?? this.reportedQuestionsCount,
     noteReviewersCount: noteReviewersCount ?? this.noteReviewersCount,
     noteReviewsCount: noteReviewsCount ?? this.noteReviewsCount,
-    totalNotes: totalNotes ?? this.totalNotes,
-    totalQuestions: totalQuestions ?? this.totalQuestions,
-    totalChapters: totalChapters ?? this.totalChapters,
-    totalChallenges: totalChallenges ?? this.totalChallenges,
-    totalPilots: totalPilots ?? this.totalPilots,
-    totalTests: totalTests ?? this.totalTests,
   );
 }
 
@@ -229,36 +205,6 @@ class DashboardRepository {
             .from('note_ratings')
             .select('user_id')
             .catchError((_) => <dynamic>[]),                               // 7: note ratings/reviewers
-        _sb
-            .from('notes')
-            .select('id')
-            .count(CountOption.exact)
-            .catchError((_) => null),                                      // 8: notes
-        _sb
-            .from('questions')
-            .select('id')
-            .count(CountOption.exact)
-            .catchError((_) => null),                                      // 9: questions
-        _sb
-            .from('chapters')
-            .select('id')
-            .count(CountOption.exact)
-            .catchError((_) => null),                                      // 10: chapters
-        _sb
-            .from('leaderboard_challenges')
-            .select('id')
-            .count(CountOption.exact)
-            .catchError((_) => null),                                      // 11: challenges
-        _sb
-            .from('pilot_exams')
-            .select('id')
-            .count(CountOption.exact)
-            .catchError((_) => null),                                      // 12: pilots
-        _sb
-            .from('tests')
-            .select('id')
-            .count(CountOption.exact)
-            .catchError((_) => null),                                      // 13: tests
       ]);
 
       final total = (results[0] as dynamic).count as int;
@@ -285,13 +231,6 @@ class DashboardRepository {
           .length;
       final noteReviewers = uniqueReviewers > 0 ? uniqueReviewers : totalReviews;
 
-      final totalNotes = (results[8] as dynamic)?.count as int? ?? 0;
-      final totalQuestions = (results[9] as dynamic)?.count as int? ?? 0;
-      final totalChapters = (results[10] as dynamic)?.count as int? ?? 0;
-      final totalChallenges = (results[11] as dynamic)?.count as int? ?? 0;
-      final totalPilots = (results[12] as dynamic)?.count as int? ?? 0;
-      final totalTests = (results[13] as dynamic)?.count as int? ?? 0;
-
       return DashboardStats(
         totalUsers: total,
         paidUsers: paid,
@@ -304,12 +243,6 @@ class DashboardRepository {
         reportedQuestionsCount: reportedCount,
         noteReviewersCount: noteReviewers,
         noteReviewsCount: totalReviews,
-        totalNotes: totalNotes,
-        totalQuestions: totalQuestions,
-        totalChapters: totalChapters,
-        totalChallenges: totalChallenges,
-        totalPilots: totalPilots,
-        totalTests: totalTests,
       );
     } catch (e) {
       throw AppExceptionHandler.handle(e);
