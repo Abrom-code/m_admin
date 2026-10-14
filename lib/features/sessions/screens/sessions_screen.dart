@@ -785,7 +785,7 @@ class _SessionTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(
       () => AdminDataTable<SessionRow>(
-        minWidth: 840,
+        minWidth: 940,
         rows: controller.pagedRows,
         isLoading: controller.isLoading.value,
         error: controller.errorMessage.value,
@@ -996,10 +996,12 @@ class _SessionUserCell extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 hasName ? session.userName! : (session.userEmail ?? session.userId),
                 overflow: TextOverflow.ellipsis,
+                maxLines: 1,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -1011,6 +1013,7 @@ class _SessionUserCell extends StatelessWidget {
                 Text(
                   session.userEmail!,
                   overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                   style: TextStyle(
                     fontSize: 10.5,
                     color: dark ? AppColors.darkGrey : AppColors.textSecondary,
@@ -1021,6 +1024,7 @@ class _SessionUserCell extends StatelessWidget {
                 Text(
                   session.userId,
                   overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                   style: const TextStyle(
                     fontSize: 10,
                     fontFamily: 'monospace',
@@ -1031,9 +1035,12 @@ class _SessionUserCell extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(width: 4),
         IconButton(
           tooltip: 'Copy User ID',
           iconSize: 13,
+          padding: const EdgeInsets.all(4),
+          constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
           visualDensity: VisualDensity.compact,
           onPressed: () {
             Clipboard.setData(ClipboardData(text: session.userId));
@@ -1067,12 +1074,16 @@ class _DeviceIdCell extends StatelessWidget {
             color: isReset ? AppColors.warning : AppColors.textSecondary,
           ),
           const SizedBox(width: 6),
-          Text(
-            isReset ? 'Device reset • Ready' : 'Ready to connect',
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: isReset ? AppColors.warning : AppColors.textSecondary,
+          Expanded(
+            child: Text(
+              isReset ? 'Device reset • Ready' : 'Ready to connect',
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: isReset ? AppColors.warning : AppColors.textSecondary,
+              ),
             ),
           ),
         ],
@@ -1087,12 +1098,14 @@ class _DeviceIdCell extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 model != null && model.isNotEmpty
                     ? (os != null && os.isNotEmpty ? '$model ($os)' : model)
                     : session.deviceId,
                 overflow: TextOverflow.ellipsis,
+                maxLines: 1,
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w500,
@@ -1103,6 +1116,7 @@ class _DeviceIdCell extends StatelessWidget {
                 Text(
                   session.deviceId,
                   overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                   style: const TextStyle(
                     fontSize: 10,
                     fontFamily: 'monospace',
@@ -1112,9 +1126,12 @@ class _DeviceIdCell extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(width: 4),
         IconButton(
           tooltip: 'Copy Device ID',
           iconSize: 13,
+          padding: const EdgeInsets.all(4),
+          constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
           visualDensity: VisualDensity.compact,
           onPressed: () {
             Clipboard.setData(ClipboardData(text: session.deviceId));
@@ -1160,6 +1177,7 @@ class _LockStatusCell extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
