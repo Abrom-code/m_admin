@@ -441,6 +441,7 @@ class _ChallengeLeaderboardScreenState extends State<ChallengeLeaderboardScreen>
                           return _CleanLeaderboardTile(
                             entry: entry,
                             isChallengeView: isChallengeView,
+                            controller: _ctrl,
                           );
                         },
                       ),
@@ -526,10 +527,12 @@ class _CleanLeaderboardTile extends StatelessWidget {
   const _CleanLeaderboardTile({
     required this.entry,
     required this.isChallengeView,
+    required this.controller,
   });
 
   final ChallengeLeaderboardEntry entry;
   final bool isChallengeView;
+  final AdminLeaderboardController controller;
 
   Color _rankBadgeColor() {
     if (entry.rank == 1) return const Color(0xFFFFD700); // Gold
@@ -721,6 +724,83 @@ class _CleanLeaderboardTile extends StatelessWidget {
               ],
             );
 
+            // Disqualify / Delete Action Button
+            final disqualifyButton = Obx(() {
+              final isActing = controller.disqualifyingUserIds.contains(entry.userId);
+              if (isActing) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  child: SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.error,
+                    ),
+                  ),
+                );
+              }
+
+              return Tooltip(
+                message: 'Disqualify ${entry.fullName} (Remove from leaderboard)',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                    hoverColor: AppColors.error.withValues(alpha: 0.12),
+                    onTap: () async {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      final reason = await AppDialogBoxes.confirmWithReason(
+                        title: 'Disqualify Student?',
+                        message:
+                            'Are you sure you want to disqualify ${entry.fullName} (Rank #${entry.rank}) from this leaderboard?\n\n'
+                            'Their attempt and score (${entry.score} pts) will be permanently removed from the standings.',
+                        confirmLabel: 'Disqualify',
+                        reasonHint: 'Reason for disqualification (e.g. Cheating, Ineligible)',
+                      );
+
+                      if (reason != null) {
+                        await controller.disqualifyUser(
+                          entry: entry,
+                          reason: reason.isNotEmpty ? reason : null,
+                        );
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                        border: Border.all(
+                          color: AppColors.error.withValues(alpha: 0.25),
+                          width: 0.9,
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.person_remove_rounded,
+                            size: 13,
+                            color: AppColors.error,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'Disqualify',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.error,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            });
+
             if (isNarrow) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -739,6 +819,7 @@ class _CleanLeaderboardTile extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       scoreWidget,
+                      disqualifyButton,
                     ],
                   ),
                 ],
@@ -754,6 +835,8 @@ class _CleanLeaderboardTile extends StatelessWidget {
                 Expanded(flex: 2, child: countsBreakdown),
                 const SizedBox(width: AppSizes.sm),
                 scoreWidget,
+                const SizedBox(width: AppSizes.md),
+                disqualifyButton,
               ],
             );
           },

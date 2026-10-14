@@ -186,4 +186,42 @@ class AdminLeaderboardController extends GetxController {
       isGranting.value = false;
     }
   }
+
+  // ── Disqualify Student ────────────────────────────────────────────────────
+
+  final disqualifyingUserIds = <String>{}.obs;
+
+  Future<bool> disqualifyUser({
+    required ChallengeLeaderboardEntry entry,
+    String? reason,
+  }) async {
+    if (disqualifyingUserIds.contains(entry.userId)) return false;
+    try {
+      disqualifyingUserIds.add(entry.userId);
+
+      await _repo.disqualifyUser(
+        challengeId: selectedView.value == 'challenge' ? currentChallengeId.value : null,
+        userId: entry.userId,
+        period: selectedView.value != 'challenge' ? selectedView.value : null,
+        reason: reason,
+      );
+
+      // Optimistically remove from current list
+      entries.removeWhere((e) => e.userId == entry.userId);
+
+      SnackbarHelper.success(
+        'Student Disqualified',
+        '${entry.fullName} has been removed from the leaderboard.',
+      );
+
+      // Refresh to recalculate accurate ranks and summary stats
+      await refreshLeaderboard();
+      return true;
+    } catch (e) {
+      AppExceptionHandler.handleResponse(e);
+      return false;
+    } finally {
+      disqualifyingUserIds.remove(entry.userId);
+    }
+  }
 }

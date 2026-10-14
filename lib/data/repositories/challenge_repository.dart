@@ -564,4 +564,74 @@ class ChallengeRepository {
       throw AppExceptionHandler.handle(e);
     }
   }
+
+  // ── Leaderboard Disqualification ──────────────────────────────────────────
+
+  Future<void> disqualifyUser({
+    String? challengeId,
+    required String userId,
+    String? period,
+    DateTime? periodStart,
+    String? reason,
+  }) async {
+    try {
+      // 1. Try RPC if available
+      try {
+        await _sb.rpc('rpc_disqualify_challenge_user', params: {
+          if (challengeId != null && challengeId.isNotEmpty) 'p_challenge_id': challengeId,
+          'p_user_id': userId,
+          if (reason != null && reason.isNotEmpty) 'p_reason': reason,
+        });
+        return;
+      } catch (_) {
+        // Fall back to direct table deletion
+      }
+
+      // 2. Direct table deletion from challenge_attempts
+      if (challengeId != null && challengeId.isNotEmpty) {
+        await _sb
+            .from('challenge_attempts')
+            .delete()
+            .eq('challenge_id', challengeId)
+            .eq('user_id', userId);
+      } else if (period != null) {
+        final now = DateTime.now();
+        DateTime startDate;
+        if (periodStart != null) {
+          startDate = periodStart;
+        } else if (period == 'week') {
+          final daysFromMon = (now.weekday - 1);
+          startDate = DateTime(now.year, now.month, now.day - daysFromMon);
+        } else {
+          startDate = DateTime(now.year, now.month, 1);
+        }
+
+        await _sb
+            .from('challenge_attempts')
+            .delete()
+            .eq('user_id', userId)
+            .gte('submitted_at', startDate.toIso8601String());
+      } else {
+        await _sb
+            .from('challenge_attempts')
+            .delete()
+            .eq('user_id', userId);
+      }
+
+      // 3. Audit log entry
+      try {
+        final adminUid = AdminSessionService.instance.adminUid;
+        await _sb.from('admin_audit_log').insert({
+          'admin_uid': adminUid,
+          'action': 'disqualify_challenge_user',
+          'entity_type': 'challenge_attempt',
+          'entity_id': challengeId ?? userId,
+          'note': 'Disqualified user $userId${challengeId != null ? ' from challenge $challengeId' : ''}: ${reason ?? "Disqualified by admin"}',
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
 }
