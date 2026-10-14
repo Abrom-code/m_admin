@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:m_admin/data/repositories/dashboard_repository.dart';
 import 'package:m_admin/data/repositories/question_reports_repository.dart';
 import 'package:m_admin/features/content/models/question_report_admin_model.dart';
@@ -9,6 +10,9 @@ import 'package:m_admin/utils/helpers/toast_helper.dart';
 
 class DashboardController extends GetxController {
   static DashboardController get instance => Get.find();
+
+  static const _activeHiddenKey = 'dashboard_active_hidden';
+  final _storage = GetStorage();
 
   final _repo = DashboardRepository();
   final _reportsRepo = QuestionReportsRepository();
@@ -27,9 +31,12 @@ class DashboardController extends GetxController {
   final isReportsLoading = false.obs;
 
   // ── Sensitive KPI Visibility Toggles ─────────────────────────────
-  final isActiveHidden = false.obs;
+  final isActiveHidden = true.obs;
 
-  void toggleActiveVisibility() => isActiveHidden.value = !isActiveHidden.value;
+  void toggleActiveVisibility() {
+    isActiveHidden.value = !isActiveHidden.value;
+    _storage.write(_activeHiddenKey, isActiveHidden.value);
+  }
 
   // ── Chart Controls ───────────────────────────────────────────────
   final isLoading = false.obs;
@@ -41,6 +48,10 @@ class DashboardController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    final savedActive = _storage.read<bool>(_activeHiddenKey);
+    if (savedActive != null) {
+      isActiveHidden.value = savedActive;
+    }
     load();
   }
 
