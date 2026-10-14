@@ -1163,10 +1163,6 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
                         },
                         itemBuilder: (context, idx) {
                           final s = _subjectsList[idx];
-                          Color streamColor = AppColors.info;
-                          if (s.isNatural) streamColor = AppColors.success;
-                          if (s.isSocial) streamColor = AppColors.warning;
-
                           final linkedTitle = s.testId != null ? _testTitles[s.testId] : null;
 
                           return Container(
@@ -1217,22 +1213,6 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
                                               s.subjectName,
                                               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                                               overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                            decoration: BoxDecoration(
-                                              color: streamColor.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              s.streamLabel,
-                                              style: TextStyle(
-                                                fontSize: 9.5,
-                                                fontWeight: FontWeight.w700,
-                                                color: streamColor,
-                                              ),
                                             ),
                                           ),
                                           const Spacer(),
@@ -1385,22 +1365,6 @@ class _PilotExamEditorScreenState extends State<PilotExamEditorScreen> {
                                                   s.subjectName,
                                                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                                                   overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                                decoration: BoxDecoration(
-                                                  color: streamColor.withValues(alpha: 0.12),
-                                                  borderRadius: BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  s.streamLabel,
-                                                  style: TextStyle(
-                                                    fontSize: 9.5,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: streamColor,
-                                                  ),
                                                 ),
                                               ),
                                             ],

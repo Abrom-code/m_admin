@@ -30,11 +30,22 @@ class PilotExamsScreen extends StatelessWidget {
           // ── Stats Summary Ribbon ───────────────────────────────────────
           Obx(() {
             final all = ctrl.exams;
-            final publishedCount = all.where((e) => e.status.toLowerCase() == 'published' || e.isActive).length;
-            final draftCount = all.where((e) => e.status.toLowerCase() == 'draft').length;
-            final inactiveCount = all.where((e) => e.status.toLowerCase() == 'inactive').length;
+            final publishedCount = all
+                .where(
+                  (e) => e.status.toLowerCase() == 'published' || e.isActive,
+                )
+                .length;
+            final draftCount = all
+                .where((e) => e.status.toLowerCase() == 'draft')
+                .length;
+            final inactiveCount = all
+                .where((e) => e.status.toLowerCase() == 'inactive')
+                .length;
             final premiumCount = all.where((e) => e.isPremium).length;
-            final totalSubjects = all.fold<int>(0, (sum, e) => sum + e.subjectCount);
+            final totalSubjects = all.fold<int>(
+              0,
+              (sum, e) => sum + e.subjectCount,
+            );
             final sFilter = ctrl.statusFilter.value?.toLowerCase();
 
             return SingleChildScrollView(
@@ -56,7 +67,11 @@ class PilotExamsScreen extends StatelessWidget {
                     dotColor: AppColors.success,
                     icon: Iconsax.tick_circle_copy,
                     isSelected: sFilter == 'published' || sFilter == 'active',
-                    onTap: () => ctrl.setStatusFilter((sFilter == 'published' || sFilter == 'active') ? null : 'published'),
+                    onTap: () => ctrl.setStatusFilter(
+                      (sFilter == 'published' || sFilter == 'active')
+                          ? null
+                          : 'published',
+                    ),
                   ),
                   const SizedBox(width: 8),
                   _CompactRibbonCard(
@@ -65,7 +80,9 @@ class PilotExamsScreen extends StatelessWidget {
                     dotColor: AppColors.warning,
                     icon: Iconsax.edit_2_copy,
                     isSelected: sFilter == 'draft',
-                    onTap: () => ctrl.setStatusFilter(sFilter == 'draft' ? null : 'draft'),
+                    onTap: () => ctrl.setStatusFilter(
+                      sFilter == 'draft' ? null : 'draft',
+                    ),
                   ),
                   const SizedBox(width: 8),
                   _CompactRibbonCard(
@@ -74,7 +91,9 @@ class PilotExamsScreen extends StatelessWidget {
                     dotColor: AppColors.grey,
                     icon: Iconsax.pause_copy,
                     isSelected: sFilter == 'inactive',
-                    onTap: () => ctrl.setStatusFilter(sFilter == 'inactive' ? null : 'inactive'),
+                    onTap: () => ctrl.setStatusFilter(
+                      sFilter == 'inactive' ? null : 'inactive',
+                    ),
                   ),
                   const SizedBox(width: 8),
                   _CompactRibbonCard(
@@ -83,7 +102,9 @@ class PilotExamsScreen extends StatelessWidget {
                     dotColor: const Color(0xFFEAB308),
                     icon: Iconsax.crown_copy,
                     isSelected: sFilter == 'premium',
-                    onTap: () => ctrl.setStatusFilter(sFilter == 'premium' ? null : 'premium'),
+                    onTap: () => ctrl.setStatusFilter(
+                      sFilter == 'premium' ? null : 'premium',
+                    ),
                   ),
                   const SizedBox(width: 8),
                   _CompactRibbonCard(
@@ -115,9 +136,13 @@ class PilotExamsScreen extends StatelessWidget {
                         child: TextField(
                           controller: ctrl.searchController,
                           decoration: InputDecoration(
-                            hintText: 'Search pilot exams by title or edition...',
+                            hintText:
+                                'Search pilot exams by title or edition...',
                             hintStyle: const TextStyle(fontSize: 12),
-                            prefixIcon: const Icon(Iconsax.search_normal_1_copy, size: 16),
+                            prefixIcon: const Icon(
+                              Iconsax.search_normal_1_copy,
+                              size: 16,
+                            ),
                             isDense: true,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: AppSizes.sm,
@@ -139,20 +164,31 @@ class PilotExamsScreen extends StatelessWidget {
                           ),
                           style: const TextStyle(fontSize: 12.5),
                           onChanged: (val) => ctrl.searchQuery.value = val,
-                          onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-                          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                          onSubmitted: (_) =>
+                              FocusManager.instance.primaryFocus?.unfocus(),
+                          onTapOutside: (_) =>
+                              FocusManager.instance.primaryFocus?.unfocus(),
                         ),
                       ),
                     ),
                     const SizedBox(width: AppSizes.sm),
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                         visualDensity: VisualDensity.compact,
                       ),
                       onPressed: () => Get.toNamed(AdminRoutes.pilotExamEditor),
                       icon: const Icon(Iconsax.add_copy, size: 15),
-                      label: const Text('New Pilot Exam', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      label: const Text(
+                        'New Pilot Exam',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -164,34 +200,58 @@ class PilotExamsScreen extends StatelessWidget {
                   runSpacing: 4,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    const Text(
-                      'Grade:',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
                     _GradeChip(label: 'All', grade: null, controller: ctrl),
-                    _GradeChip(label: 'G9', grade: 9, controller: ctrl, tooltip: 'Grade 9'),
-                    _GradeChip(label: 'G10', grade: 10, controller: ctrl, tooltip: 'Grade 10'),
-                    _GradeChip(label: 'G11', grade: 11, controller: ctrl, tooltip: 'Grade 11'),
-                    _GradeChip(label: 'G12', grade: 12, controller: ctrl, tooltip: 'Grade 12'),
-                    _GradeChip(label: 'National', grade: 0, controller: ctrl, tooltip: 'National (Optional)'),
+                    _GradeChip(
+                      label: 'G9',
+                      grade: 9,
+                      controller: ctrl,
+                      tooltip: 'Grade 9',
+                    ),
+                    _GradeChip(
+                      label: 'G10',
+                      grade: 10,
+                      controller: ctrl,
+                      tooltip: 'Grade 10',
+                    ),
+                    _GradeChip(
+                      label: 'G11',
+                      grade: 11,
+                      controller: ctrl,
+                      tooltip: 'Grade 11',
+                    ),
+                    _GradeChip(
+                      label: 'G12',
+                      grade: 12,
+                      controller: ctrl,
+                      tooltip: 'Grade 12',
+                    ),
+                    _GradeChip(
+                      label: 'Nat',
+                      grade: 0,
+                      controller: ctrl,
+                      tooltip: 'National (Optional)',
+                    ),
                     Obx(() {
-                      final hasFilter = ctrl.selectedGrade.value != null ||
+                      final hasFilter =
+                          ctrl.selectedGrade.value != null ||
                           ctrl.statusFilter.value != null ||
                           ctrl.searchQuery.value.isNotEmpty;
                       if (!hasFilter) return const SizedBox.shrink();
 
                       return TextButton.icon(
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           visualDensity: VisualDensity.compact,
                         ),
                         onPressed: ctrl.clearFilters,
                         icon: const Icon(Icons.refresh, size: 16),
-                        label: const Text('Reset', style: TextStyle(fontSize: 12)),
+                        label: const Text(
+                          'Reset',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       );
                     }),
                   ],
@@ -224,21 +284,30 @@ class PilotExamsScreen extends StatelessWidget {
                       Icon(
                         Iconsax.award_copy,
                         size: 48,
-                        color: dark ? Colors.white30 : AppColors.darkGrey.withValues(alpha: 0.4),
+                        color: dark
+                            ? Colors.white30
+                            : AppColors.darkGrey.withValues(alpha: 0.4),
                       ),
                       const SizedBox(height: AppSizes.md),
                       const Text(
                         'No Pilot Exams Found',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: AppSizes.xs),
                       const Text(
                         'Create a simulation national pilot exam for students.',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                       const SizedBox(height: AppSizes.md),
                       ElevatedButton.icon(
-                        onPressed: () => Get.toNamed(AdminRoutes.pilotExamEditor),
+                        onPressed: () =>
+                            Get.toNamed(AdminRoutes.pilotExamEditor),
                         icon: const Icon(Iconsax.add_copy, size: 18),
                         label: const Text('Create Pilot Exam'),
                       ),
@@ -294,8 +363,8 @@ class _CompactRibbonCard extends StatelessWidget {
           color: isSelected
               ? dotColor
               : (dark
-                  ? AppColors.darkGrey.withValues(alpha: 0.25)
-                  : AppColors.borderPrimary.withValues(alpha: 0.7)),
+                    ? AppColors.darkGrey.withValues(alpha: 0.25)
+                    : AppColors.borderPrimary.withValues(alpha: 0.7)),
           width: isSelected ? 1.5 : 1.0,
         ),
       ),
@@ -404,7 +473,6 @@ class _PilotExamCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
 
-
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSizes.spaceBtwItems),
       child: AdminCard(
@@ -421,23 +489,28 @@ class _PilotExamCard extends StatelessWidget {
                   clipBehavior: Clip.none,
                   children: [
                     Container(
-                      height: 48,
-                      width: 48,
+                      height: 44,
+                      width: 44,
                       decoration: BoxDecoration(
                         color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                        borderRadius: BorderRadius.circular(
+                          AppSizes.borderRadiusMd,
+                        ),
                       ),
                       child: const Icon(
                         Iconsax.award_copy,
                         color: AppColors.primary,
-                        size: 24,
+                        size: 22,
                       ),
                     ),
                     Positioned(
-                      right: -4,
-                      bottom: -4,
+                      right: -3,
+                      bottom: -3,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.primary,
                           borderRadius: BorderRadius.circular(4),
@@ -454,46 +527,30 @@ class _PilotExamCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(width: AppSizes.md),
+                const SizedBox(width: AppSizes.sm + 2),
 
-                // Title, Edition, and Badges
+                // Title and Badges
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Text(
+                        exam.title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Badges Wrap (Status changer, Premium, Edition) - never overflows
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 5,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          Expanded(
-                            child: Text(
-                              exam.title,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: AppSizes.sm),
-
-                          // Edition badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.info.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.info.withValues(alpha: 0.4)),
-                            ),
-                            child: Text(
-                              exam.edition,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.info,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: AppSizes.xs),
-
                           // Status Changer Badge (PopupMenuButton)
                           Builder(
                             builder: (context) {
@@ -502,7 +559,11 @@ class _PilotExamCard extends StatelessWidget {
                               IconData badgeIcon;
                               String badgeLabel;
 
-                              if (statusLower == 'published' || (exam.isActive && statusLower != 'draft' && statusLower != 'inactive' && statusLower != 'archived')) {
+                              if (statusLower == 'published' ||
+                                  (exam.isActive &&
+                                      statusLower != 'draft' &&
+                                      statusLower != 'inactive' &&
+                                      statusLower != 'archived')) {
                                 badgeColor = AppColors.success;
                                 badgeIcon = Icons.cloud_done_rounded;
                                 badgeLabel = 'PUBLISHED';
@@ -521,28 +582,48 @@ class _PilotExamCard extends StatelessWidget {
                               }
 
                               return PopupMenuButton<String>(
-                                tooltip: 'Change Status (Draft, Published, Inactive...)',
+                                tooltip:
+                                    'Change Status (Draft, Published, Inactive...)',
                                 padding: EdgeInsets.zero,
                                 position: PopupMenuPosition.under,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                                  borderRadius: BorderRadius.circular(
+                                    AppSizes.borderRadiusMd,
+                                  ),
                                   side: BorderSide(
-                                    color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                                    color: dark
+                                        ? AppColors.darkBorder
+                                        : AppColors.borderPrimary,
                                   ),
                                 ),
-                                onSelected: (newStatus) => controller.updateStatus(exam, newStatus),
+                                onSelected: (newStatus) =>
+                                    controller.updateStatus(exam, newStatus),
                                 itemBuilder: (ctx) => [
                                   PopupMenuItem(
                                     value: 'published',
                                     height: 36,
                                     child: Row(
                                       children: [
-                                        const Icon(Icons.cloud_done_rounded, size: 14, color: AppColors.success),
+                                        const Icon(
+                                          Icons.cloud_done_rounded,
+                                          size: 14,
+                                          color: AppColors.success,
+                                        ),
                                         const SizedBox(width: 8),
-                                        const Text('Published (Live for students)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                        const Text(
+                                          'Published (Live for students)',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                         if (badgeLabel == 'PUBLISHED') ...[
                                           const Spacer(),
-                                          const Icon(Icons.check, size: 14, color: AppColors.success),
+                                          const Icon(
+                                            Icons.check,
+                                            size: 14,
+                                            color: AppColors.success,
+                                          ),
                                         ],
                                       ],
                                     ),
@@ -552,12 +633,26 @@ class _PilotExamCard extends StatelessWidget {
                                     height: 36,
                                     child: Row(
                                       children: [
-                                        const Icon(Icons.edit_note_rounded, size: 14, color: AppColors.warning),
+                                        const Icon(
+                                          Icons.edit_note_rounded,
+                                          size: 14,
+                                          color: AppColors.warning,
+                                        ),
                                         const SizedBox(width: 8),
-                                        const Text('Draft (Unverified / Hidden)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                        const Text(
+                                          'Draft (Unverified / Hidden)',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                         if (badgeLabel == 'DRAFT') ...[
                                           const Spacer(),
-                                          const Icon(Icons.check, size: 14, color: AppColors.warning),
+                                          const Icon(
+                                            Icons.check,
+                                            size: 14,
+                                            color: AppColors.warning,
+                                          ),
                                         ],
                                       ],
                                     ),
@@ -567,12 +662,26 @@ class _PilotExamCard extends StatelessWidget {
                                     height: 36,
                                     child: Row(
                                       children: [
-                                        const Icon(Icons.pause_circle_outline_rounded, size: 14, color: AppColors.grey),
+                                        const Icon(
+                                          Icons.pause_circle_outline_rounded,
+                                          size: 14,
+                                          color: AppColors.grey,
+                                        ),
                                         const SizedBox(width: 8),
-                                        const Text('Inactive (Deactivated)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                        const Text(
+                                          'Inactive (Deactivated)',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                         if (badgeLabel == 'INACTIVE') ...[
                                           const Spacer(),
-                                          const Icon(Icons.check, size: 14, color: AppColors.grey),
+                                          const Icon(
+                                            Icons.check,
+                                            size: 14,
+                                            color: AppColors.grey,
+                                          ),
                                         ],
                                       ],
                                     ),
@@ -582,28 +691,52 @@ class _PilotExamCard extends StatelessWidget {
                                     height: 36,
                                     child: Row(
                                       children: [
-                                        const Icon(Icons.archive_outlined, size: 14, color: AppColors.secondary),
+                                        const Icon(
+                                          Icons.archive_outlined,
+                                          size: 14,
+                                          color: AppColors.secondary,
+                                        ),
                                         const SizedBox(width: 8),
-                                        const Text('Archived', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                        const Text(
+                                          'Archived',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                         if (badgeLabel == 'ARCHIVED') ...[
                                           const Spacer(),
-                                          const Icon(Icons.check, size: 14, color: AppColors.secondary),
+                                          const Icon(
+                                            Icons.check,
+                                            size: 14,
+                                            color: AppColors.secondary,
+                                          ),
                                         ],
                                       ],
                                     ),
                                   ),
                                 ],
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: badgeColor.withValues(alpha: 0.14),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: badgeColor, width: 0.8),
+                                    border: Border.all(
+                                      color: badgeColor,
+                                      width: 0.8,
+                                    ),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(badgeIcon, size: 11, color: badgeColor),
+                                      Icon(
+                                        badgeIcon,
+                                        size: 11,
+                                        color: badgeColor,
+                                      ),
                                       const SizedBox(width: 4),
                                       Text(
                                         badgeLabel,
@@ -614,28 +747,36 @@ class _PilotExamCard extends StatelessWidget {
                                         ),
                                       ),
                                       const SizedBox(width: 2),
-                                      Icon(Icons.arrow_drop_down, size: 13, color: badgeColor),
+                                      Icon(
+                                        Icons.arrow_drop_down,
+                                        size: 13,
+                                        color: badgeColor,
+                                      ),
                                     ],
                                   ),
                                 ),
                               );
                             },
                           ),
-                          const SizedBox(width: AppSizes.xs),
 
                           // Premium badge
                           InkWell(
                             onTap: () => controller.togglePremium(exam),
                             borderRadius: BorderRadius.circular(12),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: exam.isPremium
                                     ? AppColors.warning.withValues(alpha: 0.14)
                                     : AppColors.success.withValues(alpha: 0.14),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: exam.isPremium ? AppColors.warning : AppColors.success,
+                                  color: exam.isPremium
+                                      ? AppColors.warning
+                                      : AppColors.success,
                                   width: 0.8,
                                 ),
                               ),
@@ -644,44 +785,35 @@ class _PilotExamCard extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
-                                  color: exam.isPremium ? AppColors.warning : AppColors.success,
+                                  color: exam.isPremium
+                                      ? AppColors.warning
+                                      : AppColors.success,
                                 ),
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
 
-                      if (exam.description.isNotEmpty) ...[
-                        Text(
-                          exam.description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                      ],
-
-                      // Metrics
-                      Wrap(
-                        spacing: 14,
-                        runSpacing: 4,
-                        children: [
-                          _Metric(
-                            icon: Iconsax.book_1_copy,
-                            text: '${exam.subjectCount} Subjects',
-                          ),
-                          _Metric(
-                            icon: Iconsax.task_copy,
-                            text: '${exam.totalQuestions} Total Questions',
-                          ),
-                          _Metric(
-                            icon: Iconsax.clock_copy,
-                            text: '${exam.totalMinutes} Mins Duration',
+                          // Edition badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.info.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppColors.info.withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: Text(
+                              exam.edition,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.info,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -689,7 +821,7 @@ class _PilotExamCard extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(width: AppSizes.md),
+                const SizedBox(width: AppSizes.xs),
 
                 // Edit & Delete actions
                 Row(
@@ -698,6 +830,7 @@ class _PilotExamCard extends StatelessWidget {
                     IconButton(
                       tooltip: 'Edit exam',
                       icon: const Icon(Iconsax.edit_2_copy, size: 18),
+                      visualDensity: VisualDensity.compact,
                       onPressed: () => Get.toNamed(
                         AdminRoutes.pilotExamEditor,
                         arguments: {'exam': exam},
@@ -707,10 +840,10 @@ class _PilotExamCard extends StatelessWidget {
                       final isDel = controller.isDeleting[exam.id] == true;
                       if (isDel) {
                         return const SizedBox(
-                          width: 28,
-                          height: 28,
+                          width: 24,
+                          height: 24,
                           child: Padding(
-                            padding: EdgeInsets.all(6),
+                            padding: EdgeInsets.all(4),
                             child: CircularProgressIndicator(strokeWidth: 2),
                           ),
                         );
@@ -723,10 +856,12 @@ class _PilotExamCard extends StatelessWidget {
                           size: 18,
                           color: AppColors.error,
                         ),
+                        visualDensity: VisualDensity.compact,
                         onPressed: () async {
                           final confirmed = await AppDialogBoxes.confirm(
                             title: 'Delete Pilot Exam',
-                            message: 'Are you sure you want to delete "${exam.title}"?\n'
+                            message:
+                                'Are you sure you want to delete "${exam.title}"?\n'
                                 'This will remove the exam and all its linked subjects.',
                             confirmLabel: 'Delete',
                             isDestructive: true,
@@ -742,56 +877,68 @@ class _PilotExamCard extends StatelessWidget {
               ],
             ),
 
+            if (exam.description.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                exam.description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 8),
+
+            // Metrics
+            Wrap(
+              spacing: 14,
+              runSpacing: 4,
+              children: [
+                _Metric(
+                  icon: Iconsax.book_1_copy,
+                  text: '${exam.subjectCount} Subjects',
+                ),
+                _Metric(
+                  icon: Iconsax.task_copy,
+                  text: '${exam.totalQuestions} Total Questions',
+                ),
+                _Metric(
+                  icon: Iconsax.clock_copy,
+                  text: '${exam.totalMinutes} Mins Duration',
+                ),
+              ],
+            ),
+
             if (exam.subjects.isNotEmpty) ...[
-              const Divider(height: 20),
+              const Divider(height: 18),
               // Subject pills breakdown
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
                 children: exam.subjects.map((s) {
-                  Color streamBg = AppColors.info.withValues(alpha: 0.1);
-                  Color streamText = AppColors.info;
-                  if (s.isNatural) {
-                    streamBg = AppColors.success.withValues(alpha: 0.1);
-                    streamText = AppColors.success;
-                  } else if (s.isSocial) {
-                    streamBg = AppColors.warning.withValues(alpha: 0.1);
-                    streamText = AppColors.warning;
-                  }
-
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3.5,
+                    ),
                     decoration: BoxDecoration(
                       color: dark ? AppColors.darkSurface : AppColors.lightGrey,
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                        color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                        color: dark
+                            ? AppColors.darkBorder
+                            : AppColors.borderPrimary,
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          s.subjectName,
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(width: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
-                          decoration: BoxDecoration(
-                            color: streamBg,
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: Text(
-                            s.streamLabel,
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: streamText,
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      s.subjectName,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   );
                 }).toList(),
@@ -819,10 +966,7 @@ class _Metric extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           text,
-          style: const TextStyle(
-            fontSize: 11,
-            color: AppColors.textSecondary,
-          ),
+          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
         ),
       ],
     );
