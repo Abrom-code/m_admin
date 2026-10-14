@@ -193,6 +193,35 @@ class SubjectTestsController extends GetxController {
     }
   }
 
+  Future<void> toggleTestPremium(TestRow test) async {
+    final target = !test.isPremium;
+    try {
+      await _repo.updateTestPremium(test.id, target);
+      final idx = tests.indexWhere((t) => t.id == test.id);
+      if (idx >= 0) {
+        tests[idx] = TestRow(
+          id: test.id,
+          title: test.title,
+          type: test.type,
+          grade: test.grade,
+          chapterId: test.chapterId,
+          time: test.time,
+          questionCount: test.questionCount,
+          isPremium: target,
+          status: test.status,
+          updatedAt: DateTime.now(),
+          description: test.description,
+        );
+      }
+      SnackbarHelper.success(
+        'Access Updated',
+        'Test "${test.title.isNotEmpty ? test.title : '#${test.id}'}" is now ${target ? 'PREMIUM (PRO only)' : 'FREE (Open access)'}.',
+      );
+    } catch (e) {
+      SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
+    }
+  }
+
   Future<void> deleteTest(int testId) async {
     try {
       await _repo.deleteTest(testId);
@@ -979,6 +1008,7 @@ class _ChapterTestsViewState extends State<_ChapterTestsView> {
                                     _confirmDelete(context, test, ctrl),
                                 onToggleStatus: () => ctrl.toggleTestStatus(test),
                                 onStatusChange: (newStatus) => ctrl.updateTestStatus(test, newStatus),
+                                onTogglePremium: () => ctrl.toggleTestPremium(test),
                               );
                             },
                           ),
@@ -1056,6 +1086,7 @@ class _ChapterTestsViewState extends State<_ChapterTestsView> {
                                   _confirmDelete(context, test, ctrl),
                               onToggleStatus: () => ctrl.toggleTestStatus(test),
                               onStatusChange: (newStatus) => ctrl.updateTestStatus(test, newStatus),
+                              onTogglePremium: () => ctrl.toggleTestPremium(test),
                             );
                           },
                         ),
@@ -1355,16 +1386,19 @@ class _GradeTestsViewState extends State<_GradeTestsView> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              grade > 0
-                                  ? 'Comprehensive Grade $grade Practice & Mock Tests'
-                                  : 'General Grade Practice Tests',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                            Expanded(
+                              child: Text(
+                                grade > 0
+                                    ? 'Comprehensive Grade $grade Practice & Mock Tests'
+                                    : 'General Grade Practice Tests',
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
-                            const Spacer(),
+                            const SizedBox(width: 8),
                             Text(
                               '${testsForGrade.length} tests',
                               style: const TextStyle(
@@ -1395,6 +1429,7 @@ class _GradeTestsViewState extends State<_GradeTestsView> {
                                 _confirmDelete(context, test, ctrl),
                             onToggleStatus: () => ctrl.toggleTestStatus(test),
                             onStatusChange: (newStatus) => ctrl.updateTestStatus(test, newStatus),
+                            onTogglePremium: () => ctrl.toggleTestPremium(test),
                           );
                         },
                       ),
@@ -1692,14 +1727,16 @@ class _EntranceAndModelExamsViewState
 
             return LayoutBuilder(
               builder: (context, constraints) {
-                // Responsive grid: 1 column on narrow, 2 columns on wide screens
-                final isWide = constraints.maxWidth >= 720;
+                // Responsive grid: 3 columns on desktop, 2 on tablet, 1 on mobile
+                final crossAxisCount = constraints.maxWidth >= 1050
+                    ? 3
+                    : (constraints.maxWidth >= 660 ? 2 : 1);
 
                 return GridView.builder(
                   padding: const EdgeInsets.all(AppSizes.md),
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: isWide ? 2 : 1,
-                    mainAxisExtent: 160,
+                    crossAxisCount: crossAxisCount,
+                    mainAxisExtent: 184,
                     crossAxisSpacing: AppSizes.md,
                     mainAxisSpacing: AppSizes.md,
                   ),
@@ -1712,7 +1749,10 @@ class _EntranceAndModelExamsViewState
                         : const Color(0xFF059669);
 
                     return Container(
-                      padding: const EdgeInsets.all(AppSizes.md),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSizes.md,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: dark ? AppColors.darkCard : AppColors.white,
                         borderRadius:
@@ -1733,89 +1773,139 @@ class _EntranceAndModelExamsViewState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Top row: Type badge + Access chip + Actions
+                          // Top row: Type badge + Access toggle + Status + Actions
                           Row(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: badgeColor.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
+                              Flexible(
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
-                                    Icon(
-                                      isEntrance
-                                          ? Icons.school_rounded
-                                          : Iconsax.award_copy,
-                                      size: 13,
-                                      color: badgeColor,
+                                    // Exam Type Badge
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                        vertical: 2.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: badgeColor.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            isEntrance
+                                                ? Icons.school_rounded
+                                                : Iconsax.award_copy,
+                                            size: 11,
+                                            color: badgeColor,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            isEntrance
+                                                ? 'ENTRANCE'
+                                                : 'MODEL EXAM',
+                                            style: TextStyle(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: badgeColor,
+                                              letterSpacing: 0.3,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      isEntrance
-                                          ? 'NATIONAL ENTRANCE'
-                                          : 'MODEL EXAM',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: badgeColor,
-                                        letterSpacing: 0.3,
+                                    // Clickable PRO / FREE Access Pill (Toggles Premium)
+                                    InkWell(
+                                      onTap: () => ctrl.toggleTestPremium(exam),
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: Tooltip(
+                                        message: exam.isPremium
+                                            ? 'Premium Test (Tap to switch to Free)'
+                                            : 'Free Test (Tap to switch to Premium)',
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: exam.isPremium
+                                                ? Colors.amber.withValues(alpha: 0.15)
+                                                : AppColors.success.withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(
+                                              color: exam.isPremium
+                                                  ? Colors.amber.withValues(alpha: 0.5)
+                                                  : AppColors.success.withValues(alpha: 0.5),
+                                              width: 0.6,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                exam.isPremium
+                                                    ? Icons.workspace_premium_rounded
+                                                    : Icons.lock_open_rounded,
+                                                size: 10.5,
+                                                color: exam.isPremium
+                                                    ? Colors.amber[800]
+                                                    : AppColors.success,
+                                              ),
+                                              const SizedBox(width: 3),
+                                              Text(
+                                                exam.isPremium ? 'PRO' : 'FREE',
+                                                style: TextStyle(
+                                                  fontSize: 9.5,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: exam.isPremium
+                                                      ? Colors.amber[800]
+                                                      : AppColors.success,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: exam.isPremium
-                                      ? Colors.amber.withValues(alpha: 0.12)
-                                      : AppColors.success.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  exam.isPremium ? 'PRO' : 'FREE',
-                                  style: TextStyle(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: exam.isPremium
-                                        ? Colors.amber[800]
-                                        : AppColors.success,
-                                  ),
-                                ),
-                              ),
+                              const SizedBox(width: 4),
                               _TestStatusBadge(
                                 status: exam.status,
                                 onStatusChange: (newStatus) =>
                                     ctrl.updateTestStatus(exam, newStatus),
                               ),
-                              const Spacer(),
                               IconButton(
                                 tooltip: 'Edit Exam Details',
                                 visualDensity: VisualDensity.compact,
-                                icon: const Icon(Iconsax.edit_2_copy, size: 15),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 26,
+                                  minHeight: 26,
+                                ),
+                                icon: const Icon(Iconsax.edit_2_copy, size: 14),
                                 onPressed: () => widget.onOpenTest(exam.id),
                               ),
                               IconButton(
                                 tooltip: 'Delete Exam',
                                 visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 26,
+                                  minHeight: 26,
+                                ),
                                 icon: const Icon(Iconsax.trash_copy,
-                                    size: 15, color: AppColors.error),
+                                    size: 14, color: AppColors.error),
                                 onPressed: () =>
                                     _confirmDelete(context, exam, ctrl),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
 
                           // Exam Title
                           Text(
@@ -1825,77 +1915,98 @@ class _EntranceAndModelExamsViewState
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 13.5,
+                              fontSize: 13,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          if (exam.description != null &&
-                              exam.description!.trim().isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              exam.description!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textSecondary,
-                              ),
+                          const SizedBox(height: 3),
+                          Text(
+                            (exam.description != null &&
+                                    exam.description!.trim().isNotEmpty)
+                                ? exam.description!
+                                    .replaceAll('\r', '')
+                                    .replaceAll('\n', ' ')
+                                    .trim()
+                                : 'No description provided.',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: dark
+                                  ? Colors.white60
+                                  : AppColors.textSecondary,
+                              height: 1.25,
                             ),
-                          ],
+                          ),
                           const Spacer(),
 
                           // Bottom metadata and Questions button
                           Row(
                             children: [
-                              Row(
-                                children: [
-                                  Icon(Iconsax.clock_copy,
-                                      size: 13,
-                                      color: dark
-                                          ? Colors.white54
-                                          : AppColors.textSecondary),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    exam.isUntimed
-                                        ? 'Untimed'
-                                        : '${exam.time} mins',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.textSecondary,
+                              Flexible(
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Iconsax.clock_copy,
+                                          size: 12,
+                                          color: dark
+                                              ? Colors.white54
+                                              : AppColors.textSecondary,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          exam.isUntimed
+                                              ? 'Untimed'
+                                              : '${exam.time}m',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 12),
-                              Row(
-                                children: [
-                                  Icon(Iconsax.document_text_copy,
-                                      size: 13,
-                                      color: dark
-                                          ? Colors.white54
-                                          : AppColors.textSecondary),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '${exam.questionCount} Questions',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textSecondary,
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Iconsax.document_text_copy,
+                                          size: 12,
+                                          color: dark
+                                              ? Colors.white54
+                                              : AppColors.textSecondary,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${exam.questionCount} Qs',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                              const Spacer(),
+                              const SizedBox(width: 6),
                               OutlinedButton.icon(
                                 style: OutlinedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8,
-                                    vertical: 3,
+                                    vertical: 2,
                                   ),
                                   visualDensity: VisualDensity.compact,
+                                  minimumSize: const Size(0, 28),
                                 ),
                                 onPressed: () => widget.onOpenTest(exam.id),
-                                icon: const Icon(Iconsax.task_copy, size: 12),
+                                icon: const Icon(Iconsax.task_copy, size: 11),
                                 label: const Text('Questions',
                                     style: TextStyle(fontSize: 11)),
                               ),
@@ -2112,6 +2223,7 @@ class _TestRowItem extends StatelessWidget {
     required this.onDelete,
     this.onToggleStatus,
     this.onStatusChange,
+    this.onTogglePremium,
   });
 
   final TestRow test;
@@ -2119,6 +2231,7 @@ class _TestRowItem extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback? onToggleStatus;
   final void Function(String newStatus)? onStatusChange;
+  final VoidCallback? onTogglePremium;
 
   @override
   Widget build(BuildContext context) {
@@ -2127,9 +2240,11 @@ class _TestRowItem extends StatelessWidget {
         horizontal: AppSizes.md,
         vertical: 8,
       ),
-      child: Row(
-        children: [
-          Container(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 620;
+
+          final typeIcon = Container(
             width: 28,
             height: 28,
             decoration: BoxDecoration(
@@ -2141,47 +2256,40 @@ class _TestRowItem extends StatelessWidget {
               size: 14,
               color: test.typeColor,
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
+          );
+
+          final titleAndDesc = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                test.title.isNotEmpty ? test.title : 'Untitled Test #${test.id}',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (test.description != null && test.description!.trim().isNotEmpty)
                 Text(
-                  test.title.isNotEmpty ? test.title : 'Untitled Test #${test.id}',
+                  test.description!.replaceAll('\r', '').replaceAll('\n', ' ').trim(),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                   style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 10.5,
+                    color: AppColors.textSecondary,
                   ),
                 ),
-                if (test.description != null &&
-                    test.description!.trim().isNotEmpty)
-                  Text(
-                    test.description!,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                    style: const TextStyle(
-                      fontSize: 10.5,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
+            ],
+          );
 
-          // Duration pill
-          Text(
+          final durationPill = Text(
             test.isUntimed ? 'Untimed' : '${test.time}m',
             style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-          ),
-          const SizedBox(width: 8),
+          );
 
-          // Question count pill
-          Container(
+          final questionCountPill = Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: 0.1),
@@ -2195,65 +2303,150 @@ class _TestRowItem extends StatelessWidget {
                 color: AppColors.primary,
               ),
             ),
-          ),
-          const SizedBox(width: 6),
+          );
 
-          // Access pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-            decoration: BoxDecoration(
-              color: test.isPremium
-                  ? Colors.amber.withValues(alpha: 0.12)
-                  : AppColors.success.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(3),
-            ),
-            child: Text(
-              test.isPremium ? 'PRO' : 'FREE',
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-                color: test.isPremium ? Colors.amber[800] : AppColors.success,
+          final accessPill = InkWell(
+            onTap: onTogglePremium,
+            borderRadius: BorderRadius.circular(4),
+            child: Tooltip(
+              message: test.isPremium
+                  ? 'Premium Test (Tap to make Free)'
+                  : 'Free Test (Tap to make Premium)',
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: test.isPremium
+                      ? Colors.amber.withValues(alpha: 0.15)
+                      : AppColors.success.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: test.isPremium
+                        ? Colors.amber.withValues(alpha: 0.4)
+                        : AppColors.success.withValues(alpha: 0.4),
+                    width: 0.6,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      test.isPremium
+                          ? Icons.workspace_premium_rounded
+                          : Icons.lock_open_rounded,
+                      size: 10,
+                      color: test.isPremium ? Colors.amber[800] : AppColors.success,
+                    ),
+                    const SizedBox(width: 2.5),
+                    Text(
+                      test.isPremium ? 'PRO' : 'FREE',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: test.isPremium ? Colors.amber[800] : AppColors.success,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 6),
+          );
 
-          // Status Changer Badge
-          _TestStatusBadge(
+          final statusBadge = _TestStatusBadge(
             status: test.status,
-            onStatusChange: onStatusChange ?? (onToggleStatus != null ? (_) => onToggleStatus!() : null),
-          ),
-          const SizedBox(width: 8),
+            onStatusChange: onStatusChange ??
+                (onToggleStatus != null ? (_) => onToggleStatus!() : null),
+          );
 
-          // Actions
-          if (onToggleStatus != null)
-            IconButton(
-              tooltip: test.isPublished
-                  ? 'Unpublish test (hide from students)'
-                  : 'Verify & Publish test (make live)',
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                test.isPublished
-                    ? Icons.cloud_done_rounded
-                    : Icons.cloud_upload_outlined,
-                size: 15,
-                color: test.isPublished ? AppColors.success : AppColors.warning,
+          final actionButtons = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (onToggleStatus != null)
+                IconButton(
+                  tooltip: test.isPublished
+                      ? 'Unpublish test (hide from students)'
+                      : 'Verify & Publish test (make live)',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                  icon: Icon(
+                    test.isPublished
+                        ? Icons.cloud_done_rounded
+                        : Icons.cloud_upload_outlined,
+                    size: 15,
+                    color:
+                        test.isPublished ? AppColors.success : AppColors.warning,
+                  ),
+                  onPressed: onToggleStatus,
+                ),
+              IconButton(
+                tooltip: 'Manage Questions & Details',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                icon: const Icon(Iconsax.edit_2_copy, size: 15),
+                onPressed: onEdit,
               ),
-              onPressed: onToggleStatus,
-            ),
-          IconButton(
-            tooltip: 'Manage Questions & Details',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Iconsax.edit_2_copy, size: 15),
-            onPressed: onEdit,
-          ),
-          IconButton(
-            tooltip: 'Delete Test',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Iconsax.trash_copy, size: 15, color: AppColors.error),
-            onPressed: onDelete,
-          ),
-        ],
+              IconButton(
+                tooltip: 'Delete Test',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                icon: const Icon(Iconsax.trash_copy,
+                    size: 15, color: AppColors.error),
+                onPressed: onDelete,
+              ),
+            ],
+          );
+
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    typeIcon,
+                    const SizedBox(width: 8),
+                    Expanded(child: titleAndDesc),
+                    actionButtons,
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.only(left: 36),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      durationPill,
+                      questionCountPill,
+                      accessPill,
+                      statusBadge,
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              typeIcon,
+              const SizedBox(width: 10),
+              Expanded(child: titleAndDesc),
+              const SizedBox(width: 8),
+              durationPill,
+              const SizedBox(width: 8),
+              questionCountPill,
+              const SizedBox(width: 6),
+              accessPill,
+              const SizedBox(width: 6),
+              statusBadge,
+              const SizedBox(width: 4),
+              actionButtons,
+            ],
+          );
+        },
       ),
     );
   }

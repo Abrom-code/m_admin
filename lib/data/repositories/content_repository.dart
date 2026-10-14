@@ -71,12 +71,35 @@ class ContentRepository {
       // Ensure updated_at is bumped (critical for sync).
       data['updated_at'] = DateTime.now().toUtc().toIso8601String();
 
-      await _sb.from('tests').upsert(data);
+      final rawId = data['id'];
+      final testId = rawId != null ? AppHelperFunctions.toInt(rawId) : null;
 
-      // Recompute question_count after every mutation.
-      if (data['id'] != null) {
-        await recountTestQuestions(AppHelperFunctions.toInt(data['id']) ?? 0);
+      if (testId != null) {
+        // Safe update: updates existing row without requiring all NOT NULL fields
+        final updatePayload = Map<String, dynamic>.from(data)..remove('id');
+        await _sb.from('tests').update(updatePayload).eq('id', testId);
+        await recountTestQuestions(testId);
+      } else {
+        // New test insert: ensure question_count is seeded to 0
+        data['question_count'] ??= 0;
+        final res = await _sb.from('tests').insert(data).select('id').maybeSingle();
+        final newId = res != null ? AppHelperFunctions.toInt(res['id']) : null;
+        if (newId != null) {
+          await recountTestQuestions(newId);
+        }
       }
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Updates only the is_premium flag of a test.
+  Future<void> updateTestPremium(int testId, bool isPremium) async {
+    try {
+      await _sb.from('tests').update({
+        'is_premium': isPremium,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', testId);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }

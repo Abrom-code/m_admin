@@ -79,10 +79,13 @@ class TestEditorController extends GetxController {
   /// Called after a question is saved or deleted.
   Future<void> reload() => _loadTest();
 
+  int _questionCount = 0;
+
   Future<void> _loadTest() async {
     try {
       isLoading.value = true;
       final data = await _repo.fetchTestDetail(testId!);
+      _questionCount = AppHelperFunctions.toInt(data['question_count']) ?? 0;
       titleCtrl.text = data['title']?.toString() ?? '';
       typeValue.value = data['type']?.toString() ?? 'chapter';
       gradeCtrl.text = data['grade']?.toString() ?? '';
@@ -136,6 +139,7 @@ class TestEditorController extends GetxController {
             : descriptionCtrl.text.trim(),
         'is_premium': isPremium.value,
         'status': statusValue.value,
+        'question_count': _questionCount,
       };
 
       await _repo.upsertTest(data);
