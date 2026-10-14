@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
@@ -439,24 +440,40 @@ class _QuestionReportRowItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
-                // Question ID Badge
+                // Question ID Badge (Copiable)
                 if (idLabel != null) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: dark ? AppColors.darkCard : const Color(0xFFF1F5F9),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        final rawId = group.questionId?.toString() ?? group.challengeQuestionId?.toString() ?? '';
+                        if (rawId.isNotEmpty) {
+                          Clipboard.setData(ClipboardData(text: rawId));
+                          SnackbarHelper.success('Copied', 'Question ID "$rawId" copied to clipboard.');
+                        }
+                      },
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: dark ? AppColors.darkBorder : const Color(0xFFCBD5E1),
-                      ),
-                    ),
-                    child: Text(
-                      idLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontFamily: 'monospace',
-                        fontWeight: FontWeight.w700,
-                        color: dark ? AppColors.white : const Color(0xFF334155),
+                      child: Tooltip(
+                        message: 'Click to copy ID',
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: dark ? AppColors.darkCard : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: dark ? AppColors.darkBorder : const Color(0xFFCBD5E1),
+                            ),
+                          ),
+                          child: Text(
+                            idLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                              fontWeight: FontWeight.w700,
+                              color: dark ? AppColors.white : const Color(0xFF334155),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -666,12 +683,18 @@ class _QuestionReportDetailDialogState extends State<_QuestionReportDetailDialog
                             text: 'ID: #${group.questionId}',
                             color: const Color(0xFF64748B),
                             icon: Icons.tag_rounded,
+                            trailingIcon: Icons.copy_rounded,
+                            copyableText: '${group.questionId}',
+                            tooltip: 'Click to copy ID (${group.questionId})',
                           ),
                         if (group.challengeQuestionId != null)
                           _TagChip(
                             text: 'ID: #${group.challengeQuestionId!.length > 8 ? group.challengeQuestionId!.substring(0, 8) : group.challengeQuestionId}',
                             color: const Color(0xFF64748B),
                             icon: Icons.tag_rounded,
+                            trailingIcon: Icons.copy_rounded,
+                            copyableText: group.challengeQuestionId,
+                            tooltip: 'Click to copy ID (${group.challengeQuestionId})',
                           ),
                         if (group.subjectName != null)
                           _TagChip(text: group.subjectName!, color: AppColors.primary, icon: Iconsax.book_1_copy),
@@ -718,17 +741,20 @@ class _QuestionReportDetailDialogState extends State<_QuestionReportDetailDialog
                             children: [
                               const Icon(Iconsax.info_circle_copy, size: 14, color: AppColors.primary),
                               const SizedBox(width: 6),
-                              const Text(
-                                'QUESTION CONTEXT & METADATA',
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.6,
-                                  color: AppColors.primary,
+                              const Expanded(
+                                child: Text(
+                                  'QUESTION CONTEXT & METADATA',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.6,
+                                    color: AppColors.primary,
+                                  ),
                                 ),
                               ),
-                              const Spacer(),
-                              if (group.questionOrder != null)
+                              if (group.questionOrder != null) ...[
+                                const SizedBox(width: 8),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
@@ -744,6 +770,7 @@ class _QuestionReportDetailDialogState extends State<_QuestionReportDetailDialog
                                     ),
                                   ),
                                 ),
+                              ],
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -756,12 +783,19 @@ class _QuestionReportDetailDialogState extends State<_QuestionReportDetailDialog
                                   text: 'Question ID: #${group.questionId}',
                                   color: AppColors.primary,
                                   icon: Icons.tag_rounded,
+                                  trailingIcon: Icons.copy_rounded,
+                                  copyableText: '${group.questionId}',
+                                  tooltip: 'Click to copy Question ID (${group.questionId})',
                                 ),
                               if (group.challengeQuestionId != null)
                                 _TagChip(
                                   text: 'Question ID: #${group.challengeQuestionId}',
                                   color: AppColors.primary,
                                   icon: Icons.tag_rounded,
+                                  trailingIcon: Icons.copy_rounded,
+                                  copyableText: group.challengeQuestionId,
+                                  tooltip: 'Click to copy Question ID (${group.challengeQuestionId})',
+                                  maxWidth: 240,
                                 ),
                               if (group.subjectName != null)
                                 _TagChip(
@@ -1783,14 +1817,35 @@ class _EditReportedQuestionDialogState extends State<_EditReportedQuestionDialog
 }
 
 class _TagChip extends StatelessWidget {
-  const _TagChip({required this.text, required this.color, this.icon});
+  const _TagChip({
+    required this.text,
+    required this.color,
+    this.icon,
+    this.trailingIcon,
+    this.copyableText,
+    this.tooltip,
+    this.maxWidth = 280,
+  });
+
   final String text;
   final Color color;
   final IconData? icon;
+  final IconData? trailingIcon;
+  final String? copyableText;
+  final String? tooltip;
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final effectiveOnTap = copyableText != null && copyableText!.isNotEmpty
+        ? () {
+            Clipboard.setData(ClipboardData(text: copyableText!));
+            SnackbarHelper.success('Copied', 'Question ID "$copyableText" copied to clipboard.');
+          }
+        : null;
+
+    Widget chipContent = Container(
+      constraints: BoxConstraints(maxWidth: maxWidth),
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
@@ -1804,17 +1859,50 @@ class _TagChip extends StatelessWidget {
             Icon(icon, size: 11, color: color),
             const SizedBox(width: 4),
           ],
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-              color: color,
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
             ),
           ),
+          if (trailingIcon != null) ...[
+            const SizedBox(width: 4),
+            Icon(trailingIcon, size: 10.5, color: color),
+          ],
         ],
       ),
     );
+
+    if (effectiveOnTap != null) {
+      chipContent = Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: effectiveOnTap,
+          borderRadius: BorderRadius.circular(4),
+          child: chipContent,
+        ),
+      );
+    }
+
+    final message = tooltip ??
+        (copyableText != null
+            ? 'Click to copy: $copyableText'
+            : (text.length > 28 ? text : null));
+
+    if (message != null) {
+      return Tooltip(
+        message: message,
+        child: chipContent,
+      );
+    }
+
+    return chipContent;
   }
 }
 
