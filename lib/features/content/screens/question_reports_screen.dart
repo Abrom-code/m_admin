@@ -405,6 +405,14 @@ class _QuestionReportRowItem extends StatelessWidget {
     final count = group.reportCount;
     final isMultiple = count > 1;
 
+    final String? idLabel = group.questionId != null
+        ? 'ID: #${group.questionId}'
+        : (group.challengeQuestionId != null
+            ? (group.challengeQuestionId!.length > 8
+                ? 'ID: #${group.challengeQuestionId!.substring(0, 8)}'
+                : 'ID: #${group.challengeQuestionId}')
+            : null);
+
     return Container(
       decoration: BoxDecoration(
         color: dark ? AppColors.darkSurface : AppColors.white,
@@ -431,20 +439,29 @@ class _QuestionReportRowItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
-                // Subject, Grade & Chapter Tags
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    if (group.subjectName != null)
-                      _TagChip(text: group.subjectName!, color: AppColors.primary),
-                    if (group.formattedGrade != null)
-                      _TagChip(text: group.formattedGrade!, color: const Color(0xFF6366F1)),
-                    if (group.formattedChapter != null)
-                      _TagChip(text: group.formattedChapter!, color: const Color(0xFF0D9488)),
-                  ],
-                ),
-                const SizedBox(width: 10),
+                // Question ID Badge
+                if (idLabel != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: dark ? AppColors.darkCard : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: dark ? AppColors.darkBorder : const Color(0xFFCBD5E1),
+                      ),
+                    ),
+                    child: Text(
+                      idLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w700,
+                        color: dark ? AppColors.white : const Color(0xFF334155),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
 
                 // Question Text (Strictly 1 line with ellipsis)
                 Expanded(
@@ -644,6 +661,18 @@ class _QuestionReportDetailDialogState extends State<_QuestionReportDetailDialog
                             ],
                           ),
                         ),
+                        if (group.questionId != null)
+                          _TagChip(
+                            text: 'ID: #${group.questionId}',
+                            color: const Color(0xFF64748B),
+                            icon: Icons.tag_rounded,
+                          ),
+                        if (group.challengeQuestionId != null)
+                          _TagChip(
+                            text: 'ID: #${group.challengeQuestionId!.length > 8 ? group.challengeQuestionId!.substring(0, 8) : group.challengeQuestionId}',
+                            color: const Color(0xFF64748B),
+                            icon: Icons.tag_rounded,
+                          ),
                         if (group.subjectName != null)
                           _TagChip(text: group.subjectName!, color: AppColors.primary, icon: Iconsax.book_1_copy),
                         if (group.formattedGrade != null)
@@ -722,6 +751,18 @@ class _QuestionReportDetailDialogState extends State<_QuestionReportDetailDialog
                             spacing: 8,
                             runSpacing: 6,
                             children: [
+                              if (group.questionId != null)
+                                _TagChip(
+                                  text: 'Question ID: #${group.questionId}',
+                                  color: AppColors.primary,
+                                  icon: Icons.tag_rounded,
+                                ),
+                              if (group.challengeQuestionId != null)
+                                _TagChip(
+                                  text: 'Question ID: #${group.challengeQuestionId}',
+                                  color: AppColors.primary,
+                                  icon: Icons.tag_rounded,
+                                ),
                               if (group.subjectName != null)
                                 _TagChip(
                                   text: group.subjectName!,
