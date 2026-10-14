@@ -800,31 +800,22 @@ class _SessionTable extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  tooltip: 'Revoke session',
-                  iconSize: 17,
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () async {
-                    final name = row.userName ?? row.userEmail ?? row.userId;
-                    final ok = await AppDialogBoxes.confirm(
-                      title: 'Revoke device session',
-                      message:
-                          'Are you sure you want to remove the session for $name? '
-                          'The user session will be removed from the database.',
-                      confirmLabel: 'Revoke',
-                      isDestructive: true,
-                    );
-                    if (ok) controller.deleteSession(row);
-                  },
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    color: AppColors.error,
+                if (row.hasBlockedAuth) ...[
+                  IconButton(
+                    tooltip: 'View Blocked Auth Details',
+                    iconSize: 17,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _showBlockedDetailsDialog(context, row, controller),
+                    icon: const Icon(
+                      Icons.gpp_bad_rounded,
+                      color: AppColors.error,
+                    ),
                   ),
-                ),
-                if (row.isLocked) ...[
                   const SizedBox(width: 2),
+                ],
+                if (row.isLocked) ...[
                   IconButton(
                     tooltip: 'Reset Device Lock (Allow New Phone)',
                     iconSize: 17,
@@ -848,22 +839,31 @@ class _SessionTable extends StatelessWidget {
                       color: AppColors.warning,
                     ),
                   ),
-                ],
-                if (row.hasBlockedAuth) ...[
                   const SizedBox(width: 2),
-                  IconButton(
-                    tooltip: 'View Blocked Auth Details',
-                    iconSize: 17,
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _showBlockedDetailsDialog(context, row, controller),
-                    icon: const Icon(
-                      Icons.gpp_bad_rounded,
-                      color: AppColors.error,
-                    ),
-                  ),
                 ],
+                IconButton(
+                  tooltip: 'Revoke session',
+                  iconSize: 17,
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () async {
+                    final name = row.userName ?? row.userEmail ?? row.userId;
+                    final ok = await AppDialogBoxes.confirm(
+                      title: 'Revoke device session',
+                      message:
+                          'Are you sure you want to remove the session for $name? '
+                          'The user session will be removed from the database.',
+                      confirmLabel: 'Revoke',
+                      isDestructive: true,
+                    );
+                    if (ok) controller.deleteSession(row);
+                  },
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppColors.error,
+                  ),
+                ),
               ],
             ),
           );
