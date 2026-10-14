@@ -23,6 +23,13 @@ enum SessionFilter {
   blockedAuth,
 }
 
+enum DeviceRecentStatus {
+  blocked,    // User attempted login on unauthorized device (reset requested)
+  reset,      // Admin reset device lock, awaiting student to pair new phone
+  connected,  // User device is bound and connected
+  ready,      // Fresh account, ready to pair first device
+}
+
 // ── Model ────────────────────────────────────────────────────────────
 
 class SessionRow {
@@ -40,6 +47,7 @@ class SessionRow {
     this.lastBlockedDeviceModel,
     this.lastBlockedNote,
     this.resetCount = 0,
+    this.lastResetAt,
   });
 
   final String userId;
@@ -55,10 +63,43 @@ class SessionRow {
   final String? lastBlockedDeviceModel;
   final String? lastBlockedNote;
   final int resetCount;
+  final DateTime? lastResetAt;
 
   bool get isLocked => deviceId.trim().isNotEmpty;
   bool get hasBlockedAuth => blockedCount > 0;
   String get firebaseUid => userId;
+
+  /// Determines the latest lifecycle status of this user's device:
+  /// - `blocked`: The user attempted to log in from an unauthorized phone most recently.
+  /// - `reset`: Admin reset the device, and the student hasn't paired a new device yet.
+  /// - `connected`: A device is actively bound and linked.
+  /// - `ready`: Fresh account, ready to connect.
+  DeviceRecentStatus get recentStatus {
+    // 1. If currently unbound (no device locked)
+    if (!isLocked) {
+      if (hasBlockedAuth &&
+          (lastResetAt == null ||
+              (lastBlockedAt != null && lastBlockedAt!.isAfter(lastResetAt!)))) {
+        return DeviceRecentStatus.blocked;
+      }
+      if (resetCount > 0 || lastResetAt != null) {
+        return DeviceRecentStatus.reset;
+      }
+      return DeviceRecentStatus.ready;
+    }
+
+    // 2. Currently bound (isLocked == true):
+    if (lastBlockedAt != null) {
+      final resetTime = lastResetAt;
+      final isBlockedAfterReset =
+          resetTime == null || lastBlockedAt!.isAfter(resetTime);
+      if (isBlockedAfterReset) {
+        return DeviceRecentStatus.blocked;
+      }
+    }
+
+    return DeviceRecentStatus.connected;
+  }
 
   SessionRow copyWith({
     String? userId,
@@ -74,6 +115,7 @@ class SessionRow {
     String? lastBlockedDeviceModel,
     String? lastBlockedNote,
     int? resetCount,
+    DateTime? lastResetAt,
   }) {
     return SessionRow(
       userId: userId ?? this.userId,
@@ -89,6 +131,7 @@ class SessionRow {
       lastBlockedDeviceModel: lastBlockedDeviceModel ?? this.lastBlockedDeviceModel,
       lastBlockedNote: lastBlockedNote ?? this.lastBlockedNote,
       resetCount: resetCount ?? this.resetCount,
+      lastResetAt: lastResetAt ?? this.lastResetAt,
     );
   }
 
@@ -96,6 +139,7 @@ class SessionRow {
     Map<String, dynamic> j, {
     List<Map<String, dynamic>> blockedAttempts = const [],
     int resetCount = 0,
+    DateTime? lastResetAt,
   }) {
     final user = j['users'] as Map<String, dynamic>? ?? {};
     final fName = user['first_name']?.toString() ?? '';
@@ -123,6 +167,7 @@ class SessionRow {
       lastBlockedDeviceModel: latestBlocked?['device_model']?.toString(),
       lastBlockedNote: latestBlocked?['note']?.toString(),
       resetCount: resetCount,
+      lastResetAt: lastResetAt,
     );
   }
 }
@@ -190,17 +235,22 @@ class SessionsController extends GetxController {
         debugPrint('[SessionsController] Error fetching device_history: $e');
       }
 
-      // 3. Query admin reset history from device_history to count resets per user
+      // 3. Query admin reset history from device_history to count resets per user and get last reset time
       final Map<String, int> resetCountByUser = {};
+      final Map<String, DateTime> lastResetByUser = {};
       try {
         final resetData = await _sb
             .from('device_history')
-            .select('user_id')
-            .eq('action', 'ADMIN_RESET');
+            .select('user_id, created_at')
+            .eq('action', 'ADMIN_RESET')
+            .order('created_at', ascending: false);
         for (final item in (resetData as List)) {
           final uid = item['user_id']?.toString();
           if (uid != null && uid.isNotEmpty) {
             resetCountByUser[uid] = (resetCountByUser[uid] ?? 0) + 1;
+            if (!lastResetByUser.containsKey(uid) && item['created_at'] != null) {
+              lastResetByUser[uid] = DateTime.tryParse(item['created_at'].toString()) ?? DateTime.now();
+            }
           }
         }
       } catch (e) {
@@ -224,6 +274,7 @@ class SessionsController extends GetxController {
           rowMap,
           blockedAttempts: userBlocked,
           resetCount: resetCountByUser[uid] ?? 0,
+          lastResetAt: lastResetByUser[uid],
         );
       }).toList();
 
@@ -265,6 +316,7 @@ class SessionsController extends GetxController {
               lastBlockedDeviceModel: latest['device_model']?.toString(),
               lastBlockedNote: latest['note']?.toString(),
               resetCount: resetCountByUser[uid] ?? 0,
+              lastResetAt: lastResetByUser[uid],
             ));
           }
         } catch (e) {
@@ -365,6 +417,8 @@ class SessionsController extends GetxController {
       final updated = session.copyWith(
         deviceId: '',
         deviceModel: null,
+        resetCount: session.resetCount + 1,
+        lastResetAt: DateTime.now(),
       );
 
       final idxAll = allRows.indexWhere((r) => r.userId == session.userId);
@@ -794,27 +848,67 @@ class _SessionTable extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             );
           }
+          final status = row.recentStatus;
           return FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerRight,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (row.hasBlockedAuth) ...[
-                  IconButton(
-                    tooltip: 'View Blocked Auth Details',
-                    iconSize: 17,
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _showBlockedDetailsDialog(context, row, controller),
-                    icon: const Icon(
-                      Icons.gpp_bad_rounded,
-                      color: AppColors.error,
-                    ),
+                // 1. First icon: Recent status (replaces the old blocked-only "x" icon with 3 states)
+                IconButton(
+                  tooltip: switch (status) {
+                    DeviceRecentStatus.blocked =>
+                      'Reset Requested / Blocked Attempt (${row.blockedCount}x) • Click for details',
+                    DeviceRecentStatus.reset =>
+                      'Device Reset (${row.resetCount}x) • Ready to connect new phone',
+                    DeviceRecentStatus.connected =>
+                      'Connected • ${row.deviceModel ?? (row.deviceId.isNotEmpty ? row.deviceId : "Active device")}',
+                    DeviceRecentStatus.ready =>
+                      'Ready to Connect • No device bound',
+                  },
+                  iconSize: 17,
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () {
+                    if (row.hasBlockedAuth) {
+                      _showBlockedDetailsDialog(context, row, controller);
+                    } else if (status == DeviceRecentStatus.reset) {
+                      SnackbarHelper.info(
+                        'Device Reset',
+                        'Device lock was cleared (${row.resetCount} reset${row.resetCount == 1 ? '' : 's'}). The student can pair their next phone on login.',
+                      );
+                    } else if (status == DeviceRecentStatus.connected) {
+                      SnackbarHelper.info(
+                        'Device Connected',
+                        'Currently bound to ${row.deviceModel ?? "device"} (${row.deviceId}).',
+                      );
+                    } else {
+                      SnackbarHelper.info(
+                        'Ready to Connect',
+                        'Student has not bound a device yet.',
+                      );
+                    }
+                  },
+                  icon: Icon(
+                    switch (status) {
+                      DeviceRecentStatus.blocked => Icons.gpp_bad_rounded,
+                      DeviceRecentStatus.reset => Icons.restart_alt_rounded,
+                      DeviceRecentStatus.connected => Icons.phonelink_rounded,
+                      DeviceRecentStatus.ready => Icons.phonelink_off_rounded,
+                    },
+                    color: switch (status) {
+                      DeviceRecentStatus.blocked => AppColors.error,
+                      DeviceRecentStatus.reset => AppColors.warning,
+                      DeviceRecentStatus.connected => AppColors.success,
+                      DeviceRecentStatus.ready => AppColors.textSecondary,
+                    },
                   ),
-                  const SizedBox(width: 2),
-                ],
+                ),
+                const SizedBox(width: 2),
+
+                // 2. Middle icon: Reset Device Lock (Allow New Phone)
                 if (row.isLocked) ...[
                   IconButton(
                     tooltip: 'Reset Device Lock (Allow New Phone)',
@@ -841,10 +935,10 @@ class _SessionTable extends StatelessWidget {
                   ),
                   const SizedBox(width: 2),
                 ],
+
+                // 3. Last icon: Revoke Session (Delete from database)
                 IconButton(
-                  tooltip: row.isLocked
-                      ? 'Revoke session (Connected)'
-                      : 'Revoke session (Ready to connect)',
+                  tooltip: 'Revoke session',
                   iconSize: 17,
                   padding: const EdgeInsets.all(4),
                   constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
@@ -861,13 +955,9 @@ class _SessionTable extends StatelessWidget {
                     );
                     if (ok) controller.deleteSession(row);
                   },
-                  icon: Icon(
-                    row.isLocked
-                        ? Icons.phonelink_rounded
-                        : Icons.phonelink_off_rounded,
-                    color: row.isLocked
-                        ? AppColors.success
-                        : AppColors.warning,
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppColors.error,
                   ),
                 ),
               ],
@@ -968,16 +1058,21 @@ class _DeviceIdCell extends StatelessWidget {
     final os = session.osVersion;
 
     if (!hasDevice) {
-      return const Row(
+      final isReset = session.recentStatus == DeviceRecentStatus.reset;
+      return Row(
         children: [
-          Icon(Icons.phonelink_off_rounded, size: 14, color: AppColors.warning),
-          SizedBox(width: 6),
+          Icon(
+            isReset ? Icons.restart_alt_rounded : Icons.phonelink_off_rounded,
+            size: 14,
+            color: isReset ? AppColors.warning : AppColors.textSecondary,
+          ),
+          const SizedBox(width: 6),
           Text(
-            'Ready to connect',
+            isReset ? 'Device reset • Ready' : 'Ready to connect',
             style: TextStyle(
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
-              color: AppColors.warning,
+              color: isReset ? AppColors.warning : AppColors.textSecondary,
             ),
           ),
         ],
@@ -1038,10 +1133,29 @@ class _LockStatusCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLocked = session.isLocked;
-    final color = isLocked ? AppColors.success : AppColors.warning;
-    final label = isLocked ? 'CONNECTED' : 'READY TO CONNECT';
-    final icon = isLocked ? Icons.phonelink_rounded : Icons.phonelink_off_rounded;
+    final status = session.recentStatus;
+    final (label, color, icon) = switch (status) {
+      DeviceRecentStatus.blocked => (
+        'RESET REQUESTED',
+        AppColors.error,
+        Icons.gpp_bad_rounded,
+      ),
+      DeviceRecentStatus.reset => (
+        'DEVICE RESET',
+        AppColors.warning,
+        Icons.restart_alt_rounded,
+      ),
+      DeviceRecentStatus.connected => (
+        'CONNECTED',
+        AppColors.success,
+        Icons.phonelink_rounded,
+      ),
+      DeviceRecentStatus.ready => (
+        'READY TO CONNECT',
+        AppColors.warning,
+        Icons.phonelink_off_rounded,
+      ),
+    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1078,17 +1192,26 @@ class _LockStatusCell extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.12),
+                color: AppColors.error.withValues(alpha: status == DeviceRecentStatus.blocked ? 0.12 : 0.07),
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: AppColors.error.withValues(alpha: 0.3), width: 0.8),
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: status == DeviceRecentStatus.blocked ? 0.3 : 0.18),
+                  width: 0.8,
+                ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.gpp_bad_rounded, size: 11, color: AppColors.error),
+                  Icon(
+                    status == DeviceRecentStatus.blocked ? Icons.gpp_bad_rounded : Icons.history_rounded,
+                    size: 11,
+                    color: AppColors.error,
+                  ),
                   const SizedBox(width: 4),
                   Text(
-                    'BLOCKED (${session.blockedCount})',
+                    status == DeviceRecentStatus.blocked
+                        ? 'BLOCKED (${session.blockedCount})'
+                        : 'PAST BLOCKED (${session.blockedCount})',
                     style: const TextStyle(
                       fontSize: 9.5,
                       fontWeight: FontWeight.bold,
