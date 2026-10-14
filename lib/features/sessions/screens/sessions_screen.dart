@@ -39,6 +39,7 @@ class SessionRow {
     this.lastBlockedAt,
     this.lastBlockedDeviceModel,
     this.lastBlockedNote,
+    this.resetCount = 0,
   });
 
   final String userId;
@@ -53,6 +54,7 @@ class SessionRow {
   final DateTime? lastBlockedAt;
   final String? lastBlockedDeviceModel;
   final String? lastBlockedNote;
+  final int resetCount;
 
   bool get isLocked => deviceId.trim().isNotEmpty;
   bool get hasBlockedAuth => blockedCount > 0;
@@ -71,6 +73,7 @@ class SessionRow {
     DateTime? lastBlockedAt,
     String? lastBlockedDeviceModel,
     String? lastBlockedNote,
+    int? resetCount,
   }) {
     return SessionRow(
       userId: userId ?? this.userId,
@@ -85,12 +88,14 @@ class SessionRow {
       lastBlockedAt: lastBlockedAt ?? this.lastBlockedAt,
       lastBlockedDeviceModel: lastBlockedDeviceModel ?? this.lastBlockedDeviceModel,
       lastBlockedNote: lastBlockedNote ?? this.lastBlockedNote,
+      resetCount: resetCount ?? this.resetCount,
     );
   }
 
   factory SessionRow.fromJson(
     Map<String, dynamic> j, {
     List<Map<String, dynamic>> blockedAttempts = const [],
+    int resetCount = 0,
   }) {
     final user = j['users'] as Map<String, dynamic>? ?? {};
     final fName = user['first_name']?.toString() ?? '';
@@ -117,6 +122,7 @@ class SessionRow {
           : null,
       lastBlockedDeviceModel: latestBlocked?['device_model']?.toString(),
       lastBlockedNote: latestBlocked?['note']?.toString(),
+      resetCount: resetCount,
     );
   }
 }
@@ -184,6 +190,23 @@ class SessionsController extends GetxController {
         debugPrint('[SessionsController] Error fetching device_history: $e');
       }
 
+      // 3. Query admin reset history from device_history to count resets per user
+      final Map<String, int> resetCountByUser = {};
+      try {
+        final resetData = await _sb
+            .from('device_history')
+            .select('user_id')
+            .eq('action', 'ADMIN_RESET');
+        for (final item in (resetData as List)) {
+          final uid = item['user_id']?.toString();
+          if (uid != null && uid.isNotEmpty) {
+            resetCountByUser[uid] = (resetCountByUser[uid] ?? 0) + 1;
+          }
+        }
+      } catch (e) {
+        debugPrint('[SessionsController] Error fetching reset counts: $e');
+      }
+
       // Group blocked attempts by user_id
       final Map<String, List<Map<String, dynamic>>> blockedByUser = {};
       for (final item in blockedHistory) {
@@ -197,7 +220,11 @@ class SessionsController extends GetxController {
         final rowMap = Map<String, dynamic>.from(r);
         final uid = (rowMap['user_id'] ?? rowMap['firebase_uid'])?.toString() ?? '';
         final userBlocked = blockedByUser[uid] ?? [];
-        return SessionRow.fromJson(rowMap, blockedAttempts: userBlocked);
+        return SessionRow.fromJson(
+          rowMap,
+          blockedAttempts: userBlocked,
+          resetCount: resetCountByUser[uid] ?? 0,
+        );
       }).toList();
 
       // Include users with blocked attempts who might not be in active user_sessions
@@ -237,6 +264,7 @@ class SessionsController extends GetxController {
               lastBlockedAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString()) : null,
               lastBlockedDeviceModel: latest['device_model']?.toString(),
               lastBlockedNote: latest['note']?.toString(),
+              resetCount: resetCountByUser[uid] ?? 0,
             ));
           }
         } catch (e) {
@@ -746,6 +774,11 @@ class _SessionTable extends StatelessWidget {
             cell: (_, row) => _LockStatusCell(session: row),
           ),
           AdminColumn(
+            label: 'RESETS',
+            width: 80,
+            cell: (_, row) => _ResetCountCell(session: row),
+          ),
+          AdminColumn(
             label: 'LAST ACTIVE',
             width: 125,
             cell: (_, row) => _LastActiveCell(date: row.lastActiveAt ?? row.updatedAt),
@@ -931,10 +964,10 @@ class _DeviceIdCell extends StatelessWidget {
     if (!hasDevice) {
       return const Row(
         children: [
-          Icon(Icons.lock_open_rounded, size: 14, color: AppColors.warning),
+          Icon(Icons.phonelink_off_rounded, size: 14, color: AppColors.warning),
           SizedBox(width: 6),
           Text(
-            'Ready to pair',
+            'Ready to connect',
             style: TextStyle(
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
@@ -947,7 +980,7 @@ class _DeviceIdCell extends StatelessWidget {
 
     return Row(
       children: [
-        const Icon(Icons.smartphone_rounded, size: 14, color: AppColors.textSecondary),
+        const Icon(Icons.phonelink_rounded, size: 14, color: AppColors.success),
         const SizedBox(width: 6),
         Expanded(
           child: Column(
@@ -1001,8 +1034,8 @@ class _LockStatusCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLocked = session.isLocked;
     final color = isLocked ? AppColors.success : AppColors.warning;
-    final label = isLocked ? 'LOCKED' : 'READY TO PAIR';
-    final icon = isLocked ? Icons.smartphone_rounded : Icons.lock_open_rounded;
+    final label = isLocked ? 'CONNECTED' : 'READY TO CONNECT';
+    final icon = isLocked ? Icons.phonelink_rounded : Icons.phonelink_off_rounded;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1062,6 +1095,51 @@ class _LockStatusCell extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _ResetCountCell extends StatelessWidget {
+  const _ResetCountCell({required this.session});
+  final SessionRow session;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = session.resetCount;
+
+    if (count == 0) {
+      return const Text(
+        '—',
+        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+      );
+    }
+
+    final color = count >= 3 ? AppColors.error : (count >= 2 ? AppColors.warning : AppColors.textSecondary);
+
+    return Tooltip(
+      message: '$count device reset(s) performed by admin',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.restart_alt_rounded, size: 13, color: color),
+            const SizedBox(width: 4),
+            Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
