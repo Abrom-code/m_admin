@@ -12,7 +12,18 @@ class QuestionReportAdminModel {
   final int? subjectId;
   final String? subjectName;
   final String? testTitle;
+  final int? grade;
+  final int? chapterId;
+  final int? chapterNumber;
+  final String? chapterTitle;
+  final String? testType;
+  final int? questionOrder;
+  final String? imageUrl;
+  final String? explanationImageUrl;
+  final String? challengeId;
+  final String? challengeTitle;
   final String questionText;
+  final List<String>? options;
   final String? choiceA;
   final String? choiceB;
   final String? choiceC;
@@ -40,7 +51,18 @@ class QuestionReportAdminModel {
     this.subjectId,
     this.subjectName,
     this.testTitle,
+    this.grade,
+    this.chapterId,
+    this.chapterNumber,
+    this.chapterTitle,
+    this.testType,
+    this.questionOrder,
+    this.imageUrl,
+    this.explanationImageUrl,
+    this.challengeId,
+    this.challengeTitle,
     required this.questionText,
+    this.options,
     this.choiceA,
     this.choiceB,
     this.choiceC,
@@ -78,6 +100,86 @@ class QuestionReportAdminModel {
   bool get isPending => status == 'pending';
   bool get isResolved => status == 'resolved';
   bool get isDismissed => status == 'dismissed';
+
+  QuestionReportAdminModel copyWith({
+    String? id,
+    String? userId,
+    String? userName,
+    String? userEmail,
+    int? questionId,
+    String? challengeQuestionId,
+    int? testId,
+    int? subjectId,
+    String? subjectName,
+    String? testTitle,
+    int? grade,
+    int? chapterId,
+    int? chapterNumber,
+    String? chapterTitle,
+    String? testType,
+    int? questionOrder,
+    String? imageUrl,
+    String? explanationImageUrl,
+    String? challengeId,
+    String? challengeTitle,
+    String? questionText,
+    List<String>? options,
+    String? choiceA,
+    String? choiceB,
+    String? choiceC,
+    String? choiceD,
+    String? correctChoice,
+    String? explanation,
+    String? explanationEn,
+    String? explanationAm,
+    String? reason,
+    String? comment,
+    String? status,
+    String? adminNotes,
+    DateTime? createdAt,
+    DateTime? resolvedAt,
+    String? resolvedBy,
+  }) {
+    return QuestionReportAdminModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      userEmail: userEmail ?? this.userEmail,
+      questionId: questionId ?? this.questionId,
+      challengeQuestionId: challengeQuestionId ?? this.challengeQuestionId,
+      testId: testId ?? this.testId,
+      subjectId: subjectId ?? this.subjectId,
+      subjectName: subjectName ?? this.subjectName,
+      testTitle: testTitle ?? this.testTitle,
+      grade: grade ?? this.grade,
+      chapterId: chapterId ?? this.chapterId,
+      chapterNumber: chapterNumber ?? this.chapterNumber,
+      chapterTitle: chapterTitle ?? this.chapterTitle,
+      testType: testType ?? this.testType,
+      questionOrder: questionOrder ?? this.questionOrder,
+      imageUrl: imageUrl ?? this.imageUrl,
+      explanationImageUrl: explanationImageUrl ?? this.explanationImageUrl,
+      challengeId: challengeId ?? this.challengeId,
+      challengeTitle: challengeTitle ?? this.challengeTitle,
+      questionText: questionText ?? this.questionText,
+      options: options ?? this.options,
+      choiceA: choiceA ?? this.choiceA,
+      choiceB: choiceB ?? this.choiceB,
+      choiceC: choiceC ?? this.choiceC,
+      choiceD: choiceD ?? this.choiceD,
+      correctChoice: correctChoice ?? this.correctChoice,
+      explanation: explanation ?? this.explanation,
+      explanationEn: explanationEn ?? this.explanationEn,
+      explanationAm: explanationAm ?? this.explanationAm,
+      reason: reason ?? this.reason,
+      comment: comment ?? this.comment,
+      status: status ?? this.status,
+      adminNotes: adminNotes ?? this.adminNotes,
+      createdAt: createdAt ?? this.createdAt,
+      resolvedAt: resolvedAt ?? this.resolvedAt,
+      resolvedBy: resolvedBy ?? this.resolvedBy,
+    );
+  }
 
   factory QuestionReportAdminModel.fromJson(Map<String, dynamic> json) {
     final user = json['users'] as Map<String, dynamic>? ?? {};
@@ -144,6 +246,14 @@ class QuestionReportAdminModel {
     final explAm = question['explanation_am']?.toString() ?? challengeQuestion['explanation_am']?.toString();
     final expl = explEn ?? explAm ?? challengeQuestion['explanation']?.toString();
 
+    final grade = AppHelperFunctions.toInt(question['grade']) ?? AppHelperFunctions.toInt(test['grade']);
+    final chapterId = AppHelperFunctions.toInt(question['chapter_id']) ?? AppHelperFunctions.toInt(test['chapter_id']);
+    final testType = test['type']?.toString();
+    final questionOrder = AppHelperFunctions.toInt(question['question_order']);
+    final imgUrl = question['image_url']?.toString() ?? challengeQuestion['image_url']?.toString();
+    final explImgUrl = question['explanation_image_url']?.toString();
+    final challengeId = challengeQuestion['challenge_id']?.toString();
+
     return QuestionReportAdminModel(
       id: json['id']?.toString() ?? '',
       userId: json['user_id']?.toString() ?? '',
@@ -155,7 +265,15 @@ class QuestionReportAdminModel {
       subjectId: AppHelperFunctions.toInt(subject['id']),
       subjectName: subject['name']?.toString(),
       testTitle: test['title']?.toString(),
+      grade: grade,
+      chapterId: chapterId,
+      testType: testType,
+      questionOrder: questionOrder,
+      imageUrl: imgUrl,
+      explanationImageUrl: explImgUrl,
+      challengeId: challengeId,
       questionText: qText,
+      options: optionsList,
       choiceA: cA,
       choiceB: cB,
       choiceC: cC,
@@ -175,7 +293,6 @@ class QuestionReportAdminModel {
   }
 }
 
-
 class QuestionReportGroupModel {
   final int? questionId;
   final String? challengeQuestionId;
@@ -183,7 +300,18 @@ class QuestionReportGroupModel {
   final int? subjectId;
   final String? subjectName;
   final String? testTitle;
+  final int? grade;
+  final int? chapterId;
+  final int? chapterNumber;
+  final String? chapterTitle;
+  final String? testType;
+  final int? questionOrder;
+  final String? imageUrl;
+  final String? explanationImageUrl;
+  final String? challengeId;
+  final String? challengeTitle;
   final String questionText;
+  final List<String>? options;
   final String? choiceA;
   final String? choiceB;
   final String? choiceC;
@@ -201,7 +329,18 @@ class QuestionReportGroupModel {
     this.subjectId,
     this.subjectName,
     this.testTitle,
+    this.grade,
+    this.chapterId,
+    this.chapterNumber,
+    this.chapterTitle,
+    this.testType,
+    this.questionOrder,
+    this.imageUrl,
+    this.explanationImageUrl,
+    this.challengeId,
+    this.challengeTitle,
     required this.questionText,
+    this.options,
     this.choiceA,
     this.choiceB,
     this.choiceC,
@@ -222,6 +361,88 @@ class QuestionReportGroupModel {
   String get targetKey => questionId != null
       ? 'q_$questionId'
       : (challengeQuestionId != null ? 'cq_$challengeQuestionId' : (reports.isNotEmpty ? reports.first.id : ''));
+
+  bool get isChallenge => challengeQuestionId != null || challengeId != null;
+
+  String? get formattedGrade => grade != null && grade! > 0 ? 'Grade $grade' : null;
+
+  String? get formattedChapter {
+    if (chapterNumber != null && chapterTitle != null && chapterTitle!.trim().isNotEmpty) {
+      return 'Ch $chapterNumber: ${chapterTitle!.trim()}';
+    } else if (chapterNumber != null) {
+      return 'Chapter $chapterNumber';
+    } else if (chapterTitle != null && chapterTitle!.trim().isNotEmpty) {
+      return chapterTitle!.trim();
+    }
+    return null;
+  }
+
+  String? get contextTitle {
+    if (isChallenge) {
+      return challengeTitle ?? 'Challenge Question';
+    }
+    return testTitle ?? (testType != null ? '${testType!.toUpperCase()} Test' : null);
+  }
+
+  QuestionReportGroupModel copyWith({
+    int? questionId,
+    String? challengeQuestionId,
+    int? testId,
+    int? subjectId,
+    String? subjectName,
+    String? testTitle,
+    int? grade,
+    int? chapterId,
+    int? chapterNumber,
+    String? chapterTitle,
+    String? testType,
+    int? questionOrder,
+    String? imageUrl,
+    String? explanationImageUrl,
+    String? challengeId,
+    String? challengeTitle,
+    String? questionText,
+    List<String>? options,
+    String? choiceA,
+    String? choiceB,
+    String? choiceC,
+    String? choiceD,
+    String? correctChoice,
+    String? explanation,
+    String? explanationEn,
+    String? explanationAm,
+    List<QuestionReportAdminModel>? reports,
+  }) {
+    return QuestionReportGroupModel(
+      questionId: questionId ?? this.questionId,
+      challengeQuestionId: challengeQuestionId ?? this.challengeQuestionId,
+      testId: testId ?? this.testId,
+      subjectId: subjectId ?? this.subjectId,
+      subjectName: subjectName ?? this.subjectName,
+      testTitle: testTitle ?? this.testTitle,
+      grade: grade ?? this.grade,
+      chapterId: chapterId ?? this.chapterId,
+      chapterNumber: chapterNumber ?? this.chapterNumber,
+      chapterTitle: chapterTitle ?? this.chapterTitle,
+      testType: testType ?? this.testType,
+      questionOrder: questionOrder ?? this.questionOrder,
+      imageUrl: imageUrl ?? this.imageUrl,
+      explanationImageUrl: explanationImageUrl ?? this.explanationImageUrl,
+      challengeId: challengeId ?? this.challengeId,
+      challengeTitle: challengeTitle ?? this.challengeTitle,
+      questionText: questionText ?? this.questionText,
+      options: options ?? this.options,
+      choiceA: choiceA ?? this.choiceA,
+      choiceB: choiceB ?? this.choiceB,
+      choiceC: choiceC ?? this.choiceC,
+      choiceD: choiceD ?? this.choiceD,
+      correctChoice: correctChoice ?? this.correctChoice,
+      explanation: explanation ?? this.explanation,
+      explanationEn: explanationEn ?? this.explanationEn,
+      explanationAm: explanationAm ?? this.explanationAm,
+      reports: reports ?? this.reports,
+    );
+  }
 
   static List<QuestionReportGroupModel> groupReports(
     List<QuestionReportAdminModel> reports, {
@@ -247,7 +468,18 @@ class QuestionReportGroupModel {
         subjectId: first.subjectId,
         subjectName: first.subjectName,
         testTitle: first.testTitle,
+        grade: first.grade,
+        chapterId: first.chapterId,
+        chapterNumber: first.chapterNumber,
+        chapterTitle: first.chapterTitle,
+        testType: first.testType,
+        questionOrder: first.questionOrder,
+        imageUrl: first.imageUrl,
+        explanationImageUrl: first.explanationImageUrl,
+        challengeId: first.challengeId,
+        challengeTitle: first.challengeTitle,
         questionText: first.questionText,
+        options: first.options,
         choiceA: first.choiceA,
         choiceB: first.choiceB,
         choiceC: first.choiceC,

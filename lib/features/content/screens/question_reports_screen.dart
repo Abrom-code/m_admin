@@ -10,6 +10,7 @@ import 'package:m_admin/features/content/screens/test_editor_screen.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
+import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 class QuestionReportsScreen extends StatelessWidget {
   const QuestionReportsScreen({super.key});
@@ -430,25 +431,20 @@ class _QuestionReportRowItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
-                // Subject Tag
-                if (group.subjectName != null) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      group.subjectName!,
-                      style: const TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                ],
+                // Subject, Grade & Chapter Tags
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    if (group.subjectName != null)
+                      _TagChip(text: group.subjectName!, color: AppColors.primary),
+                    if (group.formattedGrade != null)
+                      _TagChip(text: group.formattedGrade!, color: const Color(0xFF6366F1)),
+                    if (group.formattedChapter != null)
+                      _TagChip(text: group.formattedChapter!, color: const Color(0xFF0D9488)),
+                  ],
+                ),
+                const SizedBox(width: 10),
 
                 // Question Text (Strictly 1 line with ellipsis)
                 Expanded(
@@ -528,7 +524,7 @@ class _QuestionReportRowItem extends StatelessWidget {
 }
 
 /// ── Full Detail Modal: Triggered upon clicking any question ──
-class _QuestionReportDetailDialog extends StatelessWidget {
+class _QuestionReportDetailDialog extends StatefulWidget {
   const _QuestionReportDetailDialog({
     required this.group,
     required this.controller,
@@ -540,13 +536,60 @@ class _QuestionReportDetailDialog extends StatelessWidget {
   final bool dark;
 
   @override
+  State<_QuestionReportDetailDialog> createState() => _QuestionReportDetailDialogState();
+}
+
+class _QuestionReportDetailDialogState extends State<_QuestionReportDetailDialog> {
+  late QuestionReportGroupModel _group;
+
+  @override
+  void initState() {
+    super.initState();
+    _group = widget.group;
+  }
+
+  Future<void> _openEditDialog(BuildContext context) async {
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _EditReportedQuestionDialog(
+        group: _group,
+        controller: widget.controller,
+        dark: widget.dark,
+      ),
+    );
+
+    if (updated == true && mounted) {
+      final currentGroups = widget.controller.groupedReports;
+      final updatedGroup = currentGroups.firstWhereOrNull(
+        (g) => g.targetKey == _group.targetKey,
+      );
+      if (updatedGroup != null) {
+        setState(() {
+          _group = updatedGroup;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final dark = widget.dark;
+    final group = _group;
     final count = group.reportCount;
     final isMultiple = count > 1;
 
     final hasEn = group.explanationEn != null && group.explanationEn!.trim().isNotEmpty;
     final hasAm = group.explanationAm != null && group.explanationAm!.trim().isNotEmpty;
     final fallbackExpl = group.explanation != null && group.explanation!.trim().isNotEmpty;
+
+    final choicesList = (group.options != null && group.options!.isNotEmpty)
+        ? group.options!
+        : [
+            if (group.choiceA != null) group.choiceA!,
+            if (group.choiceB != null) group.choiceB!,
+            if (group.choiceC != null) group.choiceC!,
+            if (group.choiceD != null) group.choiceD!,
+          ];
 
     return Dialog(
       backgroundColor: dark ? AppColors.darkCard : AppColors.white,
@@ -556,7 +599,7 @@ class _QuestionReportDetailDialog extends StatelessWidget {
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       child: Container(
         width: double.infinity,
-        constraints: const BoxConstraints(maxWidth: 680, maxHeight: 820),
+        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 860),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -602,29 +645,11 @@ class _QuestionReportDetailDialog extends StatelessWidget {
                           ),
                         ),
                         if (group.subjectName != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              group.subjectName!,
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        if (group.testTitle != null)
-                          Text(
-                            group.testTitle!,
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: dark ? AppColors.darkGrey : AppColors.textSecondary,
-                            ),
-                          ),
+                          _TagChip(text: group.subjectName!, color: AppColors.primary, icon: Iconsax.book_1_copy),
+                        if (group.formattedGrade != null)
+                          _TagChip(text: group.formattedGrade!, color: const Color(0xFF6366F1), icon: Iconsax.teacher_copy),
+                        if (group.formattedChapter != null)
+                          _TagChip(text: group.formattedChapter!, color: const Color(0xFF0D9488), icon: Iconsax.folder_2_copy),
                       ],
                     ),
                   ),
@@ -647,9 +672,150 @@ class _QuestionReportDetailDialog extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ── Question Details Card (Subject, Chapter, Grade, Context) ──
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: dark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                        border: Border.all(
+                          color: dark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Iconsax.info_circle_copy, size: 14, color: AppColors.primary),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'QUESTION CONTEXT & METADATA',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.6,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              const Spacer(),
+                              if (group.questionOrder != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'Q# ${group.questionOrder}',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              if (group.subjectName != null)
+                                _TagChip(
+                                  text: group.subjectName!,
+                                  color: AppColors.primary,
+                                  icon: Iconsax.book_1_copy,
+                                ),
+                              if (group.formattedGrade != null)
+                                _TagChip(
+                                  text: group.formattedGrade!,
+                                  color: const Color(0xFF6366F1),
+                                  icon: Iconsax.teacher_copy,
+                                ),
+                              if (group.formattedChapter != null)
+                                _TagChip(
+                                  text: group.formattedChapter!,
+                                  color: const Color(0xFF0D9488),
+                                  icon: Iconsax.folder_2_copy,
+                                ),
+                              if (group.contextTitle != null)
+                                _TagChip(
+                                  text: group.contextTitle!,
+                                  color: dark ? AppColors.darkGrey : const Color(0xFF475569),
+                                  icon: Iconsax.document_text_copy,
+                                ),
+                              _TagChip(
+                                text: group.isChallenge ? 'Challenge Question' : 'Standard Test Question',
+                                color: group.isChallenge ? Colors.amber[800]! : Colors.blueGrey,
+                                icon: Iconsax.category_copy,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // ── Attached Question Image (if present) ──
+                    if (group.imageUrl != null && group.imageUrl!.trim().isNotEmpty) ...[
+                      const Text(
+                        'ATTACHED QUESTION IMAGE',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: double.infinity,
+                        constraints: const BoxConstraints(maxHeight: 220),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: dark ? AppColors.darkBorder : const Color(0xFFE2E8F0)),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            group.imageUrl!.trim(),
+                            fit: BoxFit.contain,
+                            loadingBuilder: (_, child, progress) {
+                              if (progress == null) return child;
+                              return Container(
+                                height: 120,
+                                alignment: Alignment.center,
+                                child: const CircularProgressIndicator(strokeWidth: 2),
+                              );
+                            },
+                            errorBuilder: (_, _, _) => Container(
+                              height: 80,
+                              color: AppColors.error.withValues(alpha: 0.08),
+                              child: const Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.broken_image_rounded, size: 20, color: AppColors.error),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Failed to load question image from URL',
+                                      style: TextStyle(fontSize: 12, color: AppColors.error, fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
                     // Question text
                     const Text(
-                      'QUESTION',
+                      'QUESTION TEXT',
                       style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w700,
@@ -665,7 +831,7 @@ class _QuestionReportDetailDialog extends StatelessWidget {
                     const SizedBox(height: 14),
 
                     // Choices
-                    if (group.choiceA != null) ...[
+                    if (choicesList.isNotEmpty) ...[
                       const Text(
                         'ANSWER CHOICES',
                         style: TextStyle(
@@ -676,12 +842,14 @@ class _QuestionReportDetailDialog extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      _ChoicePreviewRow(letter: 'A', text: group.choiceA!, isCorrect: group.correctChoice == 'A', dark: dark),
-                      _ChoicePreviewRow(letter: 'B', text: group.choiceB!, isCorrect: group.correctChoice == 'B', dark: dark),
-                      if (group.choiceC != null)
-                        _ChoicePreviewRow(letter: 'C', text: group.choiceC!, isCorrect: group.correctChoice == 'C', dark: dark),
-                      if (group.choiceD != null)
-                        _ChoicePreviewRow(letter: 'D', text: group.choiceD!, isCorrect: group.correctChoice == 'D', dark: dark),
+                      for (int i = 0; i < choicesList.length; i++) ...[
+                        _ChoicePreviewRow(
+                          letter: String.fromCharCode(65 + i),
+                          text: choicesList[i],
+                          isCorrect: group.correctChoice == String.fromCharCode(65 + i),
+                          dark: dark,
+                        ),
+                      ],
                       const SizedBox(height: 14),
                     ],
 
@@ -834,6 +1002,27 @@ class _QuestionReportDetailDialog extends StatelessWidget {
                             ),
                           ),
                         ),
+
+                      // Explanation image preview
+                      if (group.explanationImageUrl != null && group.explanationImageUrl!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          width: double.infinity,
+                          constraints: const BoxConstraints(maxHeight: 180),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: dark ? AppColors.darkBorder : const Color(0xFFE2E8F0)),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              group.explanationImageUrl!.trim(),
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 8),
                     ],
 
@@ -920,6 +1109,15 @@ class _QuestionReportDetailDialog extends StatelessWidget {
                     onPressed: () => Navigator.pop(context),
                     child: const Text('Close'),
                   ),
+                  ElevatedButton.icon(
+                    onPressed: () => _openEditDialog(context),
+                    icon: const Icon(Iconsax.edit_2_copy, size: 14),
+                    label: const Text('Edit Question', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
                   if (group.testId != null && group.subjectId != null)
                     OutlinedButton.icon(
                       onPressed: () {
@@ -930,8 +1128,8 @@ class _QuestionReportDetailDialog extends StatelessWidget {
                               subjectName: group.subjectName ?? '',
                             ));
                       },
-                      icon: const Icon(Iconsax.edit_2_copy, size: 14),
-                      label: const Text('Edit in Test Editor', style: TextStyle(fontSize: 12)),
+                      icon: const Icon(Iconsax.document_copy, size: 14),
+                      label: const Text('Open in Test Editor', style: TextStyle(fontSize: 12)),
                     ),
                   ElevatedButton.icon(
                     onPressed: () {
@@ -958,7 +1156,7 @@ class _QuestionReportDetailDialog extends StatelessWidget {
   }
 
   void _confirmFixAndRemove(BuildContext context) {
-    final count = group.reportCount;
+    final count = _group.reportCount;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -975,10 +1173,603 @@ class _QuestionReportDetailDialog extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              controller.fixAndRemoveQuestionGroup(group);
+              widget.controller.fixAndRemoveQuestionGroup(_group);
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, foregroundColor: Colors.white),
             child: const Text('Confirm & Delete from DB'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ── Question Editor Dialog: Allows directly editing the reported question ──
+class _EditReportedQuestionDialog extends StatefulWidget {
+  const _EditReportedQuestionDialog({
+    required this.group,
+    required this.controller,
+    required this.dark,
+  });
+
+  final QuestionReportGroupModel group;
+  final QuestionReportsController controller;
+  final bool dark;
+
+  @override
+  State<_EditReportedQuestionDialog> createState() => _EditReportedQuestionDialogState();
+}
+
+class _EditReportedQuestionDialogState extends State<_EditReportedQuestionDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _questionTextCtrl;
+  late final TextEditingController _explanationEnCtrl;
+  late final TextEditingController _explanationAmCtrl;
+  late final TextEditingController _gradeCtrl;
+  late final TextEditingController _imageUrlCtrl;
+  final List<TextEditingController> _optionCtrls = [];
+  String _correctChoice = 'A';
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final g = widget.group;
+    _questionTextCtrl = TextEditingController(text: g.questionText);
+    _explanationEnCtrl = TextEditingController(text: g.explanationEn ?? '');
+    _explanationAmCtrl = TextEditingController(text: g.explanationAm ?? '');
+    _gradeCtrl = TextEditingController(text: g.grade != null && g.grade! > 0 ? '${g.grade}' : '');
+    _imageUrlCtrl = TextEditingController(text: g.imageUrl ?? '');
+
+    List<String> initialOptions = [];
+    if (g.options != null && g.options!.isNotEmpty) {
+      initialOptions = List<String>.from(g.options!);
+    } else {
+      if (g.choiceA != null) initialOptions.add(g.choiceA!);
+      if (g.choiceB != null) initialOptions.add(g.choiceB!);
+      if (g.choiceC != null) initialOptions.add(g.choiceC!);
+      if (g.choiceD != null) initialOptions.add(g.choiceD!);
+    }
+
+    if (initialOptions.isEmpty) {
+      initialOptions = ['', '', '', ''];
+    } else {
+      while (initialOptions.length < 2) {
+        initialOptions.add('');
+      }
+    }
+
+    for (final opt in initialOptions) {
+      _optionCtrls.add(TextEditingController(text: opt));
+    }
+
+    _correctChoice = (g.correctChoice != null && g.correctChoice!.isNotEmpty)
+        ? g.correctChoice!.toUpperCase()
+        : 'A';
+  }
+
+  @override
+  void dispose() {
+    _questionTextCtrl.dispose();
+    _explanationEnCtrl.dispose();
+    _explanationAmCtrl.dispose();
+    _gradeCtrl.dispose();
+    _imageUrlCtrl.dispose();
+    for (final c in _optionCtrls) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addOption() {
+    if (_optionCtrls.length >= 6) return;
+    setState(() => _optionCtrls.add(TextEditingController()));
+  }
+
+  void _removeOption(int index) {
+    if (_optionCtrls.length <= 2) return;
+    final ctrl = _optionCtrls.removeAt(index);
+    ctrl.dispose();
+    final letter = String.fromCharCode(65 + index);
+    if (_correctChoice == letter || (_correctChoice.codeUnitAt(0) - 65) >= _optionCtrls.length) {
+      _correctChoice = 'A';
+    }
+    setState(() {});
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final options = _optionCtrls.map((c) => c.text.trim()).toList();
+    if (options.any((o) => o.isEmpty)) {
+      SnackbarHelper.warning('Incomplete Options', 'All option choices must have text.');
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    final grade = int.tryParse(_gradeCtrl.text.trim());
+    final imgUrl = _imageUrlCtrl.text.trim();
+
+    final ok = await widget.controller.editAndSaveQuestion(
+      group: widget.group,
+      questionText: _questionTextCtrl.text.trim(),
+      options: options,
+      correctChoice: _correctChoice,
+      explanationEn: _explanationEnCtrl.text.trim(),
+      explanationAm: _explanationAmCtrl.text.trim(),
+      grade: grade,
+      imageUrl: imgUrl.isNotEmpty ? imgUrl : null,
+    );
+
+    if (mounted) {
+      setState(() => _isSaving = false);
+      if (ok) {
+        Navigator.pop(context, true);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = widget.dark;
+    final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
+    final group = widget.group;
+
+    return Dialog(
+      backgroundColor: dark ? AppColors.darkCard : AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
+      ),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 860),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Iconsax.edit_2_copy, size: 18, color: AppColors.primary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Edit Reported Question',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 3),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            if (group.subjectName != null)
+                              _TagChip(text: group.subjectName!, color: AppColors.primary),
+                            if (group.formattedGrade != null)
+                              _TagChip(text: group.formattedGrade!, color: const Color(0xFF6366F1)),
+                            if (group.formattedChapter != null)
+                              _TagChip(text: group.formattedChapter!, color: const Color(0xFF0D9488)),
+                            if (group.contextTitle != null)
+                              _TagChip(text: group.contextTitle!, color: AppColors.textSecondary),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    tooltip: 'Cancel',
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+
+            // Form Body
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Question Text
+                      const Text(
+                        'QUESTION TEXT *',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _questionTextCtrl,
+                        minLines: 3,
+                        maxLines: 7,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Question text is required.' : null,
+                        style: const TextStyle(fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Enter question text...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: borderColor),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: borderColor),
+                          ),
+                          filled: true,
+                          fillColor: dark ? AppColors.darkSurface : const Color(0xFFF8FAFC),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Choices / Options Header
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'ANSWER CHOICES *',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Tap a letter to set it as the correct answer',
+                                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_optionCtrls.length < 6)
+                            TextButton.icon(
+                              onPressed: _addOption,
+                              icon: const Icon(Icons.add_rounded, size: 16),
+                              label: const Text('Add Option', style: TextStyle(fontSize: 12)),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Options List
+                      for (int i = 0; i < _optionCtrls.length; i++) ...[
+                        _buildOptionRow(i, dark, borderColor),
+                        const SizedBox(height: 8),
+                      ],
+                      const SizedBox(height: 14),
+
+                      // Explanations Section
+                      const Text(
+                        'EXPLANATIONS',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // English Explanation
+                      TextFormField(
+                        controller: _explanationEnCtrl,
+                        minLines: 2,
+                        maxLines: 5,
+                        style: const TextStyle(fontSize: 12.5),
+                        decoration: InputDecoration(
+                          labelText: 'English Explanation',
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'EN',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ),
+                          prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 30),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: borderColor),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: borderColor),
+                          ),
+                          filled: true,
+                          fillColor: dark ? AppColors.darkSurface : const Color(0xFFF8FAFC),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Amharic Explanation
+                      TextFormField(
+                        controller: _explanationAmCtrl,
+                        minLines: 2,
+                        maxLines: 5,
+                        style: const TextStyle(fontSize: 12.5),
+                        decoration: InputDecoration(
+                          labelText: 'Amharic Explanation (የማብራሪያ ጽሁፍ)',
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.success.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'አማ',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.success,
+                                ),
+                              ),
+                            ),
+                          ),
+                          prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 30),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: borderColor),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: borderColor),
+                          ),
+                          filled: true,
+                          fillColor: dark ? AppColors.darkSurface : const Color(0xFFF8FAFC),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Additional details: Grade & Image URL
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 140,
+                            child: TextFormField(
+                              controller: _gradeCtrl,
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(fontSize: 12.5),
+                              decoration: InputDecoration(
+                                labelText: 'Grade',
+                                hintText: '9-12',
+                                prefixIcon: const Icon(Iconsax.teacher_copy, size: 16),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: borderColor),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: borderColor),
+                                ),
+                                filled: true,
+                                fillColor: dark ? AppColors.darkSurface : const Color(0xFFF8FAFC),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _imageUrlCtrl,
+                              style: const TextStyle(fontSize: 12.5),
+                              decoration: InputDecoration(
+                                labelText: 'Question Image URL (optional)',
+                                prefixIcon: const Icon(Iconsax.image_copy, size: 16),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: borderColor),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: borderColor),
+                                ),
+                                filled: true,
+                                fillColor: dark ? AppColors.darkSurface : const Color(0xFFF8FAFC),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            const Divider(height: 1),
+
+            // Footer
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _isSaving ? null : () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 10),
+                  FilledButton.icon(
+                    onPressed: _isSaving ? null : _save,
+                    icon: _isSaving
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.save_rounded, size: 16),
+                    label: Text(_isSaving ? 'Saving...' : 'Save Changes'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionRow(int index, bool dark, Color borderColor) {
+    final letter = String.fromCharCode(65 + index);
+    final isCorrect = _correctChoice == letter;
+
+    return Row(
+      children: [
+        // Correct Selector Button
+        InkWell(
+          onTap: () => setState(() => _correctChoice = letter),
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: isCorrect
+                  ? AppColors.success
+                  : (dark ? AppColors.darkSurface : AppColors.softGrey),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isCorrect ? AppColors.success : borderColor,
+                width: isCorrect ? 1.5 : 1,
+              ),
+            ),
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    letter,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: isCorrect ? Colors.white : (dark ? Colors.white70 : Colors.black87),
+                    ),
+                  ),
+                  if (isCorrect) ...[
+                    const SizedBox(width: 2),
+                    const Icon(Icons.check_rounded, size: 12, color: Colors.white),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+
+        // Option text field
+        Expanded(
+          child: TextFormField(
+            controller: _optionCtrls[index],
+            style: const TextStyle(fontSize: 12.5),
+            validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Option $letter text...',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: isCorrect ? AppColors.success : borderColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: isCorrect ? AppColors.success : borderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: isCorrect ? AppColors.success : AppColors.primary,
+                  width: 1.5,
+                ),
+              ),
+              filled: true,
+              fillColor: isCorrect
+                  ? AppColors.success.withValues(alpha: 0.05)
+                  : (dark ? AppColors.darkSurface : const Color(0xFFF8FAFC)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+          ),
+        ),
+
+        // Remove button
+        if (_optionCtrls.length > 2) ...[
+          const SizedBox(width: 6),
+          IconButton(
+            onPressed: () => _removeOption(index),
+            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+            color: AppColors.error,
+            tooltip: 'Remove Option $letter',
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            padding: EdgeInsets.zero,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _TagChip extends StatelessWidget {
+  const _TagChip({required this.text, required this.color, this.icon});
+  final String text;
+  final Color color;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.22), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 11, color: color),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
           ),
         ],
       ),
@@ -1087,3 +1878,4 @@ class _ChoicePreviewRow extends StatelessWidget {
     );
   }
 }
+

@@ -134,6 +134,72 @@ class QuestionReportsController extends GetxController {
     }
   }
 
+  Future<bool> editAndSaveQuestion({
+    required QuestionReportGroupModel group,
+    required String questionText,
+    required List<String> options,
+    required String correctChoice,
+    String? explanationEn,
+    String? explanationAm,
+    int? grade,
+    String? imageUrl,
+  }) async {
+    try {
+      isActionLoading.value = true;
+      await _repo.saveQuestion(
+        questionId: group.questionId,
+        challengeQuestionId: group.challengeQuestionId,
+        testId: group.testId,
+        subjectId: group.subjectId,
+        challengeId: group.challengeId,
+        questionText: questionText,
+        options: options,
+        correctChoice: correctChoice,
+        explanationEn: explanationEn,
+        explanationAm: explanationAm,
+        grade: grade,
+        imageUrl: imageUrl,
+      );
+
+      final cA = options.isNotEmpty ? options[0] : null;
+      final cB = options.length > 1 ? options[1] : null;
+      final cC = options.length > 2 ? options[2] : null;
+      final cD = options.length > 3 ? options[3] : null;
+
+      reports.value = reports.map((r) {
+        final matches = (group.questionId != null && r.questionId == group.questionId) ||
+            (group.challengeQuestionId != null && r.challengeQuestionId == group.challengeQuestionId);
+        if (matches) {
+          return r.copyWith(
+            questionText: questionText,
+            options: options,
+            choiceA: cA,
+            choiceB: cB,
+            choiceC: cC,
+            choiceD: cD,
+            correctChoice: correctChoice,
+            explanationEn: explanationEn,
+            explanationAm: explanationAm,
+            explanation: (explanationEn != null && explanationEn.isNotEmpty)
+                ? explanationEn
+                : explanationAm,
+            grade: grade ?? r.grade,
+            imageUrl: imageUrl ?? r.imageUrl,
+          );
+        }
+        return r;
+      }).toList();
+
+      ToastHelper.success('Question updated successfully!');
+      return true;
+    } catch (e) {
+      ToastHelper.error(AppExceptionHandler.handle(e).message);
+      return false;
+    } finally {
+      isActionLoading.value = false;
+    }
+  }
+
   Future<void> resolveReport(QuestionReportAdminModel report, {String? notes}) async {
     try {
       await _repo.updateStatus(report.id, status: 'resolved', adminNotes: notes);
@@ -156,3 +222,4 @@ class QuestionReportsController extends GetxController {
     }
   }
 }
+
