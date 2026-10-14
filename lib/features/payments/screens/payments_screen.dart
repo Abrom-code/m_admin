@@ -13,7 +13,6 @@ import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
-import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 /// The modern payment review queue and audit console.
 class PaymentsScreen extends StatelessWidget {
@@ -318,24 +317,6 @@ class _ModernFilterBar extends StatelessWidget {
                   ),
                 );
               }),
-
-              // Test Local Notification Button
-              IconButton(
-                tooltip: 'Test local notification',
-                visualDensity: VisualDensity.compact,
-                onPressed: () async {
-                  await controller.sendTestNotification();
-                  SnackbarHelper.info(
-                    'Notification Dispatched',
-                    'A test alert was sent. Check your status bar / notification tray.',
-                  );
-                },
-                icon: const Icon(
-                  Iconsax.notification_bing_copy,
-                  size: AppSizes.iconSm,
-                  color: AppColors.primary,
-                ),
-              ),
             ],
           );
 
