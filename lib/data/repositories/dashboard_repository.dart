@@ -344,6 +344,9 @@ class DashboardRepository {
       } else if (filter == '30d') {
         start = now.subtract(const Duration(days: 30));
         end = now;
+      } else if (filter == '90d') {
+        start = now.subtract(const Duration(days: 90));
+        end = now;
       } else if (filter == 'all') {
         start = DateTime(2023, 1, 1);
         end = now;
@@ -358,7 +361,7 @@ class DashboardRepository {
           .select('created_at')
           .gte('created_at', start.toUtc().toIso8601String());
 
-      if (filter != '7d' && filter != '30d' && filter != 'all') {
+      if (filter != '7d' && filter != '30d' && filter != '90d' && filter != 'all') {
         query = query.lte('created_at', end.toUtc().toIso8601String());
       }
 

@@ -47,7 +47,7 @@ class DashboardController extends GetxController {
 
   // ── 12-Hour Format Hourly Signups ──────────────────────────────
   final hourlySignups = <HourlySignupPoint>[].obs;
-  final hourlyFilter = 'today'.obs; // 'today', 'yesterday', '7d', '30d'
+  final hourlyFilter = 'today'.obs; // 'today', '7d', '30d', '90d'
   final isHourlyLoading = false.obs;
 
   int get hourlyTotalSignups =>
