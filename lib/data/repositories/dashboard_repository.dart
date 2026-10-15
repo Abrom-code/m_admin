@@ -136,6 +136,45 @@ class StreamPoint {
   final int count;
 }
 
+/// Signups grouped into a 12-hour formatted hourly bucket (0 to 23).
+class HourlySignupPoint {
+  const HourlySignupPoint({
+    required this.hour,
+    required this.label12h,
+    required this.count,
+    this.percentage = 0.0,
+  });
+
+  /// 0 to 23 (local hour)
+  final int hour;
+
+  /// e.g. "12 AM", "1 AM", ... "12 PM", "1 PM", ... "11 PM"
+  final String label12h;
+
+  /// Total student signups registered in this hour
+  final int count;
+
+  /// Percentage of total signups in this period
+  final double percentage;
+
+  bool get isAm => hour < 12;
+  bool get isPm => hour >= 12;
+
+  static String formatHour12(int h) {
+    if (h == 0) return '12 AM';
+    if (h < 12) return '$h AM';
+    if (h == 12) return '12 PM';
+    return '${h - 12} PM';
+  }
+
+  static String formatHourRange12(int h) {
+    final start = formatHour12(h);
+    final nextH = (h + 1) % 24;
+    final end = formatHour12(nextH);
+    return '$start – $end';
+  }
+}
+
 // ── Numeric helpers ──────────────────────────────────────────────────────────
 // Supabase returns numeric/decimal columns as String in some query shapes
 // (e.g. when included alongside a .count()). These helpers accept both.
@@ -275,6 +314,81 @@ class DashboardRepository {
           .order('created_at');
 
       return _groupByDayRange(rows, 'created_at', start, end);
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Fetches signups grouped into 24 hourly buckets (0-23) in 12-hour format.
+  /// [filter] can be:
+  /// - 'today': signups from 00:00 to 23:59 today (local time)
+  /// - 'yesterday': signups from 00:00 to 23:59 yesterday (local time)
+  /// - '7d': hourly distribution across the past 7 days
+  /// - '30d': hourly distribution across the past 30 days
+  /// - 'all': all-time hourly distribution
+  Future<List<HourlySignupPoint>> fetchHourlySignups({
+    String filter = 'today',
+  }) async {
+    try {
+      final now = DateTime.now();
+      DateTime start;
+      DateTime end;
+
+      if (filter == 'yesterday') {
+        final yesterday = now.subtract(const Duration(days: 1));
+        start = DateTime(yesterday.year, yesterday.month, yesterday.day);
+        end = DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59, 999);
+      } else if (filter == '7d') {
+        start = now.subtract(const Duration(days: 7));
+        end = now;
+      } else if (filter == '30d') {
+        start = now.subtract(const Duration(days: 30));
+        end = now;
+      } else if (filter == 'all') {
+        start = DateTime(2023, 1, 1);
+        end = now;
+      } else {
+        // 'today' default
+        start = DateTime(now.year, now.month, now.day);
+        end = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+      }
+
+      var query = _sb
+          .from('users')
+          .select('created_at')
+          .gte('created_at', start.toUtc().toIso8601String());
+
+      if (filter != '7d' && filter != '30d' && filter != 'all') {
+        query = query.lte('created_at', end.toUtc().toIso8601String());
+      }
+
+      final rows = await query.order('created_at');
+
+      final hourlyCounts = List<int>.filled(24, 0);
+      int totalCount = 0;
+
+      for (final r in (rows as List)) {
+        final ts = r['created_at']?.toString();
+        if (ts == null) continue;
+        final dt = DateTime.tryParse(ts);
+        if (dt == null) continue;
+        final localHour = dt.toLocal().hour;
+        if (localHour >= 0 && localHour < 24) {
+          hourlyCounts[localHour]++;
+          totalCount++;
+        }
+      }
+
+      return List.generate(24, (hour) {
+        final count = hourlyCounts[hour];
+        final pct = totalCount > 0 ? (count / totalCount) * 100.0 : 0.0;
+        return HourlySignupPoint(
+          hour: hour,
+          label12h: HourlySignupPoint.formatHour12(hour),
+          count: count,
+          percentage: pct,
+        );
+      });
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }

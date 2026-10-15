@@ -6,6 +6,7 @@ import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/data/repositories/dashboard_repository.dart';
 import 'package:m_admin/features/dashboard/controllers/dashboard_controller.dart';
 import 'package:m_admin/features/dashboard/screens/widgets/dashboard_chart_cards.dart';
+import 'package:m_admin/features/dashboard/screens/widgets/hourly_signups_chart_card.dart';
 import 'package:m_admin/features/dashboard/screens/widgets/signup_chart_card.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/payments/screens/payment_detail_screen.dart';
@@ -82,13 +83,15 @@ class DashboardScreen extends StatelessWidget {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ── Left Column (Main Growth Chart & Exam Coverage) ──
+                      // ── Left Column (Main Growth Chart, 12h Signups & Exam Coverage) ──
                       const Expanded(
                         flex: 6,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             SignupChartCard(),
+                            SizedBox(height: AppSizes.spaceBtwItems),
+                            HourlySignupsChartCard(),
                             SizedBox(height: AppSizes.spaceBtwItems),
                             SubjectTestCountCard(),
                           ],
@@ -121,6 +124,8 @@ class DashboardScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SignupChartCard(),
+                    const SizedBox(height: AppSizes.spaceBtwItems),
+                    const HourlySignupsChartCard(),
                     const SizedBox(height: AppSizes.spaceBtwItems),
                     _RecentReceiptsQueue(rows: stats.recentReceipts),
                     const SizedBox(height: AppSizes.spaceBtwItems),

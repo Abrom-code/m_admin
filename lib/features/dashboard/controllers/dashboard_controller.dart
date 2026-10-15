@@ -45,6 +45,43 @@ class DashboardController extends GetxController {
   final rangeDays = 30.obs;
   final customDateRange = Rxn<DateTimeRange>();
 
+  // ── 12-Hour Format Hourly Signups ──────────────────────────────
+  final hourlySignups = <HourlySignupPoint>[].obs;
+  final hourlyFilter = 'today'.obs; // 'today', 'yesterday', '7d', '30d'
+  final isHourlyLoading = false.obs;
+
+  int get hourlyTotalSignups =>
+      hourlySignups.fold<int>(0, (sum, p) => sum + p.count);
+
+  HourlySignupPoint? get hourlyPeakHour {
+    if (hourlySignups.isEmpty) return null;
+    final maxP = hourlySignups.reduce((a, b) => a.count >= b.count ? a : b);
+    return maxP.count > 0 ? maxP : null;
+  }
+
+  int get hourlyAmSignups =>
+      hourlySignups.where((p) => p.isAm).fold<int>(0, (sum, p) => sum + p.count);
+
+  int get hourlyPmSignups =>
+      hourlySignups.where((p) => p.isPm).fold<int>(0, (sum, p) => sum + p.count);
+
+  Future<void> setHourlyFilter(String filter) async {
+    hourlyFilter.value = filter;
+    await reloadHourlySignups();
+  }
+
+  Future<void> reloadHourlySignups() async {
+    try {
+      isHourlyLoading.value = true;
+      final points = await _repo.fetchHourlySignups(filter: hourlyFilter.value);
+      hourlySignups.value = points;
+    } catch (e) {
+      debugPrint('[DashboardController] Error loading hourly signups: $e');
+    } finally {
+      isHourlyLoading.value = false;
+    }
+  }
+
   @override
   void onInit() {
     super.onInit();
@@ -103,6 +140,7 @@ class DashboardController extends GetxController {
         _repo.fetchSubscriptionFunnel(),
         _repo.fetchStreamSplit(),
         loadQuestionReports(),
+        _repo.fetchHourlySignups(filter: hourlyFilter.value),
       ]);
 
       stats.value = results[0] as DashboardStats;
@@ -110,6 +148,7 @@ class DashboardController extends GetxController {
       subjectTestCounts.value = results[2] as List<SubjectTestCount>;
       subscriptionFunnel.value = results[3] as List<FunnelPoint>;
       streamSplit.value = results[4] as List<StreamPoint>;
+      hourlySignups.value = results[6] as List<HourlySignupPoint>;
 
       if (stats.value != null) {
         pendingQuestionReportsCount.value = stats.value!.reportedQuestionsCount;
