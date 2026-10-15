@@ -6,6 +6,8 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
+import 'package:m_admin/features/security/screens/passcode_setup_dialog.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/utils/constants/app_env.dart';
@@ -374,6 +376,8 @@ class SettingsScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const _SecurityPasscodeSection(),
+          const SizedBox(height: AppSizes.spaceBtwSections),
           _DatabaseOverviewSection(controller),
           const SizedBox(height: AppSizes.spaceBtwSections),
           _StudentAppSection(controller),
@@ -386,6 +390,210 @@ class SettingsScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ── Security & Passcode Section ──────────────────────────────────────
+
+class _SecurityPasscodeSection extends StatelessWidget {
+  const _SecurityPasscodeSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
+    final lockCtrl = AppLockController.instance;
+
+    return Material(
+      color: dark ? AppColors.darkSurface : AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        side: BorderSide(color: borderColor),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSizes.md),
+        child: Obx(() {
+        final isEnabled = lockCtrl.isPasscodeEnabled.value;
+        final type = lockCtrl.lockType.value;
+        final hasBiometrics = lockCtrl.canUseBiometrics.value;
+        final biometricsEnabled = lockCtrl.isBiometricEnabled.value;
+        final autoMinutes = lockCtrl.autoLockMinutes.value;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                  ),
+                  child: const Icon(
+                    Iconsax.security_safe_copy,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: AppSizes.sm),
+                const Expanded(
+                  child: Text(
+                    'Passcode & App Lock',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (isEnabled)
+                  OutlinedButton.icon(
+                    onPressed: lockCtrl.lock,
+                    icon: const Icon(Iconsax.lock_copy, size: 14),
+                    label: const Text('Lock Now'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSizes.md),
+
+            // Toggle Passcode Lock
+            Material(
+              type: MaterialType.transparency,
+              child: SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: isEnabled,
+                onChanged: (val) {
+                  if (val) {
+                    PasscodeSetupDialog.show(context);
+                  } else {
+                    lockCtrl.disablePasscode();
+                  }
+                },
+                title: const Text(
+                  'Passcode Lock',
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+
+            if (isEnabled) ...[
+              const Divider(height: 20),
+
+              // Lock Type & Change Button
+              Material(
+                type: MaterialType.transparency,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    type == AppLockType.pin ? Iconsax.hashtag_copy : Iconsax.grid_2_copy,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                  title: Text(
+                    type == AppLockType.pin
+                        ? 'Method: ${lockCtrl.pinLength.value}-Digit PIN'
+                        : 'Method: Pattern (3x3)',
+                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+                  ),
+                  trailing: OutlinedButton(
+                    onPressed: () => PasscodeSetupDialog.show(context),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    child: const Text('Change'),
+                  ),
+                ),
+              ),
+
+              // Biometric toggle
+              if (hasBiometrics) ...[
+                const SizedBox(height: 4),
+                Material(
+                  type: MaterialType.transparency,
+                  child: SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: biometricsEnabled,
+                    onChanged: lockCtrl.toggleBiometrics,
+                    secondary: const Icon(Iconsax.finger_scan_copy, color: AppColors.primary, size: 20),
+                    title: const Text(
+                      'Fingerprint Unlock',
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ],
+
+              // Auto-Lock Timeout
+              const SizedBox(height: 4),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isCompact = constraints.maxWidth < 450;
+                  final dropdown = DropdownButton<int>(
+                    value: autoMinutes,
+                    underline: const SizedBox.shrink(),
+                    isDense: true,
+                    items: const [
+                      DropdownMenuItem(value: 0, child: Text('Immediately')),
+                      DropdownMenuItem(value: 1, child: Text('In 1 min')),
+                      DropdownMenuItem(value: 5, child: Text('In 5 min')),
+                      DropdownMenuItem(value: 15, child: Text('In 15 min')),
+                      DropdownMenuItem(value: -1, child: Text('Manual only')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        lockCtrl.setAutoLockMinutes(val);
+                      }
+                    },
+                  );
+
+                  if (isCompact) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Iconsax.timer_1_copy,
+                              color: AppColors.primary, size: 20),
+                          const SizedBox(width: AppSizes.sm),
+                          const Expanded(
+                            child: Text(
+                              'Auto-Lock',
+                              style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          dropdown,
+                        ],
+                      ),
+                    );
+                  }
+
+                  return Material(
+                    type: MaterialType.transparency,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Iconsax.timer_1_copy,
+                          color: AppColors.primary, size: 20),
+                      title: const Text(
+                        'Auto-Lock',
+                        style: TextStyle(
+                            fontSize: 13.5, fontWeight: FontWeight.w600),
+                      ),
+                      trailing: dropdown,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ],
+        );
+      }),
+    ),
+  );
   }
 }
 
@@ -444,7 +652,7 @@ class _DatabaseOverviewSection extends StatelessWidget {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.refresh_rounded, size: 14),
-                  label: const Text('Ping / Check Health', style: TextStyle(fontSize: 11.5)),
+                  label: const Text('Check Health', style: TextStyle(fontSize: 11.5)),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     visualDensity: VisualDensity.compact,
@@ -487,7 +695,7 @@ class _DatabaseOverviewSection extends StatelessWidget {
                 ? 'Connection Error'
                 : (isChecking
                     ? 'Testing connection...'
-                    : (ping >= 0 ? 'Connected & Operational (${ping}ms latency)' : 'Not checked'));
+                    : (ping >= 0 ? 'Connected (${ping}ms)' : 'Not checked'));
 
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 8),
@@ -582,7 +790,7 @@ class _DatabaseOverviewSection extends StatelessWidget {
 
           // Quick Console Links
           const Text(
-            'Direct Supabase Console Shortcuts',
+            'Console Shortcuts',
             style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: AppSizes.xs + 2),
@@ -591,7 +799,7 @@ class _DatabaseOverviewSection extends StatelessWidget {
             runSpacing: 8,
             children: [
               _ConsoleButton(
-                label: 'Supabase Dashboard',
+                label: 'Dashboard',
                 icon: Iconsax.monitor_copy,
                 onTap: () => AppHelperFunctions.openUrl(
                   'https://supabase.com/dashboard/project/${c.supabaseProjectRef}',
@@ -605,21 +813,21 @@ class _DatabaseOverviewSection extends StatelessWidget {
                 ),
               ),
               _ConsoleButton(
-                label: 'SQL Query Editor',
+                label: 'SQL Editor',
                 icon: Iconsax.code_copy,
                 onTap: () => AppHelperFunctions.openUrl(
                   'https://supabase.com/dashboard/project/${c.supabaseProjectRef}/sql/new',
                 ),
               ),
               _ConsoleButton(
-                label: 'Storage Buckets',
+                label: 'Storage',
                 icon: Iconsax.folder_2_copy,
                 onTap: () => AppHelperFunctions.openUrl(
                   'https://supabase.com/dashboard/project/${c.supabaseProjectRef}/storage/buckets',
                 ),
               ),
               _ConsoleButton(
-                label: 'Auth Users',
+                label: 'Auth',
                 icon: Iconsax.user_tag_copy,
                 onTap: () => AppHelperFunctions.openUrl(
                   'https://supabase.com/dashboard/project/${c.supabaseProjectRef}/auth/users',
@@ -631,7 +839,7 @@ class _DatabaseOverviewSection extends StatelessWidget {
 
           // Table Counts Grid
           const Text(
-            'Core Database Table Records',
+            'Database Records',
             style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: AppSizes.xs + 2),
@@ -898,7 +1106,7 @@ class _StudentAppSection extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Icons.open_in_new_rounded, size: 14),
-                label: const Text('Play Store / Share Link', style: TextStyle(fontSize: 11.5)),
+                label: const Text('Play Store', style: TextStyle(fontSize: 11.5)),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   visualDensity: VisualDensity.compact,
@@ -914,7 +1122,7 @@ class _StudentAppSection extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Iconsax.message_copy, size: 14),
-                label: const Text('Support Bot (@matericetbot)', style: TextStyle(fontSize: 11.5)),
+                label: const Text('Support Bot', style: TextStyle(fontSize: 11.5)),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   visualDensity: VisualDensity.compact,
@@ -930,7 +1138,7 @@ class _StudentAppSection extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Iconsax.send_1_copy, size: 14),
-                label: const Text('Channel (@MatricET)', style: TextStyle(fontSize: 11.5)),
+                label: const Text('Telegram Channel', style: TextStyle(fontSize: 11.5)),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   visualDensity: VisualDensity.compact,
@@ -1043,7 +1251,7 @@ class _PaymentSection extends StatelessWidget {
               const SizedBox(width: AppSizes.sm),
               const Expanded(
                 child: Text(
-                  'Payment Receiving Accounts',
+                  'Payment Accounts',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -1082,7 +1290,7 @@ class _PaymentSection extends StatelessWidget {
           Row(
             children: [
               const Text(
-                'Additional Payment Gateways',
+                'Additional Accounts',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
               ),
               const Spacer(),
@@ -1103,7 +1311,7 @@ class _PaymentSection extends StatelessWidget {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: AppSizes.sm),
                 child: Text(
-                  'No additional custom accounts configured. Tap "Add Account" to configure one.',
+                  'No additional accounts configured.',
                   style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
               );
@@ -1136,7 +1344,7 @@ class _PaymentSection extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.save_rounded, size: 16),
-                label: const Text('Save Payment Accounts', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const Text('Save Accounts', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ),
@@ -1197,7 +1405,7 @@ class _BuiltInMethodRow extends StatelessWidget {
                 keyboardType: TextInputType.phone,
                 style: const TextStyle(fontSize: 12.5),
                 decoration: InputDecoration(
-                  labelText: 'Account / Phone Number',
+                  labelText: 'Account / Phone',
                   hintText: accountHint,
                   isDense: true,
                   prefixIcon: const Icon(Iconsax.card_copy, size: 15),
@@ -1208,7 +1416,7 @@ class _BuiltInMethodRow extends StatelessWidget {
                 controller: holderController,
                 style: const TextStyle(fontSize: 12.5),
                 decoration: const InputDecoration(
-                  labelText: 'Beneficiary Holder Name',
+                  labelText: 'Account Holder',
                   hintText: 'e.g. Abrham Teramed',
                   isDense: true,
                   prefixIcon: Icon(Iconsax.user_copy, size: 15),
@@ -1262,7 +1470,7 @@ class _ExtraAccountRow extends StatelessWidget {
             onChanged: (v) => account.label = v,
             style: const TextStyle(fontSize: 12.5),
             decoration: const InputDecoration(
-              labelText: 'Gateway / Bank Name',
+              labelText: 'Provider / Bank',
               hintText: 'e.g. Awash Bank / BOA',
               isDense: true,
             ),
@@ -1285,7 +1493,7 @@ class _ExtraAccountRow extends StatelessWidget {
             onChanged: (v) => account.holder = v,
             style: const TextStyle(fontSize: 12.5),
             decoration: const InputDecoration(
-              labelText: 'Beneficiary Name',
+              labelText: 'Account Holder',
               hintText: 'e.g. Abebe Kebede',
               isDense: true,
             ),
@@ -1458,7 +1666,7 @@ class _AppConfigSection extends StatelessWidget {
 
           // ── Support & Official Channels ─────────────────────────────
           const Text(
-            'Official Links & Support',
+            'Links & Support',
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: AppSizes.sm),
@@ -1482,7 +1690,7 @@ class _AppConfigSection extends StatelessWidget {
                 controller: c.telegramChannelLink,
                 style: const TextStyle(fontSize: 12.5),
                 decoration: const InputDecoration(
-                  labelText: 'Telegram Community Channel',
+                  labelText: 'Telegram Channel',
                   hintText: 'https://t.me/MatricET',
                   isDense: true,
                   prefixIcon: Icon(Iconsax.send_1_copy, size: 15),
@@ -1493,7 +1701,7 @@ class _AppConfigSection extends StatelessWidget {
                 controller: c.shareLink,
                 style: const TextStyle(fontSize: 12.5),
                 decoration: const InputDecoration(
-                  labelText: 'Play Store / App Share Link',
+                  labelText: 'App Share Link',
                   hintText: 'https://play.google.com/store/apps/details?id=com.abopia.matricet',
                   isDense: true,
                   prefixIcon: Icon(Iconsax.share_copy, size: 15),
@@ -1504,7 +1712,7 @@ class _AppConfigSection extends StatelessWidget {
                 controller: c.supportEmail,
                 style: const TextStyle(fontSize: 12.5),
                 decoration: const InputDecoration(
-                  labelText: 'Official Support Email',
+                  labelText: 'Support Email',
                   hintText: 'abopiatech@gmail.com',
                   isDense: true,
                   prefixIcon: Icon(Icons.email_outlined, size: 15),
@@ -1622,7 +1830,7 @@ class _WebhookSection extends StatelessWidget {
               const SizedBox(width: AppSizes.sm),
               const Expanded(
                 child: Text(
-                  'Webhook Security',
+                  'Webhook Secret',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -1635,7 +1843,7 @@ class _WebhookSection extends StatelessWidget {
               obscureText: !c.showSecret.value,
               style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5),
               decoration: InputDecoration(
-                labelText: 'Webhook Secret Key',
+                labelText: 'Secret Key',
                 isDense: true,
                 prefixIcon: const Icon(Iconsax.key_copy, size: 15),
                 suffixIcon: Row(
@@ -1680,7 +1888,7 @@ class _WebhookSection extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.save_rounded, size: 16),
-                label: const Text('Save Webhook Secret', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const Text('Save Secret', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ),

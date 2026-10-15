@@ -31,12 +31,16 @@ class _RevenueScreenState extends State<RevenueScreen> {
   ) async {
     final dark = AppHelperFunctions.isDark(context);
     final now = DateTime.now();
-    final initial = controller.customDateRange.value ??
+    final initial =
+        controller.customDateRange.value ??
         DateTimeRange(
-          start: now.subtract(Duration(
+          start: now.subtract(
+            Duration(
               days: controller.rangeDays.value > 1
                   ? controller.rangeDays.value - 1
-                  : 0)),
+                  : 0,
+            ),
+          ),
           end: now,
         );
 
@@ -58,8 +62,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
                     onPrimary: Colors.white,
                     surface: AppColors.darkCard,
                     onSurface: AppColors.white,
-                    secondaryContainer:
-                        AppColors.primary.withValues(alpha: 0.2),
+                    secondaryContainer: AppColors.primary.withValues(
+                      alpha: 0.2,
+                    ),
                     onSecondaryContainer: AppColors.primary,
                   )
                 : ColorScheme.light(
@@ -67,14 +72,13 @@ class _RevenueScreenState extends State<RevenueScreen> {
                     onPrimary: Colors.white,
                     surface: Colors.white,
                     onSurface: Colors.black87,
-                    secondaryContainer:
-                        AppColors.primary.withValues(alpha: 0.12),
+                    secondaryContainer: AppColors.primary.withValues(
+                      alpha: 0.12,
+                    ),
                     onSecondaryContainer: AppColors.primary,
                   ),
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
-              ),
+              style: TextButton.styleFrom(foregroundColor: AppColors.primary),
             ),
           ),
           child: child!,
@@ -93,10 +97,30 @@ class _RevenueScreenState extends State<RevenueScreen> {
       final activeMethod = controller.selectedMethodFilter.value;
 
       final tabs = [
-        (key: null, label: 'All', color: AppColors.success, icon: Iconsax.category_2_copy),
-        (key: 'telebirr', label: 'Telebirr', color: AppColors.primary, icon: Iconsax.wallet_2_copy),
-        (key: 'cbe', label: 'CBE', color: AppColors.info, icon: Iconsax.card_copy),
-        (key: 'abyssinia', label: 'Abyssinia', color: AppColors.amberAccent, icon: Iconsax.bank_copy),
+        (
+          key: null,
+          label: 'All',
+          color: AppColors.success,
+          icon: Iconsax.category_2_copy,
+        ),
+        (
+          key: 'telebirr',
+          label: 'Telebirr',
+          color: AppColors.primary,
+          icon: Iconsax.wallet_2_copy,
+        ),
+        (
+          key: 'cbe',
+          label: 'CBE',
+          color: AppColors.info,
+          icon: Iconsax.card_copy,
+        ),
+        (
+          key: 'abyssinia',
+          label: 'Abyssinia',
+          color: AppColors.amberAccent,
+          icon: Iconsax.bank_copy,
+        ),
       ];
 
       return Container(
@@ -173,11 +197,18 @@ class _RevenueScreenState extends State<RevenueScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Iconsax.warning_2_copy, color: AppColors.error, size: 40),
+                  const Icon(
+                    Iconsax.warning_2_copy,
+                    color: AppColors.error,
+                    size: 40,
+                  ),
                   const SizedBox(height: AppSizes.md),
                   Text(
                     controller.errorMessage.value!,
-                    style: const TextStyle(color: AppColors.error, fontSize: 14),
+                    style: const TextStyle(
+                      color: AppColors.error,
+                      fontSize: 14,
+                    ),
                   ),
                   const SizedBox(height: AppSizes.md),
                   ElevatedButton(
@@ -218,7 +249,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.6,
-                              color: dark ? Colors.white60 : AppColors.textSecondary,
+                              color: dark
+                                  ? Colors.white60
+                                  : AppColors.textSecondary,
                             ),
                           ),
                           _buildMethodTabs(controller, dark),
@@ -260,25 +293,31 @@ class _RevenueScreenState extends State<RevenueScreen> {
                             ),
                             InkWell(
                               onTap: () => _pickDateRange(context, controller),
-                              borderRadius:
-                                  BorderRadius.circular(AppSizes.borderRadiusSm),
+                              borderRadius: BorderRadius.circular(
+                                AppSizes.borderRadiusSm,
+                              ),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 9, vertical: 6.5),
+                                  horizontal: 9,
+                                  vertical: 6.5,
+                                ),
                                 decoration: BoxDecoration(
                                   color: isCustom
-                                      ? AppColors.primary.withValues(alpha: 0.15)
+                                      ? AppColors.primary.withValues(
+                                          alpha: 0.15,
+                                        )
                                       : (dark
-                                          ? AppColors.darkSurface
-                                          : AppColors.lightGrey),
-                                  borderRadius:
-                                      BorderRadius.circular(AppSizes.borderRadiusSm),
+                                            ? AppColors.darkSurface
+                                            : AppColors.lightGrey),
+                                  borderRadius: BorderRadius.circular(
+                                    AppSizes.borderRadiusSm,
+                                  ),
                                   border: Border.all(
                                     color: isCustom
                                         ? AppColors.primary
                                         : (dark
-                                            ? AppColors.darkBorder
-                                            : AppColors.borderPrimary),
+                                              ? AppColors.darkBorder
+                                              : AppColors.borderPrimary),
                                     width: isCustom ? 1.2 : 1.0,
                                   ),
                                 ),
@@ -305,8 +344,8 @@ class _RevenueScreenState extends State<RevenueScreen> {
                                         color: isCustom
                                             ? AppColors.primary
                                             : (dark
-                                                ? Colors.white70
-                                                : AppColors.textPrimary),
+                                                  ? Colors.white70
+                                                  : AppColors.textPrimary),
                                       ),
                                     ),
                                     if (isCustom) ...[
@@ -398,7 +437,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
                                 height: 28,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.5,
-                                  valueColor: AlwaysStoppedAnimation<Color>(chartColor),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    chartColor,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 12),
@@ -407,7 +448,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
-                                  color: dark ? Colors.white60 : AppColors.textSecondary,
+                                  color: dark
+                                      ? Colors.white60
+                                      : AppColors.textSecondary,
                                 ),
                               ),
                             ],
@@ -423,7 +466,11 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Iconsax.chart_fail_copy, size: 36, color: AppColors.textSecondary),
+                              const Icon(
+                                Iconsax.chart_fail_copy,
+                                size: 36,
+                                color: AppColors.textSecondary,
+                              ),
                               const SizedBox(height: 8),
                               Text(
                                 'No approved revenue recorded for $rangeLabel',
@@ -444,31 +491,38 @@ class _RevenueScreenState extends State<RevenueScreen> {
                     final avg = total / (daysCount > 0 ? daysCount : 1);
 
                     // Clamp selectedIndex
-                    if (_selectedIndex != null && _selectedIndex! >= series.length) {
+                    if (_selectedIndex != null &&
+                        _selectedIndex! >= series.length) {
                       _selectedIndex = series.length - 1;
                     }
 
                     Widget? tooltipWidget;
-                    if (_selectedIndex != null && _selectedIndex! < series.length) {
+                    if (_selectedIndex != null &&
+                        _selectedIndex! < series.length) {
                       final selPoint = series[_selectedIndex!];
                       final String formattedAmount;
                       if (controller.isPriceHidden.value) {
                         formattedAmount = 'ETB ••••••';
                       } else {
-                        final base = 'ETB ${NumberFormat('#,##0.00').format(selPoint.value)}';
+                        final base =
+                            'ETB ${NumberFormat('#,##0.00').format(selPoint.value)}';
                         formattedAmount = activeMethod != null
                             ? '$base (${PaymentMethodInfo.labelOf(activeMethod)})'
                             : base;
                       }
-                      final formattedDate =
-                          DateFormat('MMM d, yyyy').format(selPoint.day);
+                      final formattedDate = DateFormat(
+                        'MMM d, yyyy',
+                      ).format(selPoint.day);
 
-                      final hasBreakdown = activeMethod == null &&
+                      final hasBreakdown =
+                          activeMethod == null &&
                           selPoint.methodBreakdown.isNotEmpty;
 
                       tooltipWidget = Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: dark ? AppColors.darkSurface : AppColors.white,
                           borderRadius: BorderRadius.circular(8),
@@ -478,7 +532,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: dark ? 0.35 : 0.12),
+                              color: Colors.black.withValues(
+                                alpha: dark ? 0.35 : 0.12,
+                              ),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -504,16 +560,24 @@ class _RevenueScreenState extends State<RevenueScreen> {
                                 color: chartColor,
                               ),
                             ),
-                            if (hasBreakdown && !controller.isPriceHidden.value) ...[
+                            if (hasBreakdown &&
+                                !controller.isPriceHidden.value) ...[
                               const SizedBox(height: 4),
-                              Divider(height: 1, color: dark ? Colors.white12 : Colors.black12),
+                              Divider(
+                                height: 1,
+                                color: dark ? Colors.white12 : Colors.black12,
+                              ),
                               const SizedBox(height: 4),
-                              for (final entry in selPoint.methodBreakdown.entries)
+                              for (final entry
+                                  in selPoint.methodBreakdown.entries)
                                 if (entry.value > 0)
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 0.5),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 0.5,
+                                    ),
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
                                         Text(
                                           PaymentMethodInfo.labelOf(entry.key),
@@ -529,7 +593,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
                                           style: TextStyle(
                                             fontSize: 9.5,
                                             fontWeight: FontWeight.w700,
-                                            color: dark ? Colors.white : AppColors.textPrimary,
+                                            color: dark
+                                                ? Colors.white
+                                                : AppColors.textPrimary,
                                           ),
                                         ),
                                       ],
@@ -573,25 +639,25 @@ class _RevenueScreenState extends State<RevenueScreen> {
                             _MetricStatItem(
                               label: totalLabel,
                               value: totalValue,
-                              unit: 'in range',
+                              unit: '',
                               color: chartColor,
                             ),
                             _MetricStatItem(
                               label: 'PEAK DAY',
                               value: peakValue,
-                              unit: 'highest day',
+                              unit: '',
                               color: AppColors.textSecondary,
                             ),
                             _MetricStatItem(
                               label: 'DAILY AVERAGE',
                               value: avgValue,
-                              unit: 'pace / day',
+                              unit: '',
                               color: AppColors.textSecondary,
                             ),
                             _MetricStatItem(
                               label: 'ALL-TIME REVENUE',
                               value: allTimeValue,
-                              unit: 'cumulative',
+                              unit: '',
                               color: AppColors.success,
                             ),
                           ],
@@ -673,30 +739,36 @@ class _RevenueTopBar extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Obx(() => OutlinedButton.icon(
-              onPressed: controller.togglePriceVisibility,
-              icon: Icon(
-                controller.isPriceHidden.value
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                size: 16,
+            Obx(
+              () => OutlinedButton.icon(
+                onPressed: controller.togglePriceVisibility,
+                icon: Icon(
+                  controller.isPriceHidden.value
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  size: 16,
+                ),
+                label: Text(
+                  controller.isPriceHidden.value
+                      ? 'Show Amounts'
+                      : 'Hide Amounts',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                ),
               ),
-              label: Text(
-                controller.isPriceHidden.value ? 'Show Amounts' : 'Hide Amounts',
-                style: const TextStyle(fontSize: 12),
-              ),
-              style: OutlinedButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              ),
-            )),
+            ),
           ],
         ),
       ],
     );
   }
 }
-
 
 // ── Payment Method Tab Pill ─────────────────────────────────────────────────
 
