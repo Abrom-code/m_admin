@@ -13,6 +13,8 @@ import 'package:m_admin/features/notifications/screens/notifications_screen.dart
 import 'package:m_admin/features/payments/screens/payments_screen.dart';
 import 'package:m_admin/features/revenue/screens/revenue_screen.dart';
 import 'package:m_admin/features/pilot_exams/screens/pilot_exams_screen.dart';
+import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
+import 'package:m_admin/features/security/screens/passcode_setup_dialog.dart';
 import 'package:m_admin/features/sessions/screens/sessions_screen.dart';
 import 'package:m_admin/features/settings/screens/settings_screen.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
@@ -67,6 +69,29 @@ class _AdminShellState extends State<AdminShell> {
             () => Text(AdminNavController.items[nav.selectedIndex.value].label),
           ),
           actions: [
+            Obx(() {
+              final lockCtrl = Get.isRegistered<AppLockController>()
+                  ? AppLockController.instance
+                  : null;
+              final isEnabled = lockCtrl?.isPasscodeEnabled.value ?? false;
+
+              return IconButton(
+                tooltip: isEnabled ? 'Lock Console (Passcode)' : 'Set Up App Lock',
+                onPressed: () {
+                  if (lockCtrl == null) return;
+                  if (isEnabled) {
+                    lockCtrl.lock();
+                  } else {
+                    PasscodeSetupDialog.show(context);
+                  }
+                },
+                icon: Icon(
+                  isEnabled ? Iconsax.lock_copy : Iconsax.unlock_copy,
+                  size: 20,
+                  color: isEnabled ? AppColors.primary : AppColors.textSecondary,
+                ),
+              );
+            }),
             Obx(() {
               final pageIdx = nav.selectedIndex.value;
               final hasRefresh = pageIdx >= 0 && nav.currentPageHasRefresh;

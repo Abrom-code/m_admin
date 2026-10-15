@@ -3,6 +3,7 @@ import 'package:m_admin/data/repositories/admin_auth_repository.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
 import 'package:m_admin/features/auth/controllers/admin_login_controller.dart';
 import 'package:m_admin/features/payments/controllers/payments_controller.dart';
+import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/utils/network_manager/network_manager.dart';
 
@@ -17,6 +18,7 @@ class AdminGeneralBinding extends Bindings {
 
     Get.put(AdminAuthRepository(), permanent: true);
     Get.put(AdminSessionService(), permanent: true);
+    Get.put(AppLockController(), permanent: true);
     Get.put(AdminLoginController(), permanent: true);
     Get.put(AdminNavController(), permanent: true);
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/bindings/admin_general_binding.dart';
 import 'package:m_admin/common/widgets/toast/app_toast.dart';
+import 'package:m_admin/features/security/widgets/app_lock_host.dart';
 import 'package:m_admin/routes/app_routes.dart';
 import 'package:m_admin/routes/routes.dart';
 import 'package:m_admin/utils/themes/app_theme.dart';
@@ -23,7 +24,9 @@ class AdminApp extends StatelessWidget {
         initialRoute: AdminRoutes.loading,
         getPages: AdminAppRoutes.pages,
         navigatorObservers: [appRouteObserver],
-        builder: (context, child) => ToastHost(child: child ?? const SizedBox()),
+        builder: (context, child) => ToastHost(
+          child: AppLockHost(child: child ?? const SizedBox()),
+        ),
       ),
     );
   }
