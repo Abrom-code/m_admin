@@ -50,6 +50,10 @@ class AdminAppRoutes {
   static final List<GetPage> pages = <GetPage>[
     // ── Unguarded ──────────────────────────────────────────────────────
     GetPage(
+      name: '/',
+      page: () => const AdminLoadingScreen(),
+    ),
+    GetPage(
       name: AdminRoutes.loading,
       page: () => const AdminLoadingScreen(),
     ),

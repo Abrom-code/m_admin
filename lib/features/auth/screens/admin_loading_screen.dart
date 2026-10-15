@@ -29,11 +29,17 @@ class _AdminLoadingScreenState extends State<AdminLoadingScreen> {
   }
 
   Future<void> _bootstrap() async {
-    final restored = await AdminSessionService.instance.restore();
+    try {
+      final restored = await AdminSessionService.instance.restore();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    Get.offAllNamed(restored ? AdminRoutes.shell : AdminRoutes.login);
+      Get.offAllNamed(restored ? AdminRoutes.shell : AdminRoutes.login);
+    } catch (e) {
+      debugPrint('[AdminLoadingScreen] bootstrap error: $e');
+      if (!mounted) return;
+      Get.offAllNamed(AdminRoutes.login);
+    }
   }
 
   @override

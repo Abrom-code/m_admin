@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:m_admin/data/repositories/question_reports_repository.dart';
+import 'package:m_admin/data/services/admin_session_service.dart';
 
 /// One entry in the sidebar.
 class AdminNavItem {
@@ -80,7 +81,23 @@ class AdminNavController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    loadReportedCount();
+    if (Get.isRegistered<AdminSessionService>()) {
+      final session = AdminSessionService.instance;
+      if (session.isAuthenticated) {
+        loadReportedCount();
+      }
+      ever(session.admin, (admin) {
+        if (!admin.isEmpty) {
+          loadReportedCount();
+        } else {
+          reportedQuestionCount.value = 0;
+          pendingPaymentCount.value = 0;
+          unreadAlertCount.value = 0;
+        }
+      });
+    } else {
+      loadReportedCount();
+    }
   }
 
   Future<void> loadReportedCount() async {

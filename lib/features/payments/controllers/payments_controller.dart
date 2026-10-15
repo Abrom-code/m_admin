@@ -54,10 +54,41 @@ class PaymentsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    if (_session.isAuthenticated) {
+      initForSession();
+    }
+    ever(_session.admin, (admin) {
+      if (!admin.isEmpty) {
+        initForSession();
+      } else {
+        clearSession();
+      }
+    });
+  }
+
+  void initForSession() {
     loadQueue();
     refreshCounts();
     _subscribeRealtime();
     _startPolling();
+  }
+
+  void clearSession() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    _debounce?.cancel();
+    if (_channel != null) {
+      try {
+        Supabase.instance.client.removeChannel(_channel!);
+      } catch (_) {}
+      _channel = null;
+    }
+    rows.clear();
+    totalCount.value = 0;
+    counts.clear();
+    actingIds.clear();
+    _lastNotifiedPendingCount = null;
+    _hasDoneInitialPendingCheck = false;
   }
 
   void _startPolling() {
@@ -65,7 +96,9 @@ class PaymentsController extends GetxController {
     // Fallback polling every 20s so new pending payments are ALWAYS detected
     // even if Supabase Realtime drops, reconnects, or table publication is inactive.
     _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-      refreshCounts();
+      if (_session.isAuthenticated) {
+        refreshCounts();
+      }
     });
   }
 
@@ -439,6 +472,12 @@ class PaymentsController extends GetxController {
 
   void _subscribeRealtime() {
     try {
+      if (_channel != null) {
+        try {
+          Supabase.instance.client.removeChannel(_channel!);
+        } catch (_) {}
+        _channel = null;
+      }
       _channel = Supabase.instance.client
           .channel('admin_payment_receipts')
           .onPostgresChanges(
