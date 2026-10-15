@@ -79,7 +79,7 @@ class SessionRow {
     if (!isLocked) {
       if (hasBlockedAuth &&
           (lastResetAt == null ||
-              (lastBlockedAt != null && lastBlockedAt!.isAfter(lastResetAt!)))) {
+              (lastBlockedAt != null && lastBlockedAt!.toUtc().isAfter(lastResetAt!.toUtc())))) {
         return DeviceRecentStatus.blocked;
       }
       if (resetCount > 0 || lastResetAt != null) {
@@ -92,7 +92,7 @@ class SessionRow {
     if (lastBlockedAt != null) {
       final resetTime = lastResetAt;
       final isBlockedAfterReset =
-          resetTime == null || lastBlockedAt!.isAfter(resetTime);
+          resetTime == null || lastBlockedAt!.toUtc().isAfter(resetTime.toUtc());
       if (isBlockedAfterReset) {
         return DeviceRecentStatus.blocked;
       }
@@ -158,16 +158,16 @@ class SessionRow {
       deviceId: j['device_id']?.toString() ?? '',
       deviceModel: j['device_model']?.toString(),
       osVersion: j['os_version']?.toString(),
-      lastActiveAt: j['last_active_at'] != null ? DateTime.tryParse(j['last_active_at'].toString()) : null,
-      updatedAt: j['updated_at'] != null ? DateTime.tryParse(j['updated_at'].toString()) : null,
+      lastActiveAt: j['last_active_at'] != null ? DateTime.tryParse(j['last_active_at'].toString())?.toUtc() : null,
+      updatedAt: j['updated_at'] != null ? DateTime.tryParse(j['updated_at'].toString())?.toUtc() : null,
       blockedCount: blockedAttempts.length,
       lastBlockedAt: latestBlocked?['created_at'] != null
-          ? DateTime.tryParse(latestBlocked!['created_at'].toString())
+          ? DateTime.tryParse(latestBlocked!['created_at'].toString())?.toUtc()
           : null,
       lastBlockedDeviceModel: latestBlocked?['device_model']?.toString(),
       lastBlockedNote: latestBlocked?['note']?.toString(),
       resetCount: resetCount,
-      lastResetAt: lastResetAt,
+      lastResetAt: lastResetAt?.toUtc(),
     );
   }
 }
@@ -178,6 +178,7 @@ class SessionsController extends GetxController {
   static SessionsController get instance => Get.find();
 
   final _sb = Supabase.instance.client;
+  RealtimeChannel? _channel;
 
   final rows = <SessionRow>[].obs;
   final allRows = <SessionRow>[].obs;
@@ -200,12 +201,53 @@ class SessionsController extends GetxController {
   void onInit() {
     super.onInit();
     load();
+    _subscribeRealtime();
   }
 
   @override
   void onClose() {
+    if (_channel != null) {
+      _sb.removeChannel(_channel!);
+    }
     searchController.dispose();
     super.onClose();
+  }
+
+  void _subscribeRealtime() {
+    try {
+      _channel = _sb.channel('admin_sessions_realtime')
+        ..onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'user_sessions',
+          callback: (_) => load(),
+        )
+        ..onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'device_history',
+          callback: (payload) {
+            load();
+            if (payload.eventType == PostgresChangeEvent.insert) {
+              final action = payload.newRecord['action']?.toString() ?? '';
+              if (action == 'BLOCKED_ATTEMPT') {
+                final model = payload.newRecord['device_model']?.toString() ?? 'device';
+                SnackbarHelper.error(
+                  'Blocked Auth Attempt',
+                  'Unauthorized login attempt from $model blocked.',
+                );
+              }
+            }
+          },
+        )
+        ..subscribe((status, [error]) {
+          if (error != null) {
+            debugPrint('[SessionsController] Realtime error: $error');
+          }
+        });
+    } catch (e) {
+      debugPrint('[SessionsController] Realtime setup failed: $e');
+    }
   }
 
   Future<void> load() async {
@@ -245,11 +287,11 @@ class SessionsController extends GetxController {
             .eq('action', 'ADMIN_RESET')
             .order('created_at', ascending: false);
         for (final item in (resetData as List)) {
-          final uid = item['user_id']?.toString();
+          final uid = item['user_id']?.toString().trim().toLowerCase();
           if (uid != null && uid.isNotEmpty) {
             resetCountByUser[uid] = (resetCountByUser[uid] ?? 0) + 1;
             if (!lastResetByUser.containsKey(uid) && item['created_at'] != null) {
-              lastResetByUser[uid] = DateTime.tryParse(item['created_at'].toString()) ?? DateTime.now();
+              lastResetByUser[uid] = DateTime.tryParse(item['created_at'].toString())?.toUtc() ?? DateTime.now().toUtc();
             }
           }
         }
@@ -260,7 +302,7 @@ class SessionsController extends GetxController {
       // Group blocked attempts by user_id
       final Map<String, List<Map<String, dynamic>>> blockedByUser = {};
       for (final item in blockedHistory) {
-        final uid = item['user_id']?.toString();
+        final uid = item['user_id']?.toString().trim().toLowerCase();
         if (uid != null && uid.isNotEmpty) {
           blockedByUser.putIfAbsent(uid, () => []).add(item);
         }
@@ -268,7 +310,8 @@ class SessionsController extends GetxController {
 
       final list = (sessionData as List).map((r) {
         final rowMap = Map<String, dynamic>.from(r);
-        final uid = (rowMap['user_id'] ?? rowMap['firebase_uid'])?.toString() ?? '';
+        final rawUid = (rowMap['user_id'] ?? rowMap['firebase_uid'])?.toString() ?? '';
+        final uid = rawUid.trim().toLowerCase();
         final userBlocked = blockedByUser[uid] ?? [];
         return SessionRow.fromJson(
           rowMap,
@@ -279,7 +322,7 @@ class SessionsController extends GetxController {
       }).toList();
 
       // Include users with blocked attempts who might not be in active user_sessions
-      final existingUids = list.map((r) => r.userId).toSet();
+      final existingUids = list.map((r) => r.userId.trim().toLowerCase()).toSet();
       final missingUids = blockedByUser.keys.where((uid) => !existingUids.contains(uid)).toList();
       if (missingUids.isNotEmpty) {
         try {
@@ -289,7 +332,7 @@ class SessionsController extends GetxController {
               .inFilter('id', missingUids);
           final missingUsersMap = {
             for (final u in (missingUsersData as List))
-              u['id'].toString(): Map<String, dynamic>.from(u)
+              u['id'].toString().trim().toLowerCase(): Map<String, dynamic>.from(u)
           };
           for (final uid in missingUids) {
             final u = missingUsersMap[uid] ?? {};
@@ -309,10 +352,10 @@ class SessionsController extends GetxController {
               deviceId: '',
               deviceModel: null,
               osVersion: null,
-              lastActiveAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString()) : null,
-              updatedAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString()) : null,
+              lastActiveAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString())?.toUtc() : null,
+              updatedAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString())?.toUtc() : null,
               blockedCount: attempts.length,
-              lastBlockedAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString()) : null,
+              lastBlockedAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString())?.toUtc() : null,
               lastBlockedDeviceModel: latest['device_model']?.toString(),
               lastBlockedNote: latest['note']?.toString(),
               resetCount: resetCountByUser[uid] ?? 0,
@@ -351,11 +394,20 @@ class SessionsController extends GetxController {
     _applyFilterAndSearch();
   }
 
+  int _effectiveTimestamp(SessionRow r) {
+    int maxMs = r.updatedAt?.millisecondsSinceEpoch ?? 0;
+    final activeMs = r.lastActiveAt?.millisecondsSinceEpoch ?? 0;
+    final blockedMs = r.lastBlockedAt?.millisecondsSinceEpoch ?? 0;
+    if (activeMs > maxMs) maxMs = activeMs;
+    if (blockedMs > maxMs) maxMs = blockedMs;
+    return maxMs;
+  }
+
   void _applyFilterAndSearch() {
     final q = searchQuery.value;
     final filter = selectedFilter.value;
 
-    rows.value = allRows.where((r) {
+    final filtered = allRows.where((r) {
       final matchesFilter = switch (filter) {
         SessionFilter.all => true,
         SessionFilter.locked => r.isLocked,
@@ -374,6 +426,25 @@ class SessionsController extends GetxController {
           (r.lastBlockedDeviceModel?.toLowerCase().contains(q) ?? false) ||
           (r.lastBlockedNote?.toLowerCase().contains(q) ?? false);
     }).toList();
+
+    // Priority sorting:
+    if (filter == SessionFilter.blockedAuth) {
+      // In blocked auth section, sort by the latest blocked attempt time strictly descending
+      filtered.sort((a, b) {
+        final aTime = a.lastBlockedAt?.millisecondsSinceEpoch ?? 0;
+        final bTime = b.lastBlockedAt?.millisecondsSinceEpoch ?? 0;
+        return bTime.compareTo(aTime);
+      });
+    } else {
+      // In general list, sort by most recent event (blocked attempt, active, or updated)
+      filtered.sort((a, b) {
+        final aTime = _effectiveTimestamp(a);
+        final bTime = _effectiveTimestamp(b);
+        return bTime.compareTo(aTime);
+      });
+    }
+
+    rows.value = filtered;
   }
 
   List<SessionRow> get pagedRows {
@@ -1063,29 +1134,67 @@ class _DeviceIdCell extends StatelessWidget {
     final hasDevice = session.deviceId.isNotEmpty;
     final model = session.deviceModel;
     final os = session.osVersion;
+    final hasBlocked = session.hasBlockedAuth;
 
     if (!hasDevice) {
       final isReset = session.recentStatus == DeviceRecentStatus.reset;
-      return Row(
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            isReset ? Icons.restart_alt_rounded : Icons.phonelink_off_rounded,
-            size: 14,
-            color: isReset ? AppColors.warning : AppColors.textSecondary,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              isReset ? 'Device reset • Ready' : 'Ready to connect',
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: isReset ? AppColors.warning : AppColors.textSecondary,
+          Row(
+            children: [
+              Icon(
+                hasBlocked
+                    ? Icons.gpp_bad_rounded
+                    : (isReset ? Icons.restart_alt_rounded : Icons.phonelink_off_rounded),
+                size: 14,
+                color: hasBlocked
+                    ? AppColors.error
+                    : (isReset ? AppColors.warning : AppColors.textSecondary),
               ),
-            ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  hasBlocked
+                      ? 'No device bound'
+                      : (isReset ? 'Device reset • Ready' : 'Ready to connect'),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: hasBlocked
+                        ? AppColors.error
+                        : (isReset ? AppColors.warning : AppColors.textSecondary),
+                  ),
+                ),
+              ),
+            ],
           ),
+          if (hasBlocked && session.lastBlockedDeviceModel != null) ...[
+            const SizedBox(height: 2),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.block_rounded, size: 10, color: AppColors.error),
+                const SizedBox(width: 3),
+                Flexible(
+                  child: Text(
+                    'Attempted: ${session.lastBlockedDeviceModel}',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       );
     }
@@ -1123,6 +1232,28 @@ class _DeviceIdCell extends StatelessWidget {
                     color: AppColors.textSecondary,
                   ),
                 ),
+              if (hasBlocked && session.lastBlockedDeviceModel != null) ...[
+                const SizedBox(height: 2),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.gpp_bad_rounded, size: 11, color: AppColors.error),
+                    const SizedBox(width: 3),
+                    Flexible(
+                      child: Text(
+                        'Attempted: ${session.lastBlockedDeviceModel}',
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -1153,7 +1284,7 @@ class _LockStatusCell extends StatelessWidget {
     final status = session.recentStatus;
     final (label, color, icon) = switch (status) {
       DeviceRecentStatus.blocked => (
-        'RESET REQUESTED',
+        'BLOCKED ATTEMPT',
         AppColors.error,
         Icons.gpp_bad_rounded,
       ),
@@ -1210,26 +1341,24 @@ class _LockStatusCell extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: status == DeviceRecentStatus.blocked ? 0.12 : 0.07),
+                color: AppColors.error.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(
-                  color: AppColors.error.withValues(alpha: status == DeviceRecentStatus.blocked ? 0.3 : 0.18),
+                  color: AppColors.error.withValues(alpha: 0.35),
                   width: 0.8,
                 ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    status == DeviceRecentStatus.blocked ? Icons.gpp_bad_rounded : Icons.history_rounded,
+                  const Icon(
+                    Icons.gpp_bad_rounded,
                     size: 11,
                     color: AppColors.error,
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    status == DeviceRecentStatus.blocked
-                        ? 'BLOCKED (${session.blockedCount})'
-                        : 'PAST BLOCKED (${session.blockedCount})',
+                    'BLOCKED (${session.blockedCount})',
                     style: const TextStyle(
                       fontSize: 9.5,
                       fontWeight: FontWeight.bold,
