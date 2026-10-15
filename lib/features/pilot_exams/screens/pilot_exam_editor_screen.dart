@@ -1850,10 +1850,12 @@ class _SearchableTestPickerDialogState extends State<_SearchableTestPickerDialog
                                     : Colors.transparent,
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: ListTile(
-                                dense: true,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                leading: Container(
+                              child: Material(
+                                type: MaterialType.transparency,
+                                child: ListTile(
+                                  dense: true,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  leading: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                                   decoration: BoxDecoration(
                                     color: AppColors.primary.withValues(alpha: 0.14),
@@ -1887,7 +1889,8 @@ class _SearchableTestPickerDialogState extends State<_SearchableTestPickerDialog
                                   'title': t['title']?.toString() ?? 'Test #$tid',
                                 }),
                               ),
-                            );
+                            ),
+                          );
                           }),
                       ],
                     ),

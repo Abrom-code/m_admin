@@ -106,12 +106,15 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                   ),
                 ),
                 const SizedBox(height: AppSizes.spaceBtwInputFields),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: isPrem,
-                  onChanged: (val) => setDlgState(() => isPrem = val),
-                  title: const Text('Premium Question Set', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Accessible only to premium subscribers', style: TextStyle(fontSize: 11)),
+                Material(
+                  type: MaterialType.transparency,
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: isPrem,
+                    onChanged: (val) => setDlgState(() => isPrem = val),
+                    title: const Text('Premium Question Set', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    subtitle: const Text('Accessible only to premium subscribers', style: TextStyle(fontSize: 11)),
+                  ),
                 ),
               ],
             ),
