@@ -5,9 +5,13 @@ import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/common/widgets/charts/bar_chart_painter.dart';
+import 'package:m_admin/common/widgets/charts/line_chart_painter.dart';
 import 'package:m_admin/data/repositories/dashboard_repository.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/revenue/controllers/revenue_controller.dart';
+import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
+import 'package:m_admin/features/security/screens/passcode_setup_dialog.dart';
+import 'package:m_admin/features/security/widgets/pin_pad_view.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
@@ -24,6 +28,7 @@ class RevenueScreen extends StatefulWidget {
 
 class _RevenueScreenState extends State<RevenueScreen> {
   int? _selectedIndex;
+  int? _comparisonSelectedIndex;
 
   Future<void> _pickDateRange(
     BuildContext context,
@@ -89,6 +94,66 @@ class _RevenueScreenState extends State<RevenueScreen> {
     if (picked != null) {
       setState(() => _selectedIndex = null);
       controller.setCustomDateRange(picked);
+    }
+  }
+
+  Future<void> _pickComparisonDateRange(
+    BuildContext context,
+    RevenueController controller,
+  ) async {
+    final dark = AppHelperFunctions.isDark(context);
+    final now = DateTime.now();
+    final initial =
+        controller.comparisonCustomRange.value ??
+        controller.getComparisonDateRange();
+
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2023, 1, 1),
+      lastDate: now,
+      initialDateRange: initial,
+      helpText: 'Select Comparison Range',
+      cancelText: 'Cancel',
+      confirmText: 'Apply',
+      builder: (context, child) {
+        final base = dark ? ThemeData.dark() : ThemeData.light();
+        return Theme(
+          data: base.copyWith(
+            colorScheme: dark
+                ? ColorScheme.dark(
+                    primary: const Color(0xFF8B5CF6),
+                    onPrimary: Colors.white,
+                    surface: AppColors.darkCard,
+                    onSurface: AppColors.white,
+                    secondaryContainer: const Color(
+                      0xFF8B5CF6,
+                    ).withValues(alpha: 0.2),
+                    onSecondaryContainer: const Color(0xFF8B5CF6),
+                  )
+                : ColorScheme.light(
+                    primary: const Color(0xFF8B5CF6),
+                    onPrimary: Colors.white,
+                    surface: Colors.white,
+                    onSurface: Colors.black87,
+                    secondaryContainer: const Color(
+                      0xFF8B5CF6,
+                    ).withValues(alpha: 0.12),
+                    onSecondaryContainer: const Color(0xFF8B5CF6),
+                  ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF8B5CF6),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() => _selectedIndex = null);
+      controller.setComparisonCustomRange(picked);
     }
   }
 
@@ -163,529 +228,1250 @@ class _RevenueScreenState extends State<RevenueScreen> {
     final controller = Get.put(RevenueController());
     final dark = AppHelperFunctions.isDark(context);
 
-    return AdminScaffold(
-      pageIndex: AdminNavPage.revenue,
-      onRefresh: controller.load,
-      body: Obx(() {
-        if (controller.isLoading.value && controller.revenueSeries.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(AppSizes.xl),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(strokeWidth: 2.5),
-                  SizedBox(height: AppSizes.md),
-                  Text(
-                    'Loading revenue analytics...',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
+    return Obx(() {
+      final lockCtrl = Get.isRegistered<AppLockController>()
+          ? AppLockController.instance
+          : null;
+      final hasPasscode = lockCtrl?.isPasscodeEnabled.value ?? false;
+      final isLocked = controller.isRevenueLocked.value && hasPasscode;
+
+      if (isLocked) {
+        return AdminScaffold(
+          pageIndex: AdminNavPage.revenue,
+          scrollable: false,
+          body: _RevenueLockedView(
+            controller: controller,
+            lockController: lockCtrl!,
+          ),
+        );
+      }
+
+      return AdminScaffold(
+        pageIndex: AdminNavPage.revenue,
+        onRefresh: controller.load,
+        body: Obx(() {
+          if (controller.isLoading.value && controller.revenueSeries.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.all(AppSizes.xl),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(strokeWidth: 2.5),
+                    SizedBox(height: AppSizes.md),
+                    Text(
+                      'Loading revenue analytics...',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            );
+          }
+
+          if (controller.errorMessage.value != null &&
+              controller.revenueSeries.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSizes.xl),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Iconsax.warning_2_copy,
+                      color: AppColors.error,
+                      size: 40,
+                    ),
+                    const SizedBox(height: AppSizes.md),
+                    Text(
+                      controller.errorMessage.value!,
+                      style: const TextStyle(
+                        color: AppColors.error,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: AppSizes.md),
+                    ElevatedButton(
+                      onPressed: controller.load,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── 1. Top Header Bar with Privacy Eye Toggle ───────────────
+              _RevenueTopBar(controller: controller),
+              const SizedBox(height: AppSizes.spaceBtwItems),
+
+              // ── 2. The Hero Revenue Graph Card ──────────────────────────
+              AdminCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ── Header Controls ─────────────────────────────────────
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isCompact = constraints.maxWidth < 750;
+
+                        final methodSection = Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              'METHOD:',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.6,
+                                color: dark
+                                    ? Colors.white60
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                            _buildMethodTabs(controller, dark),
+                          ],
+                        );
+
+                        final rangeSelector = Obx(() {
+                          final customRange = controller.customDateRange.value;
+                          final isCustom = customRange != null;
+                          final currentDays = controller.rangeDays.value;
+
+                          return Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              SegmentedButton<int>(
+                                showSelectedIcon: false,
+                                segments: const [
+                                  ButtonSegment(value: 7, label: Text('7d')),
+                                  ButtonSegment(value: 30, label: Text('30d')),
+                                  ButtonSegment(value: 90, label: Text('90d')),
+                                ],
+                                selected: isCustom ? <int>{} : {currentDays},
+                                emptySelectionAllowed: true,
+                                onSelectionChanged: (s) {
+                                  if (s.isNotEmpty) {
+                                    setState(() => _selectedIndex = null);
+                                    controller.setPresetDays(s.first);
+                                  }
+                                },
+                                style: ButtonStyle(
+                                  visualDensity: VisualDensity.compact,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  padding: WidgetStateProperty.all(
+                                    const EdgeInsets.symmetric(horizontal: 10),
+                                  ),
+                                ),
+                              ),
+                              InkWell(
+                                onTap: () =>
+                                    _pickDateRange(context, controller),
+                                borderRadius: BorderRadius.circular(
+                                  AppSizes.borderRadiusSm,
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 6.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isCustom
+                                        ? AppColors.primary.withValues(
+                                            alpha: 0.15,
+                                          )
+                                        : (dark
+                                              ? AppColors.darkSurface
+                                              : AppColors.lightGrey),
+                                    borderRadius: BorderRadius.circular(
+                                      AppSizes.borderRadiusSm,
+                                    ),
+                                    border: Border.all(
+                                      color: isCustom
+                                          ? AppColors.primary
+                                          : (dark
+                                                ? AppColors.darkBorder
+                                                : AppColors.borderPrimary),
+                                      width: isCustom ? 1.2 : 1.0,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Iconsax.calendar_1_copy,
+                                        size: 14,
+                                        color: isCustom
+                                            ? AppColors.primary
+                                            : AppColors.textSecondary,
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        isCustom
+                                            ? '${DateFormat('d MMM').format(customRange.start)} - ${DateFormat('d MMM').format(customRange.end)}'
+                                            : 'Pick Dates',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: isCustom
+                                              ? FontWeight.bold
+                                              : FontWeight.w500,
+                                          color: isCustom
+                                              ? AppColors.primary
+                                              : (dark
+                                                    ? Colors.white70
+                                                    : AppColors.textPrimary),
+                                        ),
+                                      ),
+                                      if (isCustom) ...[
+                                        const SizedBox(width: 5),
+                                        GestureDetector(
+                                          onTap: () {
+                                            setState(
+                                              () => _selectedIndex = null,
+                                            );
+                                            controller.setPresetDays(30);
+                                          },
+                                          child: const Icon(
+                                            Icons.close_rounded,
+                                            size: 14,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              InkWell(
+                                onTap: () {
+                                  setState(() => _selectedIndex = null);
+                                  controller.toggleCompare();
+                                },
+                                borderRadius: BorderRadius.circular(
+                                  AppSizes.borderRadiusSm,
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 6.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: controller.isCompareEnabled.value
+                                        ? const Color(
+                                            0xFF8B5CF6,
+                                          ).withValues(alpha: 0.15)
+                                        : (dark
+                                              ? AppColors.darkSurface
+                                              : AppColors.lightGrey),
+                                    borderRadius: BorderRadius.circular(
+                                      AppSizes.borderRadiusSm,
+                                    ),
+                                    border: Border.all(
+                                      color: controller.isCompareEnabled.value
+                                          ? const Color(0xFF8B5CF6)
+                                          : (dark
+                                                ? AppColors.darkBorder
+                                                : AppColors.borderPrimary),
+                                      width: controller.isCompareEnabled.value
+                                          ? 1.2
+                                          : 1.0,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Iconsax.arrow_swap_horizontal_copy,
+                                        size: 14,
+                                        color: controller.isCompareEnabled.value
+                                            ? const Color(0xFF8B5CF6)
+                                            : AppColors.textSecondary,
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        controller.isCompareEnabled.value
+                                            ? 'Comparing 2 Gaps'
+                                            : 'Compare 2 Gaps',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight:
+                                              controller.isCompareEnabled.value
+                                              ? FontWeight.bold
+                                              : FontWeight.w500,
+                                          color:
+                                              controller.isCompareEnabled.value
+                                              ? const Color(0xFF8B5CF6)
+                                              : (dark
+                                                    ? Colors.white70
+                                                    : AppColors.textPrimary),
+                                        ),
+                                      ),
+                                      if (controller
+                                          .isCompareEnabled
+                                          .value) ...[
+                                        const SizedBox(width: 5),
+                                        GestureDetector(
+                                          onTap: () {
+                                            setState(
+                                              () => _selectedIndex = null,
+                                            );
+                                            controller.toggleCompare();
+                                          },
+                                          child: const Icon(
+                                            Icons.close_rounded,
+                                            size: 14,
+                                            color: Color(0xFF8B5CF6),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        });
+
+                        if (isCompact) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              rangeSelector,
+                              const SizedBox(height: AppSizes.sm),
+                              methodSection,
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            methodSection,
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: rangeSelector,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: AppSizes.md),
+
+                    // ── Chart Content & Summaries ───────────────────────────
+                    Obx(() {
+                      final series = controller.revenueSeries;
+                      final activeMethod =
+                          controller.selectedMethodFilter.value;
+                      final days = controller.rangeDays.value;
+
+                      final Color chartColor;
+                      switch (activeMethod) {
+                        case 'telebirr':
+                          chartColor = AppColors.primary;
+                          break;
+                        case 'cbe':
+                          chartColor = AppColors.info;
+                          break;
+                        case 'abyssinia':
+                          chartColor = AppColors.amberAccent;
+                          break;
+                        default:
+                          chartColor = AppColors.success;
+                      }
+
+                      final customRange = controller.customDateRange.value;
+                      final rangeLabel = customRange != null
+                          ? '${DateFormat('d MMM yyyy').format(customRange.start)} - ${DateFormat('d MMM yyyy').format(customRange.end)}'
+                          : '$days-day window';
+
+                      if (controller.isChartLoading.value ||
+                          (controller.isLoading.value && series.isEmpty)) {
+                        return SizedBox(
+                          height: 240,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      chartColor,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Updating revenue chart...',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: dark
+                                        ? Colors.white60
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (series.isEmpty || series.every((p) => p.value == 0)) {
+                        return SizedBox(
+                          height: 220,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Iconsax.chart_fail_copy,
+                                  size: 36,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'No approved revenue recorded for $rangeLabel',
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      final total = series.fold(0.0, (sum, p) => sum + p.value);
+                      final peak = series.isNotEmpty
+                          ? series.map((p) => p.value).reduce(math.max)
+                          : 0.0;
+                      final daysCount = series.length > 1
+                          ? series.length
+                          : days;
+                      final avg = total / (daysCount > 0 ? daysCount : 1);
+
+                      // Clamp selectedIndex for main series
+                      if (_selectedIndex != null &&
+                          _selectedIndex! >= series.length) {
+                        _selectedIndex = series.isNotEmpty
+                            ? series.length - 1
+                            : null;
+                      }
+
+                      Widget? tooltipWidget;
+                      if (_selectedIndex != null &&
+                          _selectedIndex! < series.length) {
+                        final selPoint = series[_selectedIndex!];
+                        final String formattedAmount;
+                        if (controller.isPriceHidden.value) {
+                          formattedAmount = 'ETB ••••••';
+                        } else {
+                          final base =
+                              'ETB ${NumberFormat('#,##0.00').format(selPoint.value)}';
+                          formattedAmount = activeMethod != null
+                              ? '$base (${PaymentMethodInfo.labelOf(activeMethod)})'
+                              : base;
+                        }
+                        final formattedDate = DateFormat(
+                          'MMM d, yyyy',
+                        ).format(selPoint.day);
+
+                        final hasBreakdown =
+                            activeMethod == null &&
+                            selPoint.methodBreakdown.isNotEmpty;
+
+                        tooltipWidget = Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: dark
+                                ? AppColors.darkSurface
+                                : AppColors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: chartColor.withValues(alpha: 0.6),
+                              width: 1.2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(
+                                  alpha: dark ? 0.35 : 0.12,
+                                ),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                formattedDate,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                formattedAmount,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: chartColor,
+                                ),
+                              ),
+                              if (hasBreakdown &&
+                                  !controller.isPriceHidden.value) ...[
+                                const SizedBox(height: 4),
+                                Divider(
+                                  height: 1,
+                                  color: dark ? Colors.white12 : Colors.black12,
+                                ),
+                                const SizedBox(height: 4),
+                                for (final entry
+                                    in selPoint.methodBreakdown.entries)
+                                  if (entry.value > 0)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 0.5,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            PaymentMethodInfo.labelOf(
+                                              entry.key,
+                                            ),
+                                            style: const TextStyle(
+                                              fontSize: 9.5,
+                                              color: AppColors.textSecondary,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'ETB ${NumberFormat('#,##0').format(entry.value)}',
+                                            style: TextStyle(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: dark
+                                                  ? Colors.white
+                                                  : AppColors.textPrimary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                              ],
+                            ],
+                          ),
+                        );
+                      }
+
+                      final String totalLabel = activeMethod != null
+                          ? 'TOTAL (${PaymentMethodInfo.labelOf(activeMethod).toUpperCase()})'
+                          : 'TOTAL GROSS REVENUE';
+
+                      final String totalValue = controller.isPriceHidden.value
+                          ? 'ETB ••••••'
+                          : 'ETB ${NumberFormat('#,##0.00').format(total)}';
+
+                      final String peakValue = controller.isPriceHidden.value
+                          ? 'ETB ••••••'
+                          : 'ETB ${NumberFormat.compact().format(peak)}';
+
+                      final String avgValue = controller.isPriceHidden.value
+                          ? 'ETB ••••••'
+                          : 'ETB ${NumberFormat('#,##0').format(avg.round())}';
+
+                      final String allTimeValue = controller.isPriceHidden.value
+                          ? 'ETB ••••••'
+                          : 'ETB ${NumberFormat('#,##0.00').format(controller.totalRevenueAllTime.value)}';
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // ── Content Metrics Bar ──────────────────────────
+                          Wrap(
+                            spacing: AppSizes.lg,
+                            runSpacing: AppSizes.sm,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              _MetricStatItem(
+                                label: totalLabel,
+                                value: totalValue,
+                                unit: '',
+                                color: chartColor,
+                              ),
+                              _MetricStatItem(
+                                label: 'PEAK DAY',
+                                value: peakValue,
+                                unit: '',
+                                color: AppColors.textSecondary,
+                              ),
+                              _MetricStatItem(
+                                label: 'DAILY AVERAGE',
+                                value: avgValue,
+                                unit: '',
+                                color: AppColors.textSecondary,
+                              ),
+                              _MetricStatItem(
+                                label: 'ALL-TIME REVENUE',
+                                value: allTimeValue,
+                                unit: '',
+                                color: AppColors.success,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSizes.md),
+
+                          // ── Chart Canvas (Main Standalone Single-Series Graph) ──
+                          AdminBarChart(
+                            points: series,
+                            color: chartColor,
+                            height: 240,
+                            selectedIndex: _selectedIndex,
+                            showBreakdown: activeMethod == null,
+                            onPointSelected: (idx) {
+                              setState(() => _selectedIndex = idx);
+                            },
+                            tooltipContent: tooltipWidget,
+                          ),
+                          const SizedBox(height: 6),
+
+                          // ── Date Axis Labels ─────────────────────────────
+                          _XAxisLabels(series: series),
+                        ],
+                      );
+                    }),
+                  ],
+                ),
+              ),
+
+              // ── 3. Dedicated Time Length Comparison Box with its own Graph ──
+              Obx(() {
+                if (!controller.isCompareEnabled.value) {
+                  return const SizedBox.shrink();
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.only(top: AppSizes.spaceBtwItems),
+                  child: RevenueComparisonCard(
+                    controller: controller,
+                    selectedIndex: _comparisonSelectedIndex,
+                    onPointSelected: (idx) {
+                      setState(() => _comparisonSelectedIndex = idx);
+                    },
+                    onClose: () {
+                      setState(() => _comparisonSelectedIndex = null);
+                      controller.toggleCompare();
+                    },
+                    onPickGap1Range: () => _pickDateRange(context, controller),
+                    onPickGap2Range: () =>
+                        _pickComparisonDateRange(context, controller),
+                    onPickCustomRange: () =>
+                        _pickComparisonDateRange(context, controller),
+                  ),
+                );
+              }),
+            ],
           );
+        }),
+      );
+    });
+  }
+}
+
+// ── Dedicated Time Length Comparison Box with its own Graph ─────────────────
+
+class RevenueComparisonCard extends StatelessWidget {
+  const RevenueComparisonCard({
+    super.key,
+    required this.controller,
+    required this.selectedIndex,
+    required this.onPointSelected,
+    required this.onClose,
+    this.onPickGap1Range,
+    this.onPickGap2Range,
+    this.onPickCustomRange,
+  });
+
+  final RevenueController controller;
+  final int? selectedIndex;
+  final ValueChanged<int?> onPointSelected;
+  final VoidCallback onClose;
+  final VoidCallback? onPickGap1Range;
+  final VoidCallback? onPickGap2Range;
+  final VoidCallback? onPickCustomRange;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+
+    return AdminCard(
+      child: Obx(() {
+        final series = controller.revenueSeries;
+        final compSeries = controller.comparisonSeries;
+        final activeMethod = controller.selectedMethodFilter.value;
+
+        final Color chartColor;
+        switch (activeMethod) {
+          case 'telebirr':
+            chartColor = AppColors.primary;
+            break;
+          case 'cbe':
+            chartColor = AppColors.info;
+            break;
+          case 'abyssinia':
+            chartColor = AppColors.amberAccent;
+            break;
+          default:
+            chartColor = AppColors.success;
+        }
+        const compColor = Color(0xFF8B5CF6);
+
+        final primRange = controller.getPrimaryDateRange();
+        final compRange = controller.getComparisonDateRange();
+        final primDays = primRange.end.difference(primRange.start).inDays + 1;
+        final compDays = compRange.end.difference(compRange.start).inDays + 1;
+        final selectedOption = controller.compareOption.value;
+
+        // Gap 1 active preset calculation
+        final String gap1Current;
+        if (controller.customDateRange.value != null) {
+          gap1Current = 'custom';
+        } else if (controller.rangeDays.value == 7) {
+          gap1Current = '7d';
+        } else if (controller.rangeDays.value == 14) {
+          gap1Current = '14d';
+        } else if (controller.rangeDays.value == 30) {
+          gap1Current = '30d';
+        } else if (controller.rangeDays.value == 90) {
+          gap1Current = '90d';
+        } else {
+          gap1Current = '${controller.rangeDays.value}d';
         }
 
-        if (controller.errorMessage.value != null &&
-            controller.revenueSeries.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSizes.xl),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Iconsax.warning_2_copy,
-                    color: AppColors.error,
-                    size: 40,
-                  ),
-                  const SizedBox(height: AppSizes.md),
-                  Text(
-                    controller.errorMessage.value!,
-                    style: const TextStyle(
-                      color: AppColors.error,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: AppSizes.md),
-                  ElevatedButton(
-                    onPressed: controller.load,
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            ),
-          );
+        final total = controller.primaryTotal;
+        final compTotal = controller.comparisonTotal;
+        final growthPct = controller.revenueGrowthPercentage;
+        final growthAbs = controller.revenueGrowthAbsolute;
+        final isPosGrowth = growthAbs >= 0;
+
+        final String totalValue = controller.isPriceHidden.value
+            ? 'ETB ••••••'
+            : 'ETB ${NumberFormat('#,##0.00').format(total)}';
+        final String compTotalValue = controller.isPriceHidden.value
+            ? 'ETB ••••••'
+            : 'ETB ${NumberFormat('#,##0.00').format(compTotal)}';
+
+        // Convert series to LinePoints for AdminLineChart
+        final totalSlots = math.max(series.length, compSeries.length);
+        final List<LinePoint> linePoints = [];
+        final List<LinePoint> compLinePoints = [];
+
+        for (int i = 0; i < totalSlots; i++) {
+          final normX = totalSlots > 1 ? (i / (totalSlots - 1)) : 0.0;
+          if (i < series.length) {
+            linePoints.add(LinePoint(normX, series[i].value));
+          }
+          if (i < compSeries.length) {
+            compLinePoints.add(
+              LinePoint(normX, compSeries[i].value),
+            );
+          }
+        }
+
+        // Active point inspection data (when hovering or tapping on chart)
+        String? p1Str;
+        String? p2Str;
+        String? date1;
+        String? date2;
+        double diffVal = 0;
+        double diffPct = 0;
+        bool isPos = true;
+
+        if (selectedIndex != null &&
+            (series.isNotEmpty || compSeries.isNotEmpty)) {
+          final selIdx = selectedIndex!;
+          final selPoint = selIdx < series.length ? series[selIdx] : null;
+          final compPoint = selIdx < compSeries.length
+              ? compSeries[selIdx]
+              : null;
+
+          p1Str = controller.isPriceHidden.value
+              ? 'ETB ••••••'
+              : 'ETB ${NumberFormat('#,##0.00').format(selPoint?.value ?? 0)}';
+          p2Str = controller.isPriceHidden.value
+              ? 'ETB ••••••'
+              : 'ETB ${NumberFormat('#,##0.00').format(compPoint?.value ?? 0)}';
+
+          final double val1 = selPoint?.value ?? 0;
+          final double val2 = compPoint?.value ?? 0;
+          diffVal = val1 - val2;
+          diffPct = val2 > 0
+              ? (diffVal / val2) * 100
+              : (val1 > 0 ? 100.0 : 0.0);
+          isPos = diffVal >= 0;
+
+          date1 = selPoint != null
+              ? DateFormat('MMM d').format(selPoint.day)
+              : '—';
+          date2 = compPoint != null
+              ? DateFormat('MMM d').format(compPoint.day)
+              : '—';
         }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── 1. Top Header Bar with Privacy Eye Toggle ───────────────
-            _RevenueTopBar(controller: controller),
-            const SizedBox(height: AppSizes.spaceBtwItems),
-
-            // ── 2. The Hero Revenue Graph Card ──────────────────────────
-            AdminCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ── Header Controls ─────────────────────────────────────
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isCompact = constraints.maxWidth < 750;
-
-                      final methodSection = Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(
-                            'METHOD:',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.6,
-                              color: dark
-                                  ? Colors.white60
-                                  : AppColors.textSecondary,
-                            ),
+            // ── Clean Compare Header ─────────────────────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: compColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        child: const Icon(
+                          Iconsax.arrow_swap_horizontal_copy,
+                          size: 15,
+                          color: compColor,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Compare Revenue Gaps',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: dark ? Colors.white : AppColors.textPrimary,
                           ),
-                          _buildMethodTabs(controller, dark),
-                        ],
-                      );
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: onClose,
+                  tooltip: 'Close comparison',
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSizes.sm),
 
-                      final rangeSelector = Obx(() {
-                        final customRange = controller.customDateRange.value;
-                        final isCustom = customRange != null;
-                        final currentDays = controller.rangeDays.value;
+            // ── Two Picking Boxes (Time Gap 1 & Time Gap 2) ───────────────────
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isTwoColumn = constraints.maxWidth >= 600;
 
-                        return Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                final gap1Box = _PickingBox(
+                  title: 'Time Gap 1',
+                  accentColor: chartColor,
+                  dateRangeText:
+                      '${DateFormat('d MMM yyyy').format(primRange.start)} – ${DateFormat('d MMM yyyy').format(primRange.end)}',
+                  days: primDays,
+                  totalAmount: totalValue,
+                  dark: dark,
+                  chips: [
+                    _buildCompareChip(
+                      label: '7 Days',
+                      value: '7d',
+                      current: gap1Current,
+                      onTap: () => controller.setPresetDays(7),
+                      dark: dark,
+                      activeColor: chartColor,
+                    ),
+                    _buildCompareChip(
+                      label: '14 Days',
+                      value: '14d',
+                      current: gap1Current,
+                      onTap: () => controller.setPresetDays(14),
+                      dark: dark,
+                      activeColor: chartColor,
+                    ),
+                    _buildCompareChip(
+                      label: '30 Days',
+                      value: '30d',
+                      current: gap1Current,
+                      onTap: () => controller.setPresetDays(30),
+                      dark: dark,
+                      activeColor: chartColor,
+                    ),
+                    _buildCompareChip(
+                      label: '90 Days',
+                      value: '90d',
+                      current: gap1Current,
+                      onTap: () => controller.setPresetDays(90),
+                      dark: dark,
+                      activeColor: chartColor,
+                    ),
+                    _buildCompareChip(
+                      label: gap1Current == 'custom' &&
+                              controller.customDateRange.value != null
+                          ? '${DateFormat('d MMM').format(controller.customDateRange.value!.start)} - ${DateFormat('d MMM').format(controller.customDateRange.value!.end)}'
+                          : 'Custom Range...',
+                      value: 'custom',
+                      current: gap1Current,
+                      onTap: () => onPickGap1Range?.call(),
+                      dark: dark,
+                      activeColor: chartColor,
+                      icon: Iconsax.calendar_1_copy,
+                    ),
+                  ],
+                );
+
+                final gap2Box = _PickingBox(
+                  title: 'Time Gap 2',
+                  accentColor: compColor,
+                  dateRangeText:
+                      '${DateFormat('d MMM yyyy').format(compRange.start)} – ${DateFormat('d MMM yyyy').format(compRange.end)}',
+                  days: compDays,
+                  totalAmount: compTotalValue,
+                  dark: dark,
+                  chips: [
+                    _buildCompareChip(
+                      label: 'Previous Period',
+                      value: 'previous',
+                      current: selectedOption,
+                      onTap: () => controller.setCompareOption('previous'),
+                      dark: dark,
+                      activeColor: compColor,
+                    ),
+                    _buildCompareChip(
+                      label: '7 Days',
+                      value: '7d',
+                      current: selectedOption,
+                      onTap: () => controller.setCompareOption('7d'),
+                      dark: dark,
+                      activeColor: compColor,
+                    ),
+                    _buildCompareChip(
+                      label: '14 Days',
+                      value: '14d',
+                      current: selectedOption,
+                      onTap: () => controller.setCompareOption('14d'),
+                      dark: dark,
+                      activeColor: compColor,
+                    ),
+                    _buildCompareChip(
+                      label: '30 Days',
+                      value: '30d',
+                      current: selectedOption,
+                      onTap: () => controller.setCompareOption('30d'),
+                      dark: dark,
+                      activeColor: compColor,
+                    ),
+                    _buildCompareChip(
+                      label: '90 Days',
+                      value: '90d',
+                      current: selectedOption,
+                      onTap: () => controller.setCompareOption('90d'),
+                      dark: dark,
+                      activeColor: compColor,
+                    ),
+                    _buildCompareChip(
+                      label: selectedOption == 'custom' &&
+                              controller.comparisonCustomRange.value != null
+                          ? '${DateFormat('d MMM').format(controller.comparisonCustomRange.value!.start)} - ${DateFormat('d MMM').format(controller.comparisonCustomRange.value!.end)}'
+                          : 'Custom Range...',
+                      value: 'custom',
+                      current: selectedOption,
+                      onTap: () =>
+                          (onPickGap2Range ?? onPickCustomRange)?.call(),
+                      dark: dark,
+                      activeColor: compColor,
+                      icon: Iconsax.calendar_1_copy,
+                    ),
+                  ],
+                );
+
+                if (isTwoColumn) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: gap1Box),
+                      const SizedBox(width: AppSizes.md),
+                      Expanded(child: gap2Box),
+                    ],
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    gap1Box,
+                    const SizedBox(height: AppSizes.sm),
+                    gap2Box,
+                  ],
+                );
+              },
+            ),
+
+            // ── Inspection & Difference Strip (Placed ABOVE graph to avoid covering curves) ──
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: dark ? AppColors.darkCard : Colors.white,
+                borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                border: Border.all(
+                  color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                  width: 1.0,
+                ),
+              ),
+              child: selectedIndex != null &&
+                      (series.isNotEmpty || compSeries.isNotEmpty)
+                  ? Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 4,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            SegmentedButton<int>(
-                              showSelectedIcon: false,
-                              segments: const [
-                                ButtonSegment(value: 7, label: Text('7d')),
-                                ButtonSegment(value: 30, label: Text('30d')),
-                                ButtonSegment(value: 90, label: Text('90d')),
-                              ],
-                              selected: isCustom ? <int>{} : {currentDays},
-                              emptySelectionAllowed: true,
-                              onSelectionChanged: (s) {
-                                if (s.isNotEmpty) {
-                                  setState(() => _selectedIndex = null);
-                                  controller.setPresetDays(s.first);
-                                }
-                              },
-                              style: ButtonStyle(
-                                visualDensity: VisualDensity.compact,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                padding: WidgetStateProperty.all(
-                                  const EdgeInsets.symmetric(horizontal: 10),
-                                ),
-                              ),
-                            ),
-                            InkWell(
-                              onTap: () => _pickDateRange(context, controller),
-                              borderRadius: BorderRadius.circular(
-                                AppSizes.borderRadiusSm,
-                              ),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 9,
-                                  vertical: 6.5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isCustom
-                                      ? AppColors.primary.withValues(
-                                          alpha: 0.15,
-                                        )
-                                      : (dark
-                                            ? AppColors.darkSurface
-                                            : AppColors.lightGrey),
-                                  borderRadius: BorderRadius.circular(
-                                    AppSizes.borderRadiusSm,
-                                  ),
-                                  border: Border.all(
-                                    color: isCustom
-                                        ? AppColors.primary
-                                        : (dark
-                                              ? AppColors.darkBorder
-                                              : AppColors.borderPrimary),
-                                    width: isCustom ? 1.2 : 1.0,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Iconsax.calendar_1_copy,
-                                      size: 14,
-                                      color: isCustom
-                                          ? AppColors.primary
-                                          : AppColors.textSecondary,
-                                    ),
-                                    const SizedBox(width: 5),
-                                    Text(
-                                      isCustom
-                                          ? '${DateFormat('d MMM').format(customRange.start)} - ${DateFormat('d MMM').format(customRange.end)}'
-                                          : 'Pick Dates',
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: isCustom
-                                            ? FontWeight.bold
-                                            : FontWeight.w500,
-                                        color: isCustom
-                                            ? AppColors.primary
-                                            : (dark
-                                                  ? Colors.white70
-                                                  : AppColors.textPrimary),
-                                      ),
-                                    ),
-                                    if (isCustom) ...[
-                                      const SizedBox(width: 5),
-                                      GestureDetector(
-                                        onTap: () {
-                                          setState(() => _selectedIndex = null);
-                                          controller.setPresetDays(30);
-                                        },
-                                        child: const Icon(
-                                          Icons.close_rounded,
-                                          size: 14,
-                                          color: AppColors.primary,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      });
-
-                      if (isCompact) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            rangeSelector,
-                            const SizedBox(height: AppSizes.sm),
-                            methodSection,
-                          ],
-                        );
-                      }
-
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          methodSection,
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: rangeSelector,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: AppSizes.md),
-
-                  // ── Chart Content & Summaries ───────────────────────────
-                  Obx(() {
-                    final series = controller.revenueSeries;
-                    final activeMethod = controller.selectedMethodFilter.value;
-                    final days = controller.rangeDays.value;
-
-                    final Color chartColor;
-                    switch (activeMethod) {
-                      case 'telebirr':
-                        chartColor = AppColors.primary;
-                        break;
-                      case 'cbe':
-                        chartColor = AppColors.info;
-                        break;
-                      case 'abyssinia':
-                        chartColor = AppColors.amberAccent;
-                        break;
-                      default:
-                        chartColor = AppColors.success;
-                    }
-
-                    final customRange = controller.customDateRange.value;
-                    final rangeLabel = customRange != null
-                        ? '${DateFormat('d MMM yyyy').format(customRange.start)} - ${DateFormat('d MMM yyyy').format(customRange.end)}'
-                        : '$days-day window';
-
-                    if (controller.isChartLoading.value ||
-                        (controller.isLoading.value && series.isEmpty)) {
-                      return SizedBox(
-                        height: 240,
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 28,
-                                height: 28,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    chartColor,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'Updating revenue chart...',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: dark
-                                      ? Colors.white60
-                                      : AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (series.isEmpty || series.every((p) => p.value == 0)) {
-                      return SizedBox(
-                        height: 220,
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Iconsax.chart_fail_copy,
-                                size: 36,
-                                color: AppColors.textSecondary,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'No approved revenue recorded for $rangeLabel',
-                                style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-
-                    final total = series.fold(0.0, (sum, p) => sum + p.value);
-                    final peak = series.map((p) => p.value).reduce(math.max);
-                    final daysCount = series.length > 1 ? series.length : days;
-                    final avg = total / (daysCount > 0 ? daysCount : 1);
-
-                    // Clamp selectedIndex
-                    if (_selectedIndex != null &&
-                        _selectedIndex! >= series.length) {
-                      _selectedIndex = series.length - 1;
-                    }
-
-                    Widget? tooltipWidget;
-                    if (_selectedIndex != null &&
-                        _selectedIndex! < series.length) {
-                      final selPoint = series[_selectedIndex!];
-                      final String formattedAmount;
-                      if (controller.isPriceHidden.value) {
-                        formattedAmount = 'ETB ••••••';
-                      } else {
-                        final base =
-                            'ETB ${NumberFormat('#,##0.00').format(selPoint.value)}';
-                        formattedAmount = activeMethod != null
-                            ? '$base (${PaymentMethodInfo.labelOf(activeMethod)})'
-                            : base;
-                      }
-                      final formattedDate = DateFormat(
-                        'MMM d, yyyy',
-                      ).format(selPoint.day);
-
-                      final hasBreakdown =
-                          activeMethod == null &&
-                          selPoint.methodBreakdown.isNotEmpty;
-
-                      tooltipWidget = Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: dark ? AppColors.darkSurface : AppColors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: chartColor.withValues(alpha: 0.6),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(
-                                alpha: dark ? 0.35 : 0.12,
-                              ),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
                             Text(
-                              formattedDate,
+                              'Day ${(selectedIndex! + 1)} ($date1 vs $date2):',
                               style: const TextStyle(
-                                fontSize: 10,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w600,
                                 color: AppColors.textSecondary,
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              formattedAmount,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w800,
-                                color: chartColor,
-                              ),
-                            ),
-                            if (hasBreakdown &&
-                                !controller.isPriceHidden.value) ...[
-                              const SizedBox(height: 4),
-                              Divider(
-                                height: 1,
-                                color: dark ? Colors.white12 : Colors.black12,
-                              ),
-                              const SizedBox(height: 4),
-                              for (final entry
-                                  in selPoint.methodBreakdown.entries)
-                                if (entry.value > 0)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 0.5,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          PaymentMethodInfo.labelOf(entry.key),
-                                          style: const TextStyle(
-                                            fontSize: 9.5,
-                                            color: AppColors.textSecondary,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'ETB ${NumberFormat('#,##0').format(entry.value)}',
-                                          style: TextStyle(
-                                            fontSize: 9.5,
-                                            fontWeight: FontWeight.w700,
-                                            color: dark
-                                                ? Colors.white
-                                                : AppColors.textPrimary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 7,
+                                  height: 7,
+                                  decoration: BoxDecoration(
+                                    color: chartColor,
+                                    shape: BoxShape.circle,
                                   ),
-                            ],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Gap 1: $p1Str',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: chartColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 7,
+                                  height: 7,
+                                  decoration: const BoxDecoration(
+                                    color: compColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Gap 2: $p2Str',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: compColor,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
-                      );
-                    }
-
-                    final String totalLabel = activeMethod != null
-                        ? 'TOTAL (${PaymentMethodInfo.labelOf(activeMethod).toUpperCase()})'
-                        : 'TOTAL GROSS REVENUE';
-
-                    final String totalValue = controller.isPriceHidden.value
-                        ? 'ETB ••••••'
-                        : 'ETB ${NumberFormat('#,##0.00').format(total)}';
-
-                    final String peakValue = controller.isPriceHidden.value
-                        ? 'ETB ••••••'
-                        : 'ETB ${NumberFormat.compact().format(peak)}';
-
-                    final String avgValue = controller.isPriceHidden.value
-                        ? 'ETB ••••••'
-                        : 'ETB ${NumberFormat('#,##0').format(avg.round())}';
-
-                    final String allTimeValue = controller.isPriceHidden.value
-                        ? 'ETB ••••••'
-                        : 'ETB ${NumberFormat('#,##0.00').format(controller.totalRevenueAllTime.value)}';
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (isPos ? AppColors.success : AppColors.error)
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '${isPos ? '+' : ''}${diffPct.toStringAsFixed(1)}% (${isPos ? '+' : '-'}ETB ${NumberFormat('#,##0').format(diffVal.abs().round())})',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: isPos ? AppColors.success : AppColors.error,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        // ── Content Metrics Bar ──────────────────────────
                         Wrap(
-                          spacing: AppSizes.lg,
-                          runSpacing: AppSizes.sm,
+                          spacing: 5,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            _MetricStatItem(
-                              label: totalLabel,
-                              value: totalValue,
-                              unit: '',
-                              color: chartColor,
+                            Icon(
+                              isPosGrowth
+                                  ? Icons.trending_up_rounded
+                                  : Icons.trending_down_rounded,
+                              size: 15,
+                              color: isPosGrowth
+                                  ? AppColors.success
+                                  : AppColors.error,
                             ),
-                            _MetricStatItem(
-                              label: 'PEAK DAY',
-                              value: peakValue,
-                              unit: '',
-                              color: AppColors.textSecondary,
-                            ),
-                            _MetricStatItem(
-                              label: 'DAILY AVERAGE',
-                              value: avgValue,
-                              unit: '',
-                              color: AppColors.textSecondary,
-                            ),
-                            _MetricStatItem(
-                              label: 'ALL-TIME REVENUE',
-                              value: allTimeValue,
-                              unit: '',
-                              color: AppColors.success,
+                            Text(
+                              'Diff: ${growthPct >= 0 ? '+' : ''}${growthPct.toStringAsFixed(1)}% (${isPosGrowth ? '+' : '-'}ETB ${NumberFormat('#,##0.00').format(growthAbs.abs())})',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: isPosGrowth
+                                    ? AppColors.success
+                                    : AppColors.error,
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: AppSizes.md),
-
-                        // ── Chart Canvas ─────────────────────────────────
-                        AdminBarChart(
-                          points: series,
-                          color: chartColor,
-                          height: 240,
-                          selectedIndex: _selectedIndex,
-                          showBreakdown: activeMethod == null,
-                          onPointSelected: (idx) {
-                            setState(() => _selectedIndex = idx);
-                          },
-                          tooltipContent: tooltipWidget,
+                        const Text(
+                          'Tap line to inspect day',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
-                        const SizedBox(height: 6),
-
-                        // ── Date Axis Labels ─────────────────────────────
-                        _XAxisLabels(series: series),
                       ],
-                    );
-                  }),
+                    ),
+            ),
+
+            // ── Comparison Line Graph Canvas (Unobscured) ──────────────────
+            if (controller.isComparisonLoading.value)
+              SizedBox(
+                height: 240,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(compColor),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Fetching Time Gap 2 analytics...',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: dark
+                              ? Colors.white60
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (compSeries.isEmpty)
+              const SizedBox(
+                height: 200,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Iconsax.chart_fail_copy,
+                        size: 32,
+                        color: AppColors.textSecondary,
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'No revenue records found for Time Gap 2',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else ...[
+              AdminLineChart(
+                points: linePoints,
+                comparisonPoints: compLinePoints,
+                color: chartColor,
+                comparisonColor: compColor,
+                height: 240,
+                selectedIndex: selectedIndex,
+                onPointSelected: onPointSelected,
+                tooltipContent: null, // Outlined box removed from graph canvas so lines are 100% visible!
+              ),
+              const SizedBox(height: 8),
+              // Line Graph Legend
+              Wrap(
+                spacing: 16,
+                runSpacing: 6,
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _LineLegendIndicator(
+                    color: chartColor,
+                    label:
+                        'Time Gap 1 (${primDays}d): ${DateFormat('d MMM').format(primRange.start)} – ${DateFormat('d MMM').format(primRange.end)}',
+                  ),
+                  _LineLegendIndicator(
+                    color: compColor,
+                    label:
+                        'Time Gap 2 (${compDays}d): ${DateFormat('d MMM').format(compRange.start)} – ${DateFormat('d MMM').format(compRange.end)}',
+                  ),
                 ],
               ),
-            ),
+              const SizedBox(height: 6),
+              _XAxisLabels(series: series, comparisonSeries: compSeries),
+            ],
           ],
         );
       }),
@@ -705,65 +1491,67 @@ class _RevenueTopBar extends StatelessWidget {
     final dark = AppHelperFunctions.isDark(context);
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Gross Revenue',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: dark ? AppColors.white : AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                'Financial',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.success,
-                ),
-              ),
-            ),
-          ],
+        Text(
+          'Gross Revenue',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: dark ? AppColors.white : AppColors.textPrimary,
+          ),
         ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Obx(
-              () => OutlinedButton.icon(
-                onPressed: controller.togglePriceVisibility,
-                icon: Icon(
-                  controller.isPriceHidden.value
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  size: 16,
-                ),
-                label: Text(
-                  controller.isPriceHidden.value
-                      ? 'Show Amounts'
-                      : 'Hide Amounts',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                style: OutlinedButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                ),
-              ),
+        const SizedBox(width: 8),
+
+        // Lock icon button (no text)
+        Obx(() {
+          final lockCtrl = Get.isRegistered<AppLockController>()
+              ? AppLockController.instance
+              : null;
+          final hasPasscode = lockCtrl?.isPasscodeEnabled.value ?? false;
+
+          return IconButton(
+            tooltip: hasPasscode ? 'Lock Revenue' : 'Set Up PIN',
+            icon: Icon(
+              hasPasscode ? Iconsax.lock_copy : Iconsax.security_safe_copy,
+              size: 18,
+              color: dark ? Colors.white70 : AppColors.textSecondary,
             ),
-          ],
+            onPressed: () {
+              if (hasPasscode) {
+                controller.lockRevenue();
+              } else {
+                PasscodeSetupDialog.show(context);
+              }
+            },
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(),
+            splashRadius: 18,
+          );
+        }),
+        const SizedBox(width: 4),
+
+        // Hide / Show amounts icon button (no text)
+        Obx(
+          () => IconButton(
+            tooltip: controller.isPriceHidden.value
+                ? 'Show Amounts'
+                : 'Hide Amounts',
+            icon: Icon(
+              controller.isPriceHidden.value
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              size: 18,
+              color: controller.isPriceHidden.value
+                  ? AppColors.primary
+                  : (dark ? Colors.white70 : AppColors.textSecondary),
+            ),
+            onPressed: controller.togglePriceVisibility,
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(),
+            splashRadius: 18,
+          ),
         ),
       ],
     );
@@ -884,14 +1672,16 @@ class _MetricStatItem extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 4),
-            Text(
-              unit,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.textSecondary,
+            if (unit.isNotEmpty) ...[
+              const SizedBox(width: 4),
+              Text(
+                unit,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ],
@@ -899,46 +1689,354 @@ class _MetricStatItem extends StatelessWidget {
   }
 }
 
-// ── X-axis Labels ───────────────────────────────────────────────────────────
+// ── Comparison Helper Widgets ───────────────────────────────────────────────
 
-class _XAxisLabels extends StatelessWidget {
-  const _XAxisLabels({required this.series});
+class _LineLegendIndicator extends StatelessWidget {
+  const _LineLegendIndicator({required this.color, required this.label});
 
-  final List<DailyPoint> series;
+  final Color color;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    if (series.length < 2) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 14,
+          height: 3,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PickingBox extends StatelessWidget {
+  const _PickingBox({
+    required this.title,
+    required this.accentColor,
+    required this.dateRangeText,
+    required this.days,
+    required this.totalAmount,
+    required this.chips,
+    required this.dark,
+  });
+
+  final String title;
+  final Color accentColor;
+  final String dateRangeText;
+  final int days;
+  final String totalAmount;
+  final List<Widget> chips;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: dark
+            ? accentColor.withValues(alpha: 0.06)
+            : accentColor.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(
+          color: accentColor.withValues(alpha: 0.25),
+          width: 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: accentColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                          color: accentColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  totalAmount,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: accentColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '$dateRangeText ($days Days)',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(spacing: 6, runSpacing: 6, children: chips),
+        ],
+      ),
+    );
+  }
+}
+
+Widget _buildCompareChip({
+  required String label,
+  required String value,
+  required String current,
+  required VoidCallback onTap,
+  required bool dark,
+  Color activeColor = const Color(0xFF8B5CF6),
+  IconData? icon,
+}) {
+  final isSelected = value == current;
+  return InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(6),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? activeColor.withValues(alpha: 0.18)
+            : (dark ? AppColors.darkCard : Colors.white),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isSelected
+              ? activeColor
+              : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+          width: isSelected ? 1.2 : 1.0,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: 12,
+              color: isSelected ? activeColor : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected
+                  ? activeColor
+                  : (dark ? Colors.white70 : AppColors.textPrimary),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// ── X-axis Labels ───────────────────────────────────────────────────────────
+
+class _XAxisLabels extends StatelessWidget {
+  const _XAxisLabels({required this.series, this.comparisonSeries});
+
+  final List<DailyPoint> series;
+  final List<DailyPoint>? comparisonSeries;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasComp = comparisonSeries != null && comparisonSeries!.isNotEmpty;
+    final totalCount = hasComp
+        ? math.max(series.length, comparisonSeries!.length)
+        : series.length;
+
+    if (totalCount < 2) return const SizedBox.shrink();
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final maxLabels = constraints.maxWidth < 360
-            ? 3
-            : (constraints.maxWidth < 500 ? 4 : 6);
-        final count = series.length < maxLabels ? series.length : maxLabels;
-        final step = (series.length - 1) / (count > 1 ? count - 1 : 1);
+        final maxLabels = constraints.maxWidth < 300
+            ? 2
+            : (constraints.maxWidth < 440 ? 3 : (constraints.maxWidth < 600 ? 4 : 6));
+        final count = totalCount < maxLabels ? totalCount : maxLabels;
+        final step = (totalCount - 1) / (count > 1 ? count - 1 : 1);
 
         final labels = List.generate(count, (i) {
-          final idx = (i * step).round().clamp(0, series.length - 1);
-          return DateFormat('d MMM').format(series[idx].day);
+          final idx = (i * step).round().clamp(0, totalCount - 1);
+          if (idx < series.length) {
+            return DateFormat('d MMM').format(series[idx].day);
+          } else if (hasComp && idx < comparisonSeries!.length) {
+            return DateFormat('d MMM').format(comparisonSeries![idx].day);
+          }
+          return 'Day ${idx + 1}';
         });
 
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: labels
               .map(
-                (l) => Text(
-                  l,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary,
+                (l) => Flexible(
+                  child: Text(
+                    l,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               )
               .toList(),
         );
       },
+    );
+  }
+}
+
+// ── Protected Locked View (Strictly PIN Only) ───────────────────────────────
+
+class _RevenueLockedView extends StatefulWidget {
+  const _RevenueLockedView({
+    required this.controller,
+    required this.lockController,
+  });
+
+  final RevenueController controller;
+  final AppLockController lockController;
+
+  @override
+  State<_RevenueLockedView> createState() => _RevenueLockedViewState();
+}
+
+class _RevenueLockedViewState extends State<_RevenueLockedView> {
+  final GlobalKey<PinPadViewState> _pinKey = GlobalKey<PinPadViewState>();
+
+  void _onPinCompleted(String pin) {
+    final valid = widget.lockController.checkPasscode(pin);
+    if (valid) {
+      widget.controller.unlockRevenue();
+    } else {
+      _pinKey.currentState?.triggerError();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: AdminCard(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: const Icon(
+                    Iconsax.lock_copy,
+                    color: AppColors.primary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Revenue Protected',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Enter your ${widget.lockController.pinLength.value}-digit PIN to unlock',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                PinPadView(
+                  key: _pinKey,
+                  pinLength: widget.lockController.pinLength.value,
+                  onCompleted: _onPinCompleted,
+                  showBiometricButton: false,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

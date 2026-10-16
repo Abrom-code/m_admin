@@ -4,18 +4,22 @@ import 'package:m_admin/data/repositories/dashboard_repository.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 
 /// Hand-rolled interactive Bar Chart with rounded bars, subtle gradients,
-/// optional payment method stacked breakdown, and interactive hover/selection.
+/// optional payment method stacked breakdown, time comparison pairing, and interactive hover/selection.
 class BarChartPainter extends CustomPainter {
   BarChartPainter({
     required this.points,
+    this.comparisonPoints,
     this.color = AppColors.success,
+    this.comparisonColor = const Color(0xFF8B5CF6),
     this.selectedIndex,
     this.isDark = false,
     this.showBreakdown = false,
   });
 
   final List<DailyPoint> points;
+  final List<DailyPoint>? comparisonPoints;
   final Color color;
+  final Color comparisonColor;
   final int? selectedIndex;
   final bool isDark;
   final bool showBreakdown;
@@ -29,14 +33,27 @@ class BarChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (points.isEmpty) return;
+    final hasComparison =
+        comparisonPoints != null && comparisonPoints!.isNotEmpty;
+    final totalCount = hasComparison
+        ? math.max(points.length, comparisonPoints!.length)
+        : points.length;
 
-    final maxY = points.map((p) => p.value).fold<double>(0.0, math.max);
+    if (totalCount == 0) return;
+
+    final maxY1 = points.isNotEmpty
+        ? points.map((p) => p.value).fold<double>(0.0, math.max)
+        : 0.0;
+    final maxY2 = hasComparison
+        ? comparisonPoints!.map((p) => p.value).fold<double>(0.0, math.max)
+        : 0.0;
+    final maxY = math.max(maxY1, maxY2);
     final effectiveMax = maxY > 0 ? maxY : 1.0;
 
     const topPadding = 16.0;
     const bottomPadding = 4.0;
-    final usableHeight = math.max(size.height - topPadding - bottomPadding, 10.0);
+    final usableHeight =
+        math.max(size.height - topPadding - bottomPadding, 10.0);
 
     // ── Background Faint Horizontal Grid Lines ──────────────────────────
     final gridPaint = Paint()
@@ -58,133 +75,300 @@ class BarChartPainter extends CustomPainter {
       baseLinePaint,
     );
 
-    final count = points.length;
-    final slotWidth = size.width / count;
-    final barWidth = math.max(2.5, math.min(slotWidth * 0.72, 28.0));
+    final slotWidth = size.width / totalCount;
 
-    for (int i = 0; i < count; i++) {
-      final p = points[i];
-      final cx = (i + 0.5) * slotWidth;
-      final left = cx - (barWidth / 2);
-      final right = cx + (barWidth / 2);
-      final isSelected = selectedIndex == i;
-      final isAnySelected = selectedIndex != null;
-      final dimAlpha = (isAnySelected && !isSelected) ? 0.38 : 1.0;
+    if (hasComparison) {
+      // ── Comparative Paired Bars Mode ─────────────────────────────────
+      final pairWidth = math.max(6.0, math.min(slotWidth * 0.82, 38.0));
+      final subBarWidth = math.max(2.5, (pairWidth - 2.5) / 2.0);
 
-      // Draw subtle selection guide behind active bar
-      if (isSelected) {
-        final guidePaint = Paint()
-          ..color = color.withValues(alpha: isDark ? 0.12 : 0.08);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTRB(left - 3, topPadding / 2, right + 3, size.height - bottomPadding),
-            const Radius.circular(6),
-          ),
-          guidePaint,
-        );
+      for (int i = 0; i < totalCount; i++) {
+        final p1 = i < points.length ? points[i] : null;
+        final p2 = i < comparisonPoints!.length ? comparisonPoints![i] : null;
+        final cx = (i + 0.5) * slotWidth;
+        final isSelected = selectedIndex == i;
+        final isAnySelected = selectedIndex != null;
+        final dimAlpha = (isAnySelected && !isSelected) ? 0.38 : 1.0;
+
+        // Selection guide behind active slot
+        if (isSelected) {
+          final guidePaint = Paint()
+            ..color = color.withValues(alpha: isDark ? 0.12 : 0.08);
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTRB(
+                cx - (pairWidth / 2) - 3,
+                topPadding / 2,
+                cx + (pairWidth / 2) + 3,
+                size.height - bottomPadding,
+              ),
+              const Radius.circular(6),
+            ),
+            guidePaint,
+          );
+        }
+
+        // Sub-bar 1: Primary period
+        final left1 = cx - (pairWidth / 2);
+        final right1 = left1 + subBarWidth;
+        if (p1 != null && p1.value > 0) {
+          final barHeight1 = (p1.value / effectiveMax) * usableHeight;
+          final barTop1 = size.height - bottomPadding - barHeight1;
+          final barRect1 = Rect.fromLTRB(
+            left1,
+            barTop1,
+            right1,
+            size.height - bottomPadding,
+          );
+          final rrect1 = RRect.fromRectAndCorners(
+            barRect1,
+            topLeft: const Radius.circular(3.0),
+            topRight: const Radius.circular(3.0),
+          );
+
+          final gradient1 = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              color.withValues(alpha: 0.95 * dimAlpha),
+              color.withValues(alpha: 0.60 * dimAlpha),
+            ],
+          );
+
+          canvas.drawRRect(
+            rrect1,
+            Paint()
+              ..shader = gradient1.createShader(barRect1)
+              ..style = PaintingStyle.fill,
+          );
+
+          if (isSelected) {
+            canvas.drawRRect(
+              rrect1,
+              Paint()
+                ..color = Colors.white.withValues(alpha: isDark ? 0.9 : 0.8)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.0,
+            );
+          }
+        } else {
+          final zeroPaint = Paint()
+            ..color = (isDark ? Colors.white30 : Colors.black26)
+                .withValues(alpha: (isAnySelected && !isSelected) ? 0.15 : 0.4);
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTRB(
+                left1,
+                size.height - bottomPadding - 2,
+                right1,
+                size.height - bottomPadding,
+              ),
+              const Radius.circular(1.5),
+            ),
+            zeroPaint,
+          );
+        }
+
+        // Sub-bar 2: Comparison period
+        final left2 = right1 + 2.5;
+        final right2 = left2 + subBarWidth;
+        if (p2 != null && p2.value > 0) {
+          final barHeight2 = (p2.value / effectiveMax) * usableHeight;
+          final barTop2 = size.height - bottomPadding - barHeight2;
+          final barRect2 = Rect.fromLTRB(
+            left2,
+            barTop2,
+            right2,
+            size.height - bottomPadding,
+          );
+          final rrect2 = RRect.fromRectAndCorners(
+            barRect2,
+            topLeft: const Radius.circular(3.0),
+            topRight: const Radius.circular(3.0),
+          );
+
+          final gradient2 = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              comparisonColor.withValues(alpha: 0.95 * dimAlpha),
+              comparisonColor.withValues(alpha: 0.60 * dimAlpha),
+            ],
+          );
+
+          canvas.drawRRect(
+            rrect2,
+            Paint()
+              ..shader = gradient2.createShader(barRect2)
+              ..style = PaintingStyle.fill,
+          );
+
+          if (isSelected) {
+            canvas.drawRRect(
+              rrect2,
+              Paint()
+                ..color = Colors.white.withValues(alpha: isDark ? 0.9 : 0.8)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.0,
+            );
+          }
+        } else {
+          final zeroPaint = Paint()
+            ..color = (isDark ? Colors.white30 : Colors.black26)
+                .withValues(alpha: (isAnySelected && !isSelected) ? 0.15 : 0.4);
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTRB(
+                left2,
+                size.height - bottomPadding - 2,
+                right2,
+                size.height - bottomPadding,
+              ),
+              const Radius.circular(1.5),
+            ),
+            zeroPaint,
+          );
+        }
       }
+    } else {
+      // ── Standard Single Series Mode ──────────────────────────────────
+      final barWidth = math.max(2.5, math.min(slotWidth * 0.72, 28.0));
 
-      final barHeight = (p.value / effectiveMax) * usableHeight;
+      for (int i = 0; i < points.length; i++) {
+        final p = points[i];
+        final cx = (i + 0.5) * slotWidth;
+        final left = cx - (barWidth / 2);
+        final right = cx + (barWidth / 2);
+        final isSelected = selectedIndex == i;
+        final isAnySelected = selectedIndex != null;
+        final dimAlpha = (isAnySelected && !isSelected) ? 0.38 : 1.0;
 
-      if (p.value <= 0 || barHeight < 1.0) {
-        // Zero or near-zero pill indicator
-        final zeroPaint = Paint()
-          ..color = (isDark ? Colors.white30 : Colors.black26)
-              .withValues(alpha: (isAnySelected && !isSelected) ? 0.15 : 0.4);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTRB(left, size.height - bottomPadding - 2, right, size.height - bottomPadding),
-            const Radius.circular(1.5),
-          ),
-          zeroPaint,
-        );
-        continue;
-      }
+        // Draw subtle selection guide behind active bar
+        if (isSelected) {
+          final guidePaint = Paint()
+            ..color = color.withValues(alpha: isDark ? 0.12 : 0.08);
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTRB(
+                left - 3,
+                topPadding / 2,
+                right + 3,
+                size.height - bottomPadding,
+              ),
+              const Radius.circular(6),
+            ),
+            guidePaint,
+          );
+        }
 
-      final barTop = size.height - bottomPadding - barHeight;
-      final barBottom = size.height - bottomPadding;
+        final barHeight = (p.value / effectiveMax) * usableHeight;
 
-      if (showBreakdown && p.methodBreakdown.isNotEmpty && p.value > 0) {
-        // ── Stacked Bar by Payment Method ───────────────────────────────
-        double currentBottom = barBottom;
-        final entries = p.methodBreakdown.entries.toList();
+        if (p.value <= 0 || barHeight < 1.0) {
+          // Zero or near-zero pill indicator
+          final zeroPaint = Paint()
+            ..color = (isDark ? Colors.white30 : Colors.black26)
+                .withValues(alpha: (isAnySelected && !isSelected) ? 0.15 : 0.4);
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTRB(
+                left,
+                size.height - bottomPadding - 2,
+                right,
+                size.height - bottomPadding,
+              ),
+              const Radius.circular(1.5),
+            ),
+            zeroPaint,
+          );
+          continue;
+        }
 
-        for (int m = 0; m < entries.length; m++) {
-          final entry = entries[m];
-          final amt = entry.value;
-          if (amt <= 0) continue;
+        final barTop = size.height - bottomPadding - barHeight;
+        final barBottom = size.height - bottomPadding;
 
-          final segHeight = (amt / p.value) * barHeight;
-          final segTop = currentBottom - segHeight;
-          final isTopSegment = m == entries.length - 1 || segTop <= barTop + 0.5;
-          final mColor = _methodColors[entry.key] ?? AppColors.primary;
+        if (showBreakdown && p.methodBreakdown.isNotEmpty && p.value > 0) {
+          // ── Stacked Bar by Payment Method ─────────────────────────────
+          double currentBottom = barBottom;
+          final entries = p.methodBreakdown.entries.toList();
 
-          final segPaint = Paint()
-            ..color = mColor.withValues(alpha: dimAlpha)
-            ..style = PaintingStyle.fill;
+          for (int m = 0; m < entries.length; m++) {
+            final entry = entries[m];
+            final amt = entry.value;
+            if (amt <= 0) continue;
 
-          final segRect = Rect.fromLTRB(left, segTop, right, currentBottom);
-          if (isTopSegment) {
+            final segHeight = (amt / p.value) * barHeight;
+            final segTop = currentBottom - segHeight;
+            final isTopSegment =
+                m == entries.length - 1 || segTop <= barTop + 0.5;
+            final mColor = _methodColors[entry.key] ?? AppColors.primary;
+
+            final segPaint = Paint()
+              ..color = mColor.withValues(alpha: dimAlpha)
+              ..style = PaintingStyle.fill;
+
+            final segRect = Rect.fromLTRB(left, segTop, right, currentBottom);
+            if (isTopSegment) {
+              canvas.drawRRect(
+                RRect.fromRectAndCorners(
+                  segRect,
+                  topLeft: const Radius.circular(3.5),
+                  topRight: const Radius.circular(3.5),
+                ),
+                segPaint,
+              );
+            } else {
+              canvas.drawRect(segRect, segPaint);
+            }
+
+            currentBottom = segTop;
+          }
+
+          if (isSelected) {
             canvas.drawRRect(
               RRect.fromRectAndCorners(
-                segRect,
+                Rect.fromLTRB(left, barTop, right, barBottom),
                 topLeft: const Radius.circular(3.5),
                 topRight: const Radius.circular(3.5),
               ),
-              segPaint,
+              Paint()
+                ..color = Colors.white
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.2,
             );
-          } else {
-            canvas.drawRect(segRect, segPaint);
           }
-
-          currentBottom = segTop;
-        }
-
-        if (isSelected) {
-          canvas.drawRRect(
-            RRect.fromRectAndCorners(
-              Rect.fromLTRB(left, barTop, right, barBottom),
-              topLeft: const Radius.circular(3.5),
-              topRight: const Radius.circular(3.5),
-            ),
-            Paint()
-              ..color = Colors.white
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.2,
+        } else {
+          // ── Single Gradient Bar ───────────────────────────────────────
+          final barRect = Rect.fromLTRB(left, barTop, right, barBottom);
+          final rrect = RRect.fromRectAndCorners(
+            barRect,
+            topLeft: const Radius.circular(3.5),
+            topRight: const Radius.circular(3.5),
           );
-        }
-      } else {
-        // ── Single Gradient Bar ─────────────────────────────────────────
-        final barRect = Rect.fromLTRB(left, barTop, right, barBottom);
-        final rrect = RRect.fromRectAndCorners(
-          barRect,
-          topLeft: const Radius.circular(3.5),
-          topRight: const Radius.circular(3.5),
-        );
 
-        final gradient = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            color.withValues(alpha: 0.95 * dimAlpha),
-            color.withValues(alpha: 0.60 * dimAlpha),
-          ],
-        );
-
-        final fillPaint = Paint()
-          ..shader = gradient.createShader(barRect)
-          ..style = PaintingStyle.fill;
-
-        canvas.drawRRect(rrect, fillPaint);
-
-        if (isSelected) {
-          canvas.drawRRect(
-            rrect,
-            Paint()
-              ..color = Colors.white.withValues(alpha: isDark ? 0.9 : 0.8)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.2,
+          final gradient = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              color.withValues(alpha: 0.95 * dimAlpha),
+              color.withValues(alpha: 0.60 * dimAlpha),
+            ],
           );
+
+          final fillPaint = Paint()
+            ..shader = gradient.createShader(barRect)
+            ..style = PaintingStyle.fill;
+
+          canvas.drawRRect(rrect, fillPaint);
+
+          if (isSelected) {
+            canvas.drawRRect(
+              rrect,
+              Paint()
+                ..color = Colors.white.withValues(alpha: isDark ? 0.9 : 0.8)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.2,
+            );
+          }
         }
       }
     }
@@ -207,7 +391,9 @@ class BarChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(BarChartPainter oldDelegate) =>
       oldDelegate.points != points ||
+      oldDelegate.comparisonPoints != comparisonPoints ||
       oldDelegate.color != color ||
+      oldDelegate.comparisonColor != comparisonColor ||
       oldDelegate.selectedIndex != selectedIndex ||
       oldDelegate.isDark != isDark ||
       oldDelegate.showBreakdown != showBreakdown;
@@ -219,7 +405,9 @@ class AdminBarChart extends StatelessWidget {
   const AdminBarChart({
     super.key,
     required this.points,
+    this.comparisonPoints,
     this.color = AppColors.success,
+    this.comparisonColor = const Color(0xFF8B5CF6),
     this.height = 175,
     this.selectedIndex,
     this.onPointSelected,
@@ -228,7 +416,9 @@ class AdminBarChart extends StatelessWidget {
   });
 
   final List<DailyPoint> points;
+  final List<DailyPoint>? comparisonPoints;
   final Color color;
+  final Color comparisonColor;
   final double height;
   final int? selectedIndex;
   final ValueChanged<int?>? onPointSelected;
@@ -237,7 +427,13 @@ class AdminBarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (points.isEmpty) {
+    final hasComparison =
+        comparisonPoints != null && comparisonPoints!.isNotEmpty;
+    final totalCount = hasComparison
+        ? math.max(points.length, comparisonPoints!.length)
+        : points.length;
+
+    if (totalCount == 0) {
       return SizedBox(
         height: height,
         child: const Center(
@@ -256,9 +452,10 @@ class AdminBarChart extends StatelessWidget {
         final width = constraints.maxWidth;
 
         void handlePosition(Offset localPosition) {
-          if (points.isEmpty || width <= 0) return;
-          final slotWidth = width / points.length;
-          final index = (localPosition.dx / slotWidth).floor().clamp(0, points.length - 1);
+          if (totalCount <= 0 || width <= 0) return;
+          final slotWidth = width / totalCount;
+          final index =
+              (localPosition.dx / slotWidth).floor().clamp(0, totalCount - 1);
           if (index != selectedIndex) {
             onPointSelected?.call(index);
           }
@@ -269,12 +466,13 @@ class AdminBarChart extends StatelessWidget {
         if (tooltipContent != null &&
             selectedIndex != null &&
             selectedIndex! >= 0 &&
-            selectedIndex! < points.length &&
+            selectedIndex! < totalCount &&
             width > 0) {
-          final slotWidth = width / points.length;
+          final slotWidth = width / totalCount;
           final x = (selectedIndex! + 0.5) * slotWidth;
 
-          const tooltipWidth = 145.0;
+          final baseWidth = hasComparison ? 245.0 : 150.0;
+          final tooltipWidth = math.min(baseWidth, math.max(120.0, width - 12));
           double left = x - (tooltipWidth / 2);
           if (left < 6) left = 6;
           if (left + tooltipWidth > width - 6) left = width - tooltipWidth - 6;
@@ -303,10 +501,12 @@ class AdminBarChart extends StatelessWidget {
                     child: CustomPaint(
                       painter: BarChartPainter(
                         points: points,
+                        comparisonPoints: comparisonPoints,
                         color: color,
+                        comparisonColor: comparisonColor,
                         selectedIndex: selectedIndex,
                         isDark: isDark,
-                        showBreakdown: showBreakdown,
+                        showBreakdown: showBreakdown && !hasComparison,
                       ),
                       size: Size.infinite,
                     ),
