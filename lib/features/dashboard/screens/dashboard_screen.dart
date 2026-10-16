@@ -335,10 +335,6 @@ class _ContentKpiGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final conversionRate = stats.totalUsers > 0
-        ? (stats.paidUsers / stats.totalUsers * 100).toStringAsFixed(1)
-        : '0.0';
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final count = constraints.maxWidth >= 1300
@@ -364,16 +360,22 @@ class _ContentKpiGrid extends StatelessWidget {
               onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
             ),
             Obx(() {
-              final activeHidden = DashboardController.instance.isActiveHidden.value;
+              final natural = DashboardController.instance.naturalStudentsCount;
+              final social = DashboardController.instance.socialStudentsCount;
+              final total = natural + social;
+              final natPct = total > 0
+                  ? (natural / total * 100).toStringAsFixed(0)
+                  : '0';
+              final socPct = total > 0
+                  ? (social / total * 100).toStringAsFixed(0)
+                  : '0';
+
               return _ContentKpiCard(
-                title: 'ACTIVE PREMIUM',
-                value: activeHidden ? '••••' : NumberFormat('#,##0').format(stats.paidUsers),
-                tag: '$conversionRate%',
-                tagColor: AppColors.success,
-                subtext: '${stats.unpaidUsers} free / unpaid',
-                hasEyeToggle: true,
-                isEyeHidden: activeHidden,
-                onEyeToggle: DashboardController.instance.toggleActiveVisibility,
+                title: 'NATURAL / SOCIAL',
+                value: '${NumberFormat('#,##0').format(natural)} / ${NumberFormat('#,##0').format(social)}',
+                tag: '$natPct% / $socPct%',
+                tagColor: AppColors.primary,
+                subtext: 'Nat: ${NumberFormat('#,##0').format(natural)} • Soc: ${NumberFormat('#,##0').format(social)}',
                 onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
               );
             }),
@@ -440,9 +442,6 @@ class _ContentKpiCard extends StatelessWidget {
     required this.tag,
     required this.tagColor,
     required this.subtext,
-    this.hasEyeToggle = false,
-    this.isEyeHidden = false,
-    this.onEyeToggle,
     this.onTap,
   });
 
@@ -451,9 +450,6 @@ class _ContentKpiCard extends StatelessWidget {
   final String tag;
   final Color tagColor;
   final String subtext;
-  final bool hasEyeToggle;
-  final bool isEyeHidden;
-  final VoidCallback? onEyeToggle;
   final VoidCallback? onTap;
 
   @override
@@ -490,45 +486,16 @@ class _ContentKpiCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          title,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                      if (hasEyeToggle) ...[
-                        const SizedBox(width: 4),
-                        Tooltip(
-                          message: isEyeHidden ? 'Show value' : 'Hide value',
-                          child: InkWell(
-                            onTap: onEyeToggle,
-                            borderRadius: BorderRadius.circular(10),
-                            child: Padding(
-                              padding: const EdgeInsets.all(2.0),
-                              child: Icon(
-                                isEyeHidden
-                                    ? Icons.visibility_off_outlined
-                                    : Icons.visibility_outlined,
-                                size: 13,
-                                color: isEyeHidden
-                                    ? AppColors.primary
-                                    : AppColors.textSecondary.withValues(alpha: 0.8),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+                  child: Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 4),

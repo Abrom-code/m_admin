@@ -56,7 +56,6 @@ class _PaymentMetricRibbon extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final pendingCount = controller.counts['pending'] ?? 0;
-      final approvedCount = controller.counts['approved'] ?? 0;
       final rejectedCount = controller.counts['rejected'] ?? 0;
       final allCount = controller.counts['all'] ?? 0;
       final active = controller.activeTab.value;
@@ -75,7 +74,7 @@ class _PaymentMetricRibbon extends StatelessWidget {
             const SizedBox(width: 8),
             _CompactRibbonCard(
               label: 'Approved',
-              value: NumberFormat('#,##0').format(approvedCount),
+              value: null,
               dotColor: AppColors.success,
               isSelected: active == 'approved',
               onTap: () => controller.changeTab('approved'),
@@ -106,14 +105,14 @@ class _PaymentMetricRibbon extends StatelessWidget {
 class _CompactRibbonCard extends StatelessWidget {
   const _CompactRibbonCard({
     required this.label,
-    required this.value,
+    this.value,
     required this.dotColor,
     required this.isSelected,
     required this.onTap,
   });
 
   final String label;
-  final String value;
+  final String? value;
   final Color dotColor;
   final bool isSelected;
   final VoidCallback onTap;
@@ -165,22 +164,24 @@ class _CompactRibbonCard extends StatelessWidget {
                     : AppColors.textSecondary,
               ),
             ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: dotColor.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                value,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  color: dotColor,
+            if (value != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: dotColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  value!,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: dotColor,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -369,7 +370,9 @@ class _ModernTable extends StatelessWidget {
             : 'No receipts match your selected filter criteria.',
         page: controller.page.value,
         pageSize: PaymentsController.pageSize,
-        totalCount: controller.totalCount.value,
+        totalCount: controller.activeTab.value == 'approved'
+            ? null
+            : controller.totalCount.value,
         onPageChanged: controller.changePage,
         onRowTap: (row) => _openDetail(context, row),
         columns: [

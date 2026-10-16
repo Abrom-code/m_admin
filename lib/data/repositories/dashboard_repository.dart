@@ -195,7 +195,10 @@ int? _toInt(dynamic v) {
 // ── Repository ──────────────────────────────────────────────────────────
 
 class DashboardRepository {
-  final _sb = Supabase.instance.client;
+  DashboardRepository({SupabaseClient? client}) : _client = client;
+
+  final SupabaseClient? _client;
+  SupabaseClient get _sb => _client ?? Supabase.instance.client;
 
   Future<DashboardStats> fetchStats() async {
     try {

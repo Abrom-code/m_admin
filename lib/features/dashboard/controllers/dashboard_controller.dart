@@ -23,6 +23,14 @@ class DashboardController extends GetxController {
   final subscriptionFunnel = <FunnelPoint>[].obs;
   final streamSplit = <StreamPoint>[].obs;
 
+  int get naturalStudentsCount => streamSplit
+      .firstWhereOrNull((s) => s.stream.toLowerCase() == 'natural')
+      ?.count ?? 0;
+
+  int get socialStudentsCount => streamSplit
+      .firstWhereOrNull((s) => s.stream.toLowerCase() == 'social')
+      ?.count ?? 0;
+
   // Question Reports & Notes Section
   final questionReportGroups = <QuestionReportGroupModel>[].obs;
   final pendingQuestionReportsCount = 0.obs;
