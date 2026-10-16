@@ -189,6 +189,15 @@ class AppLockController extends GetxController with WidgetsBindingObserver {
     return false;
   }
 
+  /// Checks whether [enteredPin] matches the stored hash without unlocking the full app lock.
+  bool checkPasscode(String enteredPin) {
+    if (!isPasscodeEnabled.value) return true;
+    final salt = _storage.read<String>(_kPasscodeSalt) ?? '';
+    final storedHash = _storage.read<String>(_kPasscodeHash) ?? '';
+    final computedHash = _hash(enteredPin, salt);
+    return computedHash == storedHash;
+  }
+
   bool verifyPattern(List<int> points) {
     if (!isPasscodeEnabled.value) return true;
     final salt = _storage.read<String>(_kPasscodeSalt) ?? '';
@@ -201,6 +210,32 @@ class AppLockController extends GetxController with WidgetsBindingObserver {
       return true;
     }
     return false;
+  }
+
+  /// Checks whether [points] match the stored pattern without unlocking the full app lock.
+  bool checkPattern(List<int> points) {
+    if (!isPasscodeEnabled.value) return true;
+    final salt = _storage.read<String>(_kPasscodeSalt) ?? '';
+    final storedHash = _storage.read<String>(_kPasscodeHash) ?? '';
+    final patternStr = points.join('-');
+    final computedHash = _hash(patternStr, salt);
+    return computedHash == storedHash;
+  }
+
+  /// Quick biometric authentication prompt for sensitive sub-views like Revenue.
+  Future<bool> authenticateBiometricsQuick({
+    String reason = 'Scan fingerprint to access Revenue Analytics',
+  }) async {
+    if (!canUseBiometrics.value || !isBiometricEnabled.value) return false;
+    try {
+      return await _localAuth.authenticate(
+        localizedReason: reason,
+        biometricOnly: true,
+      );
+    } catch (e) {
+      debugPrint('[AppLockController] Quick biometric auth error: $e');
+      return false;
+    }
   }
 
   Future<bool> authenticateWithBiometrics({bool userInitiated = false}) async {
