@@ -1,4 +1,6 @@
-﻿/// A row from public.users as seen from the admin console.
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
+
+/// A row from public.users as seen from the admin console.
 ///
 /// Column list from the Supabase access catalogue:
 ///   id text (Firebase UID — NOT a uuid)
@@ -114,13 +116,13 @@ class AdminUserModel {
           json['subscription_status']?.toString() ?? 'inactive',
       createdAt: json['created_at'] == null
           ? null
-          : DateTime.tryParse(json['created_at'].toString()),
+          : EthiopianTimeHelper.parseToEastAfricaTime(json['created_at']),
       receiptUploadCount:
           (json['receipt_upload_count'] as num?)?.toInt() ?? 0,
       subscriptionPlan: json['subscription_plan']?.toString(),
       subscriptionExpiresAt: json['subscription_expires_at'] == null
           ? null
-          : DateTime.tryParse(json['subscription_expires_at'].toString()),
+          : EthiopianTimeHelper.parseToEastAfricaTime(json['subscription_expires_at']),
     );
   }
 

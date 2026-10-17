@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 // ── Models ──────────────────────────────────────────────────────────────
 
@@ -67,6 +68,9 @@ class RecentReceiptRow {
   final double amount;
   final DateTime? createdAt;
 
+  /// Returns [createdAt] in East African Time (UTC+3).
+  DateTime? get createdAtEat => createdAt;
+
   factory RecentReceiptRow.fromJson(Map<String, dynamic> json) {
     // users is a left join — it is null when the account was deleted.
     final rawUser = json['users'];
@@ -87,7 +91,7 @@ class RecentReceiptRow {
       amount: _toDouble(json['amount']),
       createdAt: json['created_at'] == null
           ? null
-          : DateTime.tryParse(json['created_at'].toString()),
+          : EthiopianTimeHelper.parseToEastAfricaTime(json['created_at']),
     );
   }
 }
@@ -322,50 +326,57 @@ class DashboardRepository {
     }
   }
 
-  /// Fetches signups grouped into 24 hourly buckets (0-23) in 12-hour format.
+  /// Fetches signups grouped into 24 hourly buckets (0-23) in 12-hour format,
+  /// strictly calculated in East Africa Time (UTC+3 / EAT).
   /// [filter] can be:
-  /// - 'today': signups from 00:00 to 23:59 today (local time)
-  /// - 'yesterday': signups from 00:00 to 23:59 yesterday (local time)
+  /// - 'today': signups from 00:00 to 23:59 today in EAT (UTC+3)
+  /// - 'yesterday': signups from 00:00 to 23:59 yesterday in EAT (UTC+3)
   /// - '7d': hourly distribution across the past 7 days
   /// - '30d': hourly distribution across the past 30 days
+  /// - '90d': hourly distribution across the past 90 days
   /// - 'all': all-time hourly distribution
   Future<List<HourlySignupPoint>> fetchHourlySignups({
     String filter = 'today',
   }) async {
     try {
-      final now = DateTime.now();
-      DateTime start;
-      DateTime end;
+      final nowUtc = DateTime.now().toUtc();
+      final nowEat = nowUtc.add(const Duration(hours: 3));
+      DateTime startUtc;
+      DateTime endUtc;
 
       if (filter == 'yesterday') {
-        final yesterday = now.subtract(const Duration(days: 1));
-        start = DateTime(yesterday.year, yesterday.month, yesterday.day);
-        end = DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59, 999);
+        final yesterdayEat = nowEat.subtract(const Duration(days: 1));
+        final startEat = DateTime.utc(yesterdayEat.year, yesterdayEat.month, yesterdayEat.day);
+        final endEat = DateTime.utc(yesterdayEat.year, yesterdayEat.month, yesterdayEat.day, 23, 59, 59, 999);
+        startUtc = startEat.subtract(const Duration(hours: 3));
+        endUtc = endEat.subtract(const Duration(hours: 3));
       } else if (filter == '7d') {
-        start = now.subtract(const Duration(days: 7));
-        end = now;
+        startUtc = nowUtc.subtract(const Duration(days: 7));
+        endUtc = nowUtc;
       } else if (filter == '30d') {
-        start = now.subtract(const Duration(days: 30));
-        end = now;
+        startUtc = nowUtc.subtract(const Duration(days: 30));
+        endUtc = nowUtc;
       } else if (filter == '90d') {
-        start = now.subtract(const Duration(days: 90));
-        end = now;
+        startUtc = nowUtc.subtract(const Duration(days: 90));
+        endUtc = nowUtc;
       } else if (filter == 'all') {
-        start = DateTime(2023, 1, 1);
-        end = now;
+        startUtc = DateTime.utc(2023, 1, 1);
+        endUtc = nowUtc;
       } else {
-        // 'today' default
-        start = DateTime(now.year, now.month, now.day);
-        end = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+        // 'today' default in EAT (00:00:00 to 23:59:59 EAT)
+        final startEat = DateTime.utc(nowEat.year, nowEat.month, nowEat.day);
+        final endEat = DateTime.utc(nowEat.year, nowEat.month, nowEat.day, 23, 59, 59, 999);
+        startUtc = startEat.subtract(const Duration(hours: 3));
+        endUtc = endEat.subtract(const Duration(hours: 3));
       }
 
       var query = _sb
           .from('users')
           .select('created_at')
-          .gte('created_at', start.toUtc().toIso8601String());
+          .gte('created_at', startUtc.toIso8601String());
 
       if (filter != '7d' && filter != '30d' && filter != '90d' && filter != 'all') {
-        query = query.lte('created_at', end.toUtc().toIso8601String());
+        query = query.lte('created_at', endUtc.toIso8601String());
       }
 
       final rows = await query.order('created_at');
@@ -376,11 +387,11 @@ class DashboardRepository {
       for (final r in (rows as List)) {
         final ts = r['created_at']?.toString();
         if (ts == null) continue;
-        final dt = DateTime.tryParse(ts);
-        if (dt == null) continue;
-        final localHour = dt.toLocal().hour;
-        if (localHour >= 0 && localHour < 24) {
-          hourlyCounts[localHour]++;
+        final eat = EthiopianTimeHelper.parseToEastAfricaTime(ts);
+        if (eat == null) continue;
+        final eatHour = eat.hour;
+        if (eatHour >= 0 && eatHour < 24) {
+          hourlyCounts[eatHour]++;
           totalCount++;
         }
       }
@@ -440,7 +451,10 @@ class DashboardRepository {
       for (final r in rows) {
         final ts = r['reviewed_at']?.toString();
         if (ts == null) continue;
-        final day = ts.substring(0, 10);
+        final eat = EthiopianTimeHelper.parseToEastAfricaTime(ts);
+        if (eat == null) continue;
+        final day =
+            '${eat.year}-${eat.month.toString().padLeft(2, '0')}-${eat.day.toString().padLeft(2, '0')}';
         final amt = _toDouble(r['amount']);
         totals[day] = (totals[day] ?? 0) + amt;
 
@@ -581,7 +595,10 @@ class DashboardRepository {
     for (final r in rows) {
       final ts = r[tsField]?.toString();
       if (ts == null || ts.length < 10) continue;
-      final day = ts.substring(0, 10);
+      final eat = EthiopianTimeHelper.parseToEastAfricaTime(ts);
+      if (eat == null) continue;
+      final day =
+          '${eat.year}-${eat.month.toString().padLeft(2, '0')}-${eat.day.toString().padLeft(2, '0')}';
       counts[day] = (counts[day] ?? 0) + 1;
     }
     return _buildSeriesRange(

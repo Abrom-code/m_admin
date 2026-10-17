@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:m_admin/utils/constants/colors.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 /// Represents an entered promotion or operational expense that is deducted from gross revenue.
 class RevenueCostRecord {
@@ -67,11 +68,11 @@ class RevenueCostRecord {
       amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       category: json['category']?.toString() ?? 'promotion',
       date: json['date'] != null
-          ? DateTime.tryParse(json['date'].toString()) ?? DateTime.now()
+          ? EthiopianTimeHelper.parseToEastAfricaTime(json['date']) ?? DateTime.now()
           : DateTime.now(),
       notes: json['notes']?.toString(),
       createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+          ? EthiopianTimeHelper.parseToEastAfricaTime(json['created_at']) ?? DateTime.now()
           : DateTime.now(),
     );
   }

@@ -510,7 +510,7 @@ class _ModernTable extends StatelessWidget {
                 Text(
                   row.createdAt == null
                       ? ''
-                      : DateFormat('HH:mm').format(row.createdAt!),
+                      : '${DateFormat('HH:mm').format(row.createdAt!)} EAT',
                   style: const TextStyle(
                     fontSize: 10,
                     color: AppColors.textSecondary,

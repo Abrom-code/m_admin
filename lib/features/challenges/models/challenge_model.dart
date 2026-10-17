@@ -1,3 +1,5 @@
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
+
 class ChallengeQuestionSetModel {
   final String id;
   final int subjectId;
@@ -31,9 +33,7 @@ class ChallengeQuestionSetModel {
           ? json['subjects']['name']?.toString()
           : json['subject_name']?.toString(),
       createdBy: json['created_by']?.toString(),
-      createdAt: json['created_at'] != null
-          ? (DateTime.tryParse(json['created_at'].toString())?.toLocal() ?? DateTime.now())
-          : DateTime.now(),
+      createdAt: EthiopianTimeHelper.parseToEastAfricaTime(json['created_at']) ?? DateTime.now(),
       questionCount: (json['question_count'] as num?)?.toInt() ??
           ((json['challenge_questions'] as List?)?.length ?? 0),
       isPremium: isPrem,
@@ -196,18 +196,12 @@ class LeaderboardChallengeModel {
       setTitle: sTitle,
       audience: json['audience']?.toString() ?? 'both',
       title: json['title']?.toString() ?? '',
-      startsAt: json['starts_at'] != null
-          ? DateTime.tryParse(json['starts_at'].toString())?.toLocal()
-          : null,
-      endsAt: json['ends_at'] != null
-          ? DateTime.tryParse(json['ends_at'].toString())?.toLocal()
-          : null,
+      startsAt: EthiopianTimeHelper.parseToEastAfricaTime(json['starts_at']),
+      endsAt: EthiopianTimeHelper.parseToEastAfricaTime(json['ends_at']),
       durationSeconds: (json['duration_seconds'] as num?)?.toInt() ?? 3600,
       status: json['status']?.toString() ?? 'draft',
       createdBy: json['created_by']?.toString(),
-      createdAt: json['created_at'] != null
-          ? (DateTime.tryParse(json['created_at'].toString())?.toLocal() ?? DateTime.now())
-          : DateTime.now(),
+      createdAt: EthiopianTimeHelper.parseToEastAfricaTime(json['created_at']) ?? DateTime.now(),
       questionCount: qCount,
       attemptCount: attempts,
       isPremium: isPrem,

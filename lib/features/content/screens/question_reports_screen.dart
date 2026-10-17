@@ -1144,7 +1144,7 @@ class _QuestionReportDetailDialogState extends State<_QuestionReportDetailDialog
                                     ),
                                     if (report.createdAt != null)
                                       Text(
-                                        '• ${DateFormat('d MMM, HH:mm').format(report.createdAt!)}',
+                                        '• ${DateFormat('d MMM, HH:mm').format(report.createdAt!)} EAT',
                                         style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
                                       ),
                                   ],

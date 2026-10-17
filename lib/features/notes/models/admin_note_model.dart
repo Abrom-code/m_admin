@@ -1,3 +1,5 @@
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
+
 class AdminNoteModel {
   final int id;
   final int subjectId;
@@ -98,11 +100,7 @@ class AdminNoteModel {
         ? rawKey.trim()
         : (rawUrl?.trim() ?? '');
 
-    DateTime? parsedCreatedAt;
-    final rawCreatedAt = map['created_at']?.toString();
-    if (rawCreatedAt != null && rawCreatedAt.trim().isNotEmpty) {
-      parsedCreatedAt = DateTime.tryParse(rawCreatedAt.trim());
-    }
+    final parsedCreatedAt = EthiopianTimeHelper.parseToEastAfricaTime(map['created_at']);
 
     String? subjectName;
     if (map['subjects'] is Map) {

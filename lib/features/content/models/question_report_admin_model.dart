@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 class QuestionReportAdminModel {
   final String id;
@@ -286,8 +287,8 @@ class QuestionReportAdminModel {
       comment: json['comment']?.toString(),
       status: json['status']?.toString() ?? 'pending',
       adminNotes: json['admin_notes']?.toString(),
-      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
-      resolvedAt: json['resolved_at'] != null ? DateTime.tryParse(json['resolved_at'].toString()) : null,
+      createdAt: json['created_at'] != null ? EthiopianTimeHelper.parseToEastAfricaTime(json['created_at']) : null,
+      resolvedAt: json['resolved_at'] != null ? EthiopianTimeHelper.parseToEastAfricaTime(json['resolved_at']) : null,
       resolvedBy: json['resolved_by']?.toString(),
     );
   }

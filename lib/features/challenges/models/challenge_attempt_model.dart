@@ -1,3 +1,5 @@
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
+
 class ChallengeAttemptModel {
   final String id;
   final String challengeId;
@@ -31,12 +33,8 @@ class ChallengeAttemptModel {
       challengeId: json['challenge_id']?.toString() ?? '',
       userId: json['user_id']?.toString() ?? '',
       stream: json['stream']?.toString() ?? '',
-      startedAt: json['started_at'] != null
-          ? (DateTime.tryParse(json['started_at'].toString())?.toLocal() ?? DateTime.now())
-          : DateTime.now(),
-      submittedAt: json['submitted_at'] != null
-          ? DateTime.tryParse(json['submitted_at'].toString())?.toLocal()
-          : null,
+      startedAt: EthiopianTimeHelper.parseToEastAfricaTime(json['started_at']) ?? DateTime.now(),
+      submittedAt: EthiopianTimeHelper.parseToEastAfricaTime(json['submitted_at']),
       score: (json['score'] as num?)?.toInt() ?? 0,
       totalTimeSeconds: (json['total_time_seconds'] as num?)?.toInt() ?? 0,
       status: json['status']?.toString() ?? 'in_progress',

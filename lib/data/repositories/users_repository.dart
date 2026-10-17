@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
 import 'package:m_admin/utils/constants/app_env.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 class UsersRepository {
   final _sb = Supabase.instance.client;
@@ -35,15 +36,11 @@ class UsersRepository {
       }
 
       if (dateRange != null) {
-        final startIso = dateRange.start.toUtc().toIso8601String();
-        final endOfDay = DateTime(
-          dateRange.end.year,
-          dateRange.end.month,
-          dateRange.end.day,
-          23, 59, 59, 999,
-        );
-        final endIso = endOfDay.toUtc().toIso8601String();
-        q = q.gte('created_at', startIso).lte('created_at', endIso);
+        final startEat = DateTime.utc(dateRange.start.year, dateRange.start.month, dateRange.start.day);
+        final startUtc = startEat.subtract(EthiopianTimeHelper.eastAfricaOffset);
+        final endEat = DateTime.utc(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59, 999);
+        final endUtc = endEat.subtract(EthiopianTimeHelper.eastAfricaOffset);
+        q = q.gte('created_at', startUtc.toIso8601String()).lte('created_at', endUtc.toIso8601String());
       }
 
       if (search != null && search.trim().isNotEmpty) {

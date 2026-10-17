@@ -52,49 +52,36 @@ class _HourlySignupsChartCardState extends State<HourlySignupsChartCard> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Signups by Time',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: dark ? AppColors.white : AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: AppColors.primary.withValues(alpha: 0.25),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: const Text(
-                              '12-HR',
-                              style: TextStyle(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.4,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
                       Text(
-                        'Hourly distribution (12 AM – 11 PM)',
+                        'Signups by Time',
                         style: TextStyle(
-                          fontSize: 10.5,
-                          color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: dark ? AppColors.white : AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: const Text(
+                          'EAT · UTC+3',
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.4,
+                            color: AppColors.primary,
+                          ),
                         ),
                       ),
                     ],
@@ -300,7 +287,7 @@ class _HourlySignupsChartCardState extends State<HourlySignupsChartCard> {
                     if (left + tooltipWidth > boxWidth - 6) left = boxWidth - tooltipWidth - 6;
 
                     final pointColor = selPoint.isAm ? AppColors.warning : AppColors.primary;
-                    final timeRange = HourlySignupPoint.formatHourRange12(selPoint.hour);
+                    final timeRange = '${HourlySignupPoint.formatHourRange12(selPoint.hour)} EAT';
 
                     tooltipWidget = Positioned(
                       left: left,

@@ -7,6 +7,7 @@ import 'package:m_admin/utils/constants/app_env.dart';
 import 'package:m_admin/utils/exceptions/app_failure_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 /// Data access for the payment review queue.
 class AdminPaymentRepository {
@@ -38,15 +39,13 @@ class AdminPaymentRepository {
       }
 
       if (range != null) {
-        final startIso = range.start.toUtc().toIso8601String();
-        final endOfDay = DateTime(
-          range.end.year,
-          range.end.month,
-          range.end.day,
-          23, 59, 59, 999,
-        );
-        final endIso = endOfDay.toUtc().toIso8601String();
-        query = query.gte('created_at', startIso).lte('created_at', endIso);
+        final startEat = DateTime.utc(range.start.year, range.start.month, range.start.day);
+        final startUtc = startEat.subtract(EthiopianTimeHelper.eastAfricaOffset);
+        final endEat = DateTime.utc(range.end.year, range.end.month, range.end.day, 23, 59, 59, 999);
+        final endUtc = endEat.subtract(EthiopianTimeHelper.eastAfricaOffset);
+        query = query
+            .gte('created_at', startUtc.toIso8601String())
+            .lte('created_at', endUtc.toIso8601String());
       }
 
       final term = search?.trim() ?? '';

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:m_admin/utils/constants/colors.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 class AdminAuditLogModel {
   final int id;
@@ -47,7 +48,7 @@ class AdminAuditLogModel {
       after: parseJsonField(json['after']),
       note: json['note']?.toString(),
       createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+          ? EthiopianTimeHelper.parseToEastAfricaTime(json['created_at']) ?? DateTime.now()
           : DateTime.now(),
     );
   }

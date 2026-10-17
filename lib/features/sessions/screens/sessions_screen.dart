@@ -13,6 +13,7 @@ import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 // ── Filter Enum ──────────────────────────────────────────────────────
 
@@ -158,16 +159,14 @@ class SessionRow {
       deviceId: j['device_id']?.toString() ?? '',
       deviceModel: j['device_model']?.toString(),
       osVersion: j['os_version']?.toString(),
-      lastActiveAt: j['last_active_at'] != null ? DateTime.tryParse(j['last_active_at'].toString())?.toUtc() : null,
-      updatedAt: j['updated_at'] != null ? DateTime.tryParse(j['updated_at'].toString())?.toUtc() : null,
+      lastActiveAt: EthiopianTimeHelper.parseToEastAfricaTime(j['last_active_at']),
+      updatedAt: EthiopianTimeHelper.parseToEastAfricaTime(j['updated_at']),
       blockedCount: blockedAttempts.length,
-      lastBlockedAt: latestBlocked?['created_at'] != null
-          ? DateTime.tryParse(latestBlocked!['created_at'].toString())?.toUtc()
-          : null,
+      lastBlockedAt: EthiopianTimeHelper.parseToEastAfricaTime(latestBlocked?['created_at']),
       lastBlockedDeviceModel: latestBlocked?['device_model']?.toString(),
       lastBlockedNote: latestBlocked?['note']?.toString(),
       resetCount: resetCount,
-      lastResetAt: lastResetAt?.toUtc(),
+      lastResetAt: lastResetAt != null ? EthiopianTimeHelper.toEastAfricaTime(lastResetAt) : null,
     );
   }
 }
@@ -291,7 +290,7 @@ class SessionsController extends GetxController {
           if (uid != null && uid.isNotEmpty) {
             resetCountByUser[uid] = (resetCountByUser[uid] ?? 0) + 1;
             if (!lastResetByUser.containsKey(uid) && item['created_at'] != null) {
-              lastResetByUser[uid] = DateTime.tryParse(item['created_at'].toString())?.toUtc() ?? DateTime.now().toUtc();
+              lastResetByUser[uid] = EthiopianTimeHelper.parseToEastAfricaTime(item['created_at']) ?? DateTime.now();
             }
           }
         }
@@ -352,10 +351,10 @@ class SessionsController extends GetxController {
               deviceId: '',
               deviceModel: null,
               osVersion: null,
-              lastActiveAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString())?.toUtc() : null,
-              updatedAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString())?.toUtc() : null,
+              lastActiveAt: EthiopianTimeHelper.parseToEastAfricaTime(latest['created_at']),
+              updatedAt: EthiopianTimeHelper.parseToEastAfricaTime(latest['created_at']),
               blockedCount: attempts.length,
-              lastBlockedAt: latest['created_at'] != null ? DateTime.tryParse(latest['created_at'].toString())?.toUtc() : null,
+              lastBlockedAt: EthiopianTimeHelper.parseToEastAfricaTime(latest['created_at']),
               lastBlockedDeviceModel: latest['device_model']?.toString(),
               lastBlockedNote: latest['note']?.toString(),
               resetCount: resetCountByUser[uid] ?? 0,
@@ -1433,7 +1432,7 @@ class _LastActiveCell extends StatelessWidget {
       );
     }
     return Text(
-      DateFormat('d MMM, HH:mm').format(date!),
+      '${DateFormat('d MMM, HH:mm').format(date!)} EAT',
       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
     );
   }
@@ -1505,7 +1504,7 @@ void _showBlockedDetailsDialog(
             if (session.lastBlockedAt != null)
               _dialogDetailRow(
                 'Latest Attempt Time',
-                DateFormat('MMM d, yyyy • hh:mm a').format(session.lastBlockedAt!),
+                '${DateFormat('MMM d, yyyy • hh:mm a').format(session.lastBlockedAt!)} (EAT)',
                 dark,
               ),
             if (session.lastBlockedNote != null)

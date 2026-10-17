@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 /// A payment receipt joined to the student who submitted it.
 class PaymentReview {
@@ -145,6 +146,9 @@ class PaymentReview {
     );
   }
 
+  DateTime? get createdAtEat => createdAt;
+  DateTime? get reviewedAtEat => reviewedAt;
+
   static num? _parseNum(dynamic v) {
     if (v == null) return null;
     if (v is num) return v;
@@ -153,7 +157,7 @@ class PaymentReview {
 
   static DateTime? _parseDate(dynamic v) {
     if (v == null) return null;
-    return DateTime.tryParse(v.toString());
+    return EthiopianTimeHelper.parseToEastAfricaTime(v);
   }
 }
 

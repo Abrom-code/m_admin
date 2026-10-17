@@ -14,6 +14,7 @@ import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 class UserDetailScreen extends StatefulWidget {
   const UserDetailScreen({super.key, required this.user});
@@ -367,7 +368,7 @@ class _ProfileHeroCard extends StatelessWidget {
           if (user.createdAt != null)
             _DetailRow(
               'Account Created',
-              DateFormat('d MMM yyyy · HH:mm').format(user.createdAt!),
+              '${DateFormat('d MMM yyyy · HH:mm').format(user.createdAt!)} EAT',
             ),
         ],
       ),
@@ -659,9 +660,7 @@ class _ReceiptTimelineTile extends StatelessWidget {
     };
     final date = data['created_at'] == null
         ? '—'
-        : DateFormat('d MMM yyyy · HH:mm').format(
-            DateTime.parse(data['created_at'].toString()),
-          );
+        : '${DateFormat('d MMM yyyy · HH:mm').format(EthiopianTimeHelper.parseToEastAfricaTime(data['created_at'])!)} EAT';
     final reason = data['rejection_reason']?.toString();
     final color = switch (status) {
       'approved' => AppColors.success,
@@ -1062,7 +1061,7 @@ class _DeviceManagementCard extends StatelessWidget {
                     if (device!['last_active_at'] != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        'Last Active: ${DateFormat.yMMMd().add_jm().format(DateTime.parse(device!['last_active_at']))}',
+                        'Last Active: ${DateFormat.yMMMd().add_jm().format(EthiopianTimeHelper.parseToEastAfricaTime(device!['last_active_at'])!)} EAT',
                         style: TextStyle(
                           fontSize: 12,
                           color: dark ? AppColors.darkGrey : AppColors.textSecondary,
@@ -1158,7 +1157,7 @@ class _DeviceManagementCard extends StatelessWidget {
                 }
 
                 final timeStr = entry['created_at'] != null
-                    ? DateFormat.MMMd().add_jm().format(DateTime.parse(entry['created_at']))
+                    ? '${DateFormat.MMMd().add_jm().format(EthiopianTimeHelper.parseToEastAfricaTime(entry['created_at'])!)} EAT'
                     : '';
                 final model = entry['device_model']?.toString();
                 final note = entry['note']?.toString();

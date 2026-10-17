@@ -1,3 +1,5 @@
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
+
 class AdminPilotExamModel {
   final int id;
   final String title;
@@ -38,11 +40,7 @@ class AdminPilotExamModel {
     Map<String, dynamic> map, {
     List<AdminPilotExamSubjectModel> subjects = const [],
   }) {
-    DateTime? parsedCreatedAt;
-    final rawCreatedAt = map['created_at']?.toString();
-    if (rawCreatedAt != null && rawCreatedAt.trim().isNotEmpty) {
-      parsedCreatedAt = DateTime.tryParse(rawCreatedAt.trim());
-    }
+    final parsedCreatedAt = EthiopianTimeHelper.parseToEastAfricaTime(map['created_at']);
 
     final rawPremium = map['is_premium'];
     final isPrem = rawPremium == null ||

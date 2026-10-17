@@ -369,7 +369,7 @@ class _ModernDetailPane extends StatelessWidget {
                 label: 'Submitted At',
                 value: review.createdAt == null
                     ? '—'
-                    : DateFormat('d MMM yyyy, HH:mm').format(review.createdAt!),
+                    : '${DateFormat('d MMM yyyy, HH:mm').format(review.createdAt!)} EAT',
               ),
               if (review.verificationUrl.isNotEmpty) ...[
                 const SizedBox(height: 4),
@@ -406,8 +406,7 @@ class _ModernDetailPane extends StatelessWidget {
                   label: 'Reviewed At',
                   value: review.reviewedAt == null
                       ? '—'
-                      : DateFormat('d MMM yyyy, HH:mm')
-                          .format(review.reviewedAt!),
+                      : '${DateFormat('d MMM yyyy, HH:mm').format(review.reviewedAt!)} EAT',
                 ),
                 _DetailRow(
                   label: 'Reviewed By',

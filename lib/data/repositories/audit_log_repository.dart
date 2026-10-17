@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/features/audit_log/models/admin_audit_log_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 class AuditLogRepository {
   final _sb = Supabase.instance.client;
@@ -20,10 +21,14 @@ class AuditLogRepository {
         query = query.eq('action', actionType);
       }
       if (startDate != null) {
-        query = query.gte('created_at', startDate.toIso8601String());
+        final startEat = DateTime.utc(startDate.year, startDate.month, startDate.day);
+        final startUtc = startEat.subtract(EthiopianTimeHelper.eastAfricaOffset);
+        query = query.gte('created_at', startUtc.toIso8601String());
       }
       if (endDate != null) {
-        query = query.lte('created_at', endDate.toIso8601String());
+        final endEat = DateTime.utc(endDate.year, endDate.month, endDate.day, 23, 59, 59, 999);
+        final endUtc = endEat.subtract(EthiopianTimeHelper.eastAfricaOffset);
+        query = query.lte('created_at', endUtc.toIso8601String());
       }
 
       final rows = await query
@@ -51,10 +56,14 @@ class AuditLogRepository {
         query = query.eq('action', actionType);
       }
       if (startDate != null) {
-        query = query.gte('created_at', startDate.toIso8601String());
+        final startEat = DateTime.utc(startDate.year, startDate.month, startDate.day);
+        final startUtc = startEat.subtract(EthiopianTimeHelper.eastAfricaOffset);
+        query = query.gte('created_at', startUtc.toIso8601String());
       }
       if (endDate != null) {
-        query = query.lte('created_at', endDate.toIso8601String());
+        final endEat = DateTime.utc(endDate.year, endDate.month, endDate.day, 23, 59, 59, 999);
+        final endUtc = endEat.subtract(EthiopianTimeHelper.eastAfricaOffset);
+        query = query.lte('created_at', endUtc.toIso8601String());
       }
 
       final res = await query.count(CountOption.exact);

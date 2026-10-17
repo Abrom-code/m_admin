@@ -1,4 +1,5 @@
 import 'package:m_admin/utils/helpers/helper_functions.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 /// A row from `public.notifications`, matching the schema verified by the
 /// Supabase access catalogue:
@@ -72,7 +73,7 @@ class AdminNotificationModel {
       targetStream: json['target_stream']?.toString(),
       createdAt: json['created_at'] == null
           ? null
-          : DateTime.tryParse(json['created_at'].toString()),
+          : EthiopianTimeHelper.parseToEastAfricaTime(json['created_at']),
     );
   }
 }

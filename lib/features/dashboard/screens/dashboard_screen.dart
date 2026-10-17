@@ -687,8 +687,7 @@ class _RecentReceiptsQueue extends StatelessWidget {
                                 Text(
                                   row.createdAt == null
                                       ? '—'
-                                      : DateFormat('d MMM, HH:mm')
-                                          .format(row.createdAt!),
+                                      : '${DateFormat('d MMM, HH:mm').format(row.createdAtEat ?? row.createdAt!)} EAT',
                                   style: const TextStyle(
                                     fontSize: 9.5,
                                     color: AppColors.textSecondary,

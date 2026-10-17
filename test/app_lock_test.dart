@@ -5,7 +5,9 @@ import 'package:get_storage/get_storage.dart';
 import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
 import 'package:m_admin/features/security/screens/app_lock_screen.dart';
 import 'package:m_admin/features/security/screens/passcode_setup_dialog.dart';
+import 'package:m_admin/features/security/screens/passcode_verification_dialog.dart';
 import 'package:m_admin/features/security/widgets/pin_pad_view.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 import 'package:flutter/services.dart';
 
@@ -335,4 +337,94 @@ void main() {
     ctrl.lock();
     expect(ctrl.hasUserDismissedBiometrics, isFalse);
   });
+
+  testWidgets('PasscodeVerificationDialog verifies previous PIN and returns true',
+      (tester) async {
+    final ctrl = AppLockController.instance;
+    await ctrl.setPasscode(
+      passcode: '1234',
+      type: AppLockType.pin,
+      length: 4,
+    );
+
+    bool? dialogResult;
+
+    await tester.pumpWidget(
+      GetMaterialApp(
+        home: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () async {
+              dialogResult = await PasscodeVerificationDialog.show(context);
+            },
+            child: const Text('Verify'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Tap verify button to launch dialog
+    await tester.tap(find.text('Verify'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Security Verification'), findsOneWidget);
+    expect(find.text('Previous PIN'), findsOneWidget);
+
+    // Enter correct PIN digits: 1, 2, 3, 4
+    await tester.tap(find.widgetWithText(InkWell, '1'));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.widgetWithText(InkWell, '2'));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.widgetWithText(InkWell, '3'));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.widgetWithText(InkWell, '4'));
+    await tester.pumpAndSettle();
+
+    // Dialog should dismiss and return true
+    expect(find.text('Security Verification'), findsNothing);
+    expect(dialogResult, isTrue);
+  });
+
+  test('EthiopianTimeHelper strictly converts to East Africa Time (UTC+3)', () {
+    // 17:30 UTC -> 20:30 EAT (+3 hours)
+    final utcDate = DateTime.utc(2026, 10, 17, 17, 30);
+    final eatDate = EthiopianTimeHelper.toEastAfricaTime(utcDate);
+
+    expect(eatDate.hour, 20);
+    expect(eatDate.minute, 30);
+    expect(eatDate.day, 17);
+
+    // Formatted EAT date-time
+    final formatted = EthiopianTimeHelper.formatEatDateTime(utcDate);
+    expect(formatted, '17 Oct, 20:30');
+
+    // 22:00 UTC on Oct 17 -> 01:00 EAT on Oct 18 (+3 hours advances date)
+    final lateUtc = DateTime.utc(2026, 10, 17, 22, 0);
+    final lateEat = EthiopianTimeHelper.toEastAfricaTime(lateUtc);
+    expect(lateEat.day, 18);
+    expect(lateEat.hour, 1);
+  });
+
+  test('EthiopianTimeHelper.parseSupabaseUtc & parseToEastAfricaTime handle un-suffixed UTC strings', () {
+    // String from Supabase REST JSON without trailing 'Z'
+    const rawSupabaseStr = '2026-10-17T18:51:38.241548';
+    final parsedUtc = EthiopianTimeHelper.parseSupabaseUtc(rawSupabaseStr);
+    expect(parsedUtc, isNotNull);
+    expect(parsedUtc!.isUtc, isTrue);
+    expect(parsedUtc.hour, 18);
+
+    // Converted to East Africa Time (+3 hours: 18:51 UTC -> 21:51 EAT)
+    final eat = EthiopianTimeHelper.parseToEastAfricaTime(rawSupabaseStr);
+    expect(eat, isNotNull);
+    expect(eat!.hour, 21);
+    expect(eat.minute, 51);
+
+    // Also works with explicit 'Z' and '+00:00'
+    final eatWithZ = EthiopianTimeHelper.parseToEastAfricaTime('2026-10-17T18:51:38.241548Z');
+    expect(eatWithZ!.hour, 21);
+
+    final eatWithOffset = EthiopianTimeHelper.parseToEastAfricaTime('2026-10-17T18:51:38.241548+00:00');
+    expect(eatWithOffset!.hour, 21);
+  });
 }
+
