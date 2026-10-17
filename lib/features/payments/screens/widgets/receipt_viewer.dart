@@ -199,9 +199,11 @@ class _ReceiptViewerState extends State<ReceiptViewer> {
             onFullScreen: _loadedUrl != null
                 ? () => _openFullScreen(_loadedUrl!)
                 : null,
-            onOpenOriginal: widget.review.receiptUrl.isEmpty
-                ? null
-                : () => AppHelperFunctions.openUrl(widget.review.receiptUrl),
+            onOpenOriginal: (_loadedUrl != null && _loadedUrl!.isNotEmpty)
+                ? () => AppHelperFunctions.openUrl(_loadedUrl!)
+                : (widget.review.receiptUrl.startsWith('http')
+                    ? () => AppHelperFunctions.openUrl(widget.review.receiptUrl)
+                    : null),
           ),
         ],
       ),

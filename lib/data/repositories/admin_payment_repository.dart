@@ -214,13 +214,9 @@ class AdminPaymentRepository {
         path = row?['receipt_path']?.toString();
       }
 
-      // 1. Remove screenshot from storage bucket
+      // 1. Remove screenshot from Cloudflare R2 or legacy storage bucket
       if (path != null && path.isNotEmpty) {
-        try {
-          await _supabase.storage.from('receipts').remove([path]);
-        } catch (_) {
-          // File might already be gone; continue with DB deletion
-        }
+        await _deleteReceiptFiles([path]);
       }
 
       // 2. Set user subscription status to inactive
@@ -282,8 +278,8 @@ class AdminPaymentRepository {
     }
   }
 
-  /// Deletes screenshots for approved payments from Supabase Storage and clears
-  /// the receipt_path & receipt_url columns on the database rows.
+  /// Deletes screenshots for approved payments from Cloudflare R2 (or legacy storage)
+  /// and clears the receipt_path & receipt_url columns on the database rows.
   ///
   /// The accounting records (amounts, plans, dates) remain 100% intact!
   Future<int> deleteActiveReceiptScreenshots({
@@ -319,13 +315,8 @@ class AdminPaymentRepository {
         if (id != null && id.isNotEmpty) ids.add(id);
       }
 
-      // 1. Delete files from storage in chunks
-      for (var i = 0; i < paths.length; i += 50) {
-        final chunk = paths.sublist(i, (i + 50).clamp(0, paths.length));
-        try {
-          await _supabase.storage.from('receipts').remove(chunk);
-        } catch (_) {}
-      }
+      // 1. Delete files from storage (Cloudflare R2 or legacy)
+      await _deleteReceiptFiles(paths);
 
       // 2. Clear receipt_path and receipt_url in payment_receipts
       for (var i = 0; i < ids.length; i += 50) {
@@ -352,9 +343,7 @@ class AdminPaymentRepository {
   }) async {
     try {
       if (receiptPath.isNotEmpty) {
-        try {
-          await _supabase.storage.from('receipts').remove([receiptPath]);
-        } catch (_) {}
+        await _deleteReceiptFiles([receiptPath]);
       }
 
       await _supabase
@@ -388,13 +377,8 @@ class AdminPaymentRepository {
         if (p != null && p.isNotEmpty) paths.add(p);
       }
 
-      // 1. Delete storage files
-      for (var i = 0; i < paths.length; i += 50) {
-        final chunk = paths.sublist(i, (i + 50).clamp(0, paths.length));
-        try {
-          await _supabase.storage.from('receipts').remove(chunk);
-        } catch (_) {}
-      }
+      // 1. Delete storage files from Cloudflare R2 / legacy storage
+      await _deleteReceiptFiles(paths);
 
       // 2. Delete rows from payment_receipts
       await _supabase
@@ -408,11 +392,91 @@ class AdminPaymentRepository {
     }
   }
 
+  /// Helper to delete files from Cloudflare R2 (or legacy Supabase storage).
+  Future<void> _deleteReceiptFiles(List<String> paths) async {
+    if (paths.isEmpty) return;
+
+    final r2Paths = <String>[];
+    final supabasePaths = <String>[];
+
+    for (final p in paths) {
+      final clean = p.trim();
+      if (clean.isEmpty) continue;
+      if (clean.startsWith('receipts/')) {
+        r2Paths.add(clean);
+      } else if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+        supabasePaths.add(clean);
+      }
+    }
+
+    // 1. Delete from Cloudflare R2 via Edge Function
+    if (r2Paths.isNotEmpty) {
+      for (var i = 0; i < r2Paths.length; i += 50) {
+        final chunk = r2Paths.sublist(i, (i + 50).clamp(0, r2Paths.length));
+        try {
+          await _supabase.functions.invoke(
+            'receipt-storage',
+            body: {
+              'action': 'delete_files',
+              'file_keys': chunk,
+            },
+          );
+        } catch (_) {
+          // Failure to delete from R2 should not block DB operation
+        }
+      }
+    }
+
+    // 2. Delete from Supabase Storage (legacy fallback if bucket still existed)
+    if (supabasePaths.isNotEmpty) {
+      for (var i = 0; i < supabasePaths.length; i += 50) {
+        final chunk = supabasePaths.sublist(i, (i + 50).clamp(0, supabasePaths.length));
+        try {
+          await _supabase.storage.from('receipts').remove(chunk);
+        } catch (_) {
+          // Bucket is deleted; ignore gracefully
+        }
+      }
+    }
+  }
+
   Future<String> signedReceiptUrl(String path, {String? fallbackUrl}) async {
     try {
-      return await _supabase.storage
-          .from('receipts')
-          .createSignedUrl(path, 300);
+      final clean = path.trim();
+      if (clean.isEmpty) {
+        return fallbackUrl ?? '';
+      }
+
+      if (clean.startsWith('http://') || clean.startsWith('https://')) {
+        return clean;
+      }
+
+      // 1. If stored in Cloudflare R2:
+      if (clean.startsWith('receipts/')) {
+        try {
+          final res = await _supabase.functions.invoke(
+            'receipt-storage',
+            body: {
+              'action': 'get_view_url',
+              'file_key': clean,
+            },
+          );
+          final data = res.data;
+          if (data is Map && data['view_url'] != null) {
+            return data['view_url'].toString();
+          }
+        } catch (_) {}
+      }
+
+      // 2. Fallback to Supabase Storage:
+      try {
+        return await _supabase.storage
+            .from('receipts')
+            .createSignedUrl(clean, 300);
+      } catch (_) {
+        if (fallbackUrl != null && fallbackUrl.isNotEmpty) return fallbackUrl;
+        return clean;
+      }
     } catch (_) {
       if (fallbackUrl != null && fallbackUrl.isNotEmpty) return fallbackUrl;
       rethrow;

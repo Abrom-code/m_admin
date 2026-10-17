@@ -112,9 +112,9 @@ class PaymentsController extends GetxController {
 
   void _startPolling() {
     _pollTimer?.cancel();
-    // Fallback polling every 20s so new pending payments are ALWAYS detected
-    // even if Supabase Realtime drops, reconnects, or table publication is inactive.
-    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+    // Fallback polling every 90s so new pending payments are detected
+    // without flooding Supabase API logs or eating database connection limits.
+    _pollTimer = Timer.periodic(const Duration(seconds: 90), (_) {
       if (_session.isAuthenticated) {
         refreshCounts();
       }

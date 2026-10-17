@@ -10,7 +10,7 @@ import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 /// Interactive modal dialog to inspect and clean uploaded receipt screenshots
-/// to reclaim Supabase Storage quota without losing revenue accounting records.
+/// to reclaim cloud storage quota without losing revenue accounting records.
 class ReceiptCleanupDialog extends StatefulWidget {
   const ReceiptCleanupDialog({super.key});
 
@@ -64,7 +64,7 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
     final confirmed = await _confirmDialog(
       title: 'Delete Screenshots Older Than 1 Week?',
       message:
-          'This will delete ${_stats!.olderThanOneWeekScreenshots} uploaded screenshot(s) older than 7 days from Supabase storage.\n\n'
+          'This will delete ${_stats!.olderThanOneWeekScreenshots} uploaded screenshot(s) older than 7 days from cloud storage (Cloudflare R2).\n\n'
           'All approved payments, subscription records, and revenue totals remain completely untouched in the database.',
       confirmLabel: 'Delete Old Screenshots',
       color: AppColors.primary,
@@ -97,7 +97,7 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
     final confirmed = await _confirmDialog(
       title: 'Delete All Active Screenshots?',
       message:
-          'This will delete all ${_stats!.totalActiveScreenshots} uploaded screenshot(s) for approved subscribers from Supabase storage.\n\n'
+          'This will delete all ${_stats!.totalActiveScreenshots} uploaded screenshot(s) for approved subscribers from cloud storage (Cloudflare R2).\n\n'
           'Accounting data (amounts, plans, approval dates) will remain 100% intact in the database.',
       confirmLabel: 'Delete All Active Screenshots',
       color: AppColors.warning,
@@ -227,7 +227,7 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Reclaim Supabase Storage quota by cleaning uploaded screenshots. For approved subscribers, revenue records and audit logs are retained while heavy image files are purged.',
+                'Reclaim cloud storage quota by cleaning uploaded screenshots. For approved subscribers, revenue records and audit logs are retained while heavy image files are purged.',
                 style: TextStyle(
                   fontSize: 12.5,
                   height: 1.45,
