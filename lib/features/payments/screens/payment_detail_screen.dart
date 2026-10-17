@@ -147,6 +147,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
         review: _review,
         onApprove: _approve,
         onReject: _reject,
+        onDeleteScreenshot: _deleteScreenshot,
       ),
     );
   }
@@ -208,6 +209,40 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     if (!mounted) return;
 
     if (ok) _advance();
+  }
+
+  Future<void> _deleteScreenshot() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Screenshot?'),
+        content: const Text(
+          'This deletes the uploaded screenshot image from Supabase Storage to free quota.\n\n'
+          'The approved payment, amount, and active subscription will remain completely intact in the database.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete File'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final ok = await _controller.deleteSingleScreenshot(_review);
+    if (!mounted) return;
+    if (ok) {
+      setState(() {
+        _review = _review.copyWith(receiptPath: '', receiptUrl: '');
+      });
+    }
   }
 
   void _advance() {
@@ -517,11 +552,13 @@ class _ModernActionBar extends StatelessWidget {
     required this.review,
     required this.onApprove,
     required this.onReject,
+    this.onDeleteScreenshot,
   });
 
   final PaymentReview review;
   final VoidCallback onApprove;
   final VoidCallback onReject;
+  final VoidCallback? onDeleteScreenshot;
 
   @override
   Widget build(BuildContext context) {
@@ -529,8 +566,10 @@ class _ModernActionBar extends StatelessWidget {
     final dark = AppHelperFunctions.isDark(context);
 
     if (!review.isPending) {
+      final hasImage = review.hasScreenshot;
+
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: AppSizes.md, vertical: 10),
         decoration: BoxDecoration(
           color: dark ? AppColors.darkCard : AppColors.white,
           border: Border(
@@ -540,27 +579,40 @@ class _ModernActionBar extends StatelessWidget {
           ),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(
-              review.isApproved
-                  ? Icons.check_circle_rounded
-                  : Icons.cancel_rounded,
-              size: 16,
-              color: paymentStatusColor(review.status),
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                'Already marked as ${review.status.toUpperCase()}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  review.isApproved
+                      ? Icons.check_circle_rounded
+                      : Icons.cancel_rounded,
+                  size: 16,
                   color: paymentStatusColor(review.status),
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
+                const SizedBox(width: 8),
+                Text(
+                  'Marked as ${review.status.toUpperCase()}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: paymentStatusColor(review.status),
+                  ),
+                ),
+              ],
             ),
+            if (hasImage && review.isApproved && onDeleteScreenshot != null)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.delete_outline_rounded, size: 14, color: AppColors.error),
+                label: const Text('Delete Screenshot', style: TextStyle(fontSize: 11.5, color: AppColors.error)),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppColors.error.withValues(alpha: 0.4)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: onDeleteScreenshot,
+              ),
           ],
         ),
       );

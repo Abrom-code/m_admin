@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:m_admin/data/repositories/admin_payment_repository.dart';
 import 'package:m_admin/data/services/admin_notification_service.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
@@ -21,6 +22,13 @@ class PaymentsController extends GetxController {
 
   final _repo = AdminPaymentRepository();
   final _session = Get.find<AdminSessionService>();
+
+  // ── Storage Cleanup Configuration ────────────────────────────────
+  static const _kAutoCleanupOneWeekKey = 'auto_cleanup_one_week_receipts';
+  static const _kLastCleanupTimestampKey = 'last_auto_cleanup_receipts_ts';
+
+  final autoCleanupOneWeek = false.obs;
+  final isCleaningStorage = false.obs;
 
   // ── Query state ──────────────────────────────────────────────────
   final activeTab = 'pending'.obs;
@@ -56,12 +64,19 @@ class PaymentsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    try {
+      final box = GetStorage();
+      autoCleanupOneWeek.value = box.read<bool>(_kAutoCleanupOneWeekKey) ?? false;
+    } catch (_) {}
+
     if (_session.isAuthenticated) {
       initForSession();
+      checkAndRunAutoCleanup();
     }
     ever(_session.admin, (admin) {
       if (!admin.isEmpty) {
         initForSession();
+        checkAndRunAutoCleanup();
       } else {
         clearSession();
       }
@@ -359,24 +374,20 @@ class PaymentsController extends GetxController {
         userId: review.userId,
         adminUid: _session.adminUid,
         reason: trimmed,
+        receiptPath: review.receiptPath,
       );
 
-      _applyLocal(
-        review.copyWith(
-          status: 'rejected',
-          reviewedBy: _session.adminUid,
-          reviewedAt: DateTime.now(),
-          rejectionReason: trimmed,
-          subscriptionStatus: 'inactive',
-        ),
-      );
+      // Permanently remove from rows since receipt is deleted from database
+      rows.removeWhere((r) => r.id == review.id);
+      totalCount.value = (totalCount.value - 1).clamp(0, 999999);
+      rows.refresh();
 
       // Keep the Users screen in sync without requiring a full reload.
       _syncUsersController(review.userId, 'inactive');
 
       SnackbarHelper.success(
         'Payment rejected',
-        '${review.displayName} has been notified.',
+        'Receipt deleted from database & storage. ${review.displayName} has been notified.',
       );
 
       await _notify(
@@ -397,6 +408,83 @@ class PaymentsController extends GetxController {
     } finally {
       actingIds.remove(review.id);
       actingIds.refresh();
+    }
+  }
+
+  // ── Storage Cleanup Helpers ─────────────────────────────────────
+
+  Future<ReceiptStorageStats> fetchCleanupStats() async {
+    return await _repo.getCleanupStats();
+  }
+
+  Future<int> deleteActiveScreenshots({required bool olderThanOneWeekOnly}) async {
+    isCleaningStorage.value = true;
+    try {
+      final count = await _repo.deleteActiveReceiptScreenshots(
+        olderThanOneWeekOnly: olderThanOneWeekOnly,
+      );
+      await refreshAll();
+      return count;
+    } finally {
+      isCleaningStorage.value = false;
+    }
+  }
+
+  Future<int> purgeAllRejected() async {
+    isCleaningStorage.value = true;
+    try {
+      final count = await _repo.purgeAllRejectedReceipts();
+      await refreshAll();
+      return count;
+    } finally {
+      isCleaningStorage.value = false;
+    }
+  }
+
+  Future<bool> deleteSingleScreenshot(PaymentReview review) async {
+    try {
+      await _repo.deleteSingleReceiptScreenshot(
+        receiptId: review.id,
+        receiptPath: review.receiptPath,
+      );
+      _applyLocal(review.copyWith(receiptPath: '', receiptUrl: ''));
+      SnackbarHelper.success(
+        'Screenshot deleted',
+        'Storage freed. Payment record remains verified in database.',
+      );
+      return true;
+    } catch (e) {
+      AppExceptionHandler.handleResponse(e);
+      return false;
+    }
+  }
+
+  void toggleAutoCleanup(bool value) {
+    autoCleanupOneWeek.value = value;
+    try {
+      GetStorage().write(_kAutoCleanupOneWeekKey, value);
+    } catch (_) {}
+    if (value) {
+      checkAndRunAutoCleanup();
+    }
+  }
+
+  Future<void> checkAndRunAutoCleanup() async {
+    if (!autoCleanupOneWeek.value) return;
+    try {
+      final box = GetStorage();
+      final lastRun = box.read<int>(_kLastCleanupTimestampKey) ?? 0;
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      // Run once per 24 hours
+      if (nowMs - lastRun < const Duration(hours: 24).inMilliseconds) return;
+
+      final count = await _repo.deleteActiveReceiptScreenshots(olderThanOneWeekOnly: true);
+      box.write(_kLastCleanupTimestampKey, nowMs);
+      if (count > 0) {
+        debugPrint('[PaymentsController] Auto-cleaned $count screenshots older than 1 week.');
+      }
+    } catch (e) {
+      debugPrint('[PaymentsController] Auto-cleanup failed silently: $e');
     }
   }
 

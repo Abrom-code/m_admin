@@ -9,6 +9,19 @@ import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
+/// Storage cleanup metric snapshot.
+class ReceiptStorageStats {
+  const ReceiptStorageStats({
+    required this.totalActiveScreenshots,
+    required this.olderThanOneWeekScreenshots,
+    required this.rejectedReceiptsCount,
+  });
+
+  final int totalActiveScreenshots;
+  final int olderThanOneWeekScreenshots;
+  final int rejectedReceiptsCount;
+}
+
 /// Data access for the payment review queue.
 class AdminPaymentRepository {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -181,23 +194,36 @@ class AdminPaymentRepository {
     }
   }
 
-  /// Rejects a payment: marks the receipt rejected and sets user to inactive.
+  /// Rejects a payment: removes the screenshot from storage, sets user to inactive,
+  /// and permanently deletes the receipt row from payment_receipts database table.
   Future<void> reject({
     required String receiptId,
     required String userId,
     required String adminUid,
     required String reason,
+    String? receiptPath,
   }) async {
     try {
-      final now = DateTime.now().toUtc().toIso8601String();
+      var path = receiptPath;
+      if (path == null || path.isEmpty) {
+        final row = await _supabase
+            .from('payment_receipts')
+            .select('receipt_path')
+            .eq('id', receiptId)
+            .maybeSingle();
+        path = row?['receipt_path']?.toString();
+      }
 
-      await _supabase.from('payment_receipts').update({
-        'status': 'rejected',
-        'reviewed_by': adminUid,
-        'reviewed_at': now,
-        'rejection_reason': reason,
-      }).eq('id', receiptId);
+      // 1. Remove screenshot from storage bucket
+      if (path != null && path.isNotEmpty) {
+        try {
+          await _supabase.storage.from('receipts').remove([path]);
+        } catch (_) {
+          // File might already be gone; continue with DB deletion
+        }
+      }
 
+      // 2. Set user subscription status to inactive
       await _supabase
           .from('users')
           .update({
@@ -205,6 +231,178 @@ class AdminPaymentRepository {
             'subscription_expires_at': null,
           })
           .eq('id', userId);
+
+      // 3. Permanently delete the receipt row from the database table
+      await _supabase.from('payment_receipts').delete().eq('id', receiptId);
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Fetches counts for storage cleanup: active receipts with screenshots,
+  /// screenshots older than 7 days, and any remaining rejected receipts.
+  Future<ReceiptStorageStats> getCleanupStats() async {
+    try {
+      final nowUtc = DateTime.now().toUtc();
+      final oneWeekAgo = nowUtc.subtract(const Duration(days: 7)).toIso8601String();
+
+      // 1. Approved receipts with uploaded screenshot
+      final totalActiveRows = await _supabase
+          .from('payment_receipts')
+          .select('id')
+          .eq('status', 'approved')
+          .not('receipt_path', 'is', null)
+          .neq('receipt_path', '')
+          .count(CountOption.exact);
+
+      // 2. Approved receipts with screenshot older than 7 days
+      final olderThanOneWeekRows = await _supabase
+          .from('payment_receipts')
+          .select('id')
+          .eq('status', 'approved')
+          .not('receipt_path', 'is', null)
+          .neq('receipt_path', '')
+          .lt('created_at', oneWeekAgo)
+          .count(CountOption.exact);
+
+      // 3. Any leftover rejected receipts in database
+      final rejectedRows = await _supabase
+          .from('payment_receipts')
+          .select('id')
+          .eq('status', 'rejected')
+          .count(CountOption.exact);
+
+      return ReceiptStorageStats(
+        totalActiveScreenshots: totalActiveRows.count,
+        olderThanOneWeekScreenshots: olderThanOneWeekRows.count,
+        rejectedReceiptsCount: rejectedRows.count,
+      );
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Deletes screenshots for approved payments from Supabase Storage and clears
+  /// the receipt_path & receipt_url columns on the database rows.
+  ///
+  /// The accounting records (amounts, plans, dates) remain 100% intact!
+  Future<int> deleteActiveReceiptScreenshots({
+    bool olderThanOneWeekOnly = false,
+  }) async {
+    try {
+      var query = _supabase
+          .from('payment_receipts')
+          .select('id, receipt_path')
+          .eq('status', 'approved')
+          .not('receipt_path', 'is', null)
+          .neq('receipt_path', '');
+
+      if (olderThanOneWeekOnly) {
+        final oneWeekAgo = DateTime.now()
+            .toUtc()
+            .subtract(const Duration(days: 7))
+            .toIso8601String();
+        query = query.lt('created_at', oneWeekAgo);
+      }
+
+      final rows = await query.limit(500);
+      final list = List<Map<String, dynamic>>.from(rows);
+      if (list.isEmpty) return 0;
+
+      final paths = <String>[];
+      final ids = <String>[];
+
+      for (final r in list) {
+        final path = r['receipt_path']?.toString();
+        final id = r['id']?.toString();
+        if (path != null && path.isNotEmpty) paths.add(path);
+        if (id != null && id.isNotEmpty) ids.add(id);
+      }
+
+      // 1. Delete files from storage in chunks
+      for (var i = 0; i < paths.length; i += 50) {
+        final chunk = paths.sublist(i, (i + 50).clamp(0, paths.length));
+        try {
+          await _supabase.storage.from('receipts').remove(chunk);
+        } catch (_) {}
+      }
+
+      // 2. Clear receipt_path and receipt_url in payment_receipts
+      for (var i = 0; i < ids.length; i += 50) {
+        final chunk = ids.sublist(i, (i + 50).clamp(0, ids.length));
+        await _supabase
+            .from('payment_receipts')
+            .update({
+              'receipt_path': null,
+              'receipt_url': null,
+            })
+            .inFilter('id', chunk);
+      }
+
+      return ids.length;
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Deletes a single screenshot for an approved receipt from storage and nulls the columns.
+  Future<void> deleteSingleReceiptScreenshot({
+    required String receiptId,
+    required String receiptPath,
+  }) async {
+    try {
+      if (receiptPath.isNotEmpty) {
+        try {
+          await _supabase.storage.from('receipts').remove([receiptPath]);
+        } catch (_) {}
+      }
+
+      await _supabase
+          .from('payment_receipts')
+          .update({
+            'receipt_path': null,
+            'receipt_url': null,
+          })
+          .eq('id', receiptId);
+    } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Permanently removes any leftover or historic rejected receipts from
+  /// the database and deletes their screenshots from storage.
+  Future<int> purgeAllRejectedReceipts() async {
+    try {
+      final rows = await _supabase
+          .from('payment_receipts')
+          .select('id, receipt_path')
+          .eq('status', 'rejected')
+          .limit(500);
+
+      final list = List<Map<String, dynamic>>.from(rows);
+      if (list.isEmpty) return 0;
+
+      final paths = <String>[];
+      for (final r in list) {
+        final p = r['receipt_path']?.toString();
+        if (p != null && p.isNotEmpty) paths.add(p);
+      }
+
+      // 1. Delete storage files
+      for (var i = 0; i < paths.length; i += 50) {
+        final chunk = paths.sublist(i, (i + 50).clamp(0, paths.length));
+        try {
+          await _supabase.storage.from('receipts').remove(chunk);
+        } catch (_) {}
+      }
+
+      // 2. Delete rows from payment_receipts
+      await _supabase
+          .from('payment_receipts')
+          .delete()
+          .eq('status', 'rejected');
+
+      return list.length;
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }

@@ -113,6 +113,8 @@ class PaymentReview {
     );
   }
 
+  bool get hasScreenshot => receiptPath.isNotEmpty || receiptUrl.isNotEmpty;
+
   PaymentReview copyWith({
     String? status,
     num? amount,
@@ -122,6 +124,8 @@ class PaymentReview {
     String? subscriptionStatus,
     String? planKey,
     int? planDurationMonths,
+    String? receiptPath,
+    String? receiptUrl,
   }) {
     return PaymentReview(
       id: id,
@@ -130,8 +134,8 @@ class PaymentReview {
       userEmail: userEmail,
       userStream: userStream,
       subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
-      receiptPath: receiptPath,
-      receiptUrl: receiptUrl,
+      receiptPath: receiptPath ?? this.receiptPath,
+      receiptUrl: receiptUrl ?? this.receiptUrl,
       verificationUrl: verificationUrl,
       paymentMethod: paymentMethod,
       amount: amount ?? this.amount,

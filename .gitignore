@@ -4,6 +4,8 @@
 *.pyc
 *.swp
 GetStorage.*
+*.gs
+*.bak
 .DS_Store
 .atom/
 .build/

@@ -11,7 +11,9 @@ import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
 import 'package:m_admin/features/security/screens/passcode_setup_dialog.dart';
 import 'package:m_admin/features/security/screens/passcode_verification_dialog.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
+import 'package:m_admin/features/payments/controllers/payments_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
+import 'package:m_admin/features/payments/screens/widgets/receipt_cleanup_dialog.dart';
 import 'package:m_admin/utils/constants/app_env.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
@@ -381,6 +383,8 @@ class SettingsScreen extends StatelessWidget {
           const _SecurityPasscodeSection(),
           const SizedBox(height: AppSizes.spaceBtwSections),
           _DatabaseOverviewSection(controller),
+          const SizedBox(height: AppSizes.spaceBtwSections),
+          const _ReceiptStorageCleanupSection(),
           const SizedBox(height: AppSizes.spaceBtwSections),
           _StudentAppSection(controller),
           const SizedBox(height: AppSizes.spaceBtwSections),
@@ -1003,6 +1007,125 @@ class _TableCountPill extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Receipt Storage Cleanup Section ──────────────────────────────────
+
+class _ReceiptStorageCleanupSection extends StatelessWidget {
+  const _ReceiptStorageCleanupSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
+    final paymentsCtrl = Get.isRegistered<PaymentsController>()
+        ? PaymentsController.instance
+        : Get.put(PaymentsController());
+
+    return Container(
+      padding: const EdgeInsets.all(AppSizes.md),
+      decoration: BoxDecoration(
+        color: dark ? AppColors.darkSurface : AppColors.white,
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 600;
+
+              final info = Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                    ),
+                    child: const Icon(
+                      Icons.cleaning_services_rounded,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: AppSizes.sm),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Receipt Storage & Cleanup',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          'Reclaim Supabase Storage quota by deleting active screenshots or purging rejected receipts.',
+                          style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+
+              final actionBtn = ElevatedButton.icon(
+                onPressed: () => ReceiptCleanupDialog.show(context),
+                icon: const Icon(Icons.cleaning_services_rounded, size: 14),
+                label: const Text('Open Cleanup Tools'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
+              );
+
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    info,
+                    const SizedBox(height: 10),
+                    actionBtn,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: info),
+                  const SizedBox(width: 12),
+                  actionBtn,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: AppSizes.md),
+          Material(
+            type: MaterialType.transparency,
+            child: Obx(() {
+              final autoEnabled = paymentsCtrl.autoCleanupOneWeek.value;
+
+              return SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: autoEnabled,
+                onChanged: paymentsCtrl.toggleAutoCleanup,
+                title: const Text(
+                  'Auto-delete active screenshots after 1 week',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                subtitle: const Text(
+                  'Deletes uploaded receipt screenshots older than 7 days when the app launches, keeping revenue records intact.',
+                  style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                ),
+              );
+            }),
+          ),
+        ],
       ),
     );
   }

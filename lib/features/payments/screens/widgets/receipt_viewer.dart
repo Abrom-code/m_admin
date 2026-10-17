@@ -32,20 +32,30 @@ class _ReceiptViewerState extends State<ReceiptViewer> {
   @override
   void initState() {
     super.initState();
-    _urlFuture = widget.resolveUrl().then((url) {
-      _loadedUrl = url;
-      return url;
-    });
+    if (!widget.review.hasScreenshot) {
+      _urlFuture = Future.value('');
+    } else {
+      _urlFuture = widget.resolveUrl().then((url) {
+        _loadedUrl = url;
+        return url;
+      });
+    }
   }
 
   @override
   void didUpdateWidget(ReceiptViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.review.id != widget.review.id) {
-      _urlFuture = widget.resolveUrl().then((url) {
-        _loadedUrl = url;
-        return url;
-      });
+    if (oldWidget.review.id != widget.review.id ||
+        oldWidget.review.receiptPath != widget.review.receiptPath ||
+        oldWidget.review.receiptUrl != widget.review.receiptUrl) {
+      if (!widget.review.hasScreenshot) {
+        _urlFuture = Future.value('');
+      } else {
+        _urlFuture = widget.resolveUrl().then((url) {
+          _loadedUrl = url;
+          return url;
+        });
+      }
       _quarterTurns = 0;
       _transform.value = Matrix4.identity();
     }
@@ -68,6 +78,10 @@ class _ReceiptViewerState extends State<ReceiptViewer> {
   @override
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
+
+    if (!widget.review.hasScreenshot) {
+      return const _ScreenshotPurgedPlaceholder();
+    }
 
     return Container(
       color: dark ? AppColors.black : AppColors.softGrey,
@@ -294,6 +308,60 @@ class _Unavailable extends StatelessWidget {
                 label: const Text('Open the file directly'),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScreenshotPurgedPlaceholder extends StatelessWidget {
+  const _ScreenshotPurgedPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSizes.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSizes.md),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.cloud_done_outlined,
+                size: 42,
+                color: AppColors.success,
+              ),
+            ),
+            const SizedBox(height: AppSizes.md),
+            Text(
+              'Screenshot Cleared to Save Storage',
+              style: TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.bold,
+                color: dark ? AppColors.white : AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: const Text(
+                'This payment has been reviewed and verified. The screenshot file was purged from storage to reclaim space, while the complete accounting and audit record is preserved.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.5,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
           ],
         ),
       ),
