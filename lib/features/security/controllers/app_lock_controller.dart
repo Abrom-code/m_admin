@@ -315,6 +315,39 @@ class AppLockController extends GetxController with WidgetsBindingObserver {
     }
   }
 
+  /// Verifies admin credentials (email & password) with Supabase Auth
+  /// without resetting passcode or modifying lock state.
+  Future<({bool success, String? error})> verifyAdminCredentials({
+    required String email,
+    required String password,
+  }) async {
+    if (isVerifyingAdmin.value) return (success: false, error: 'Verification already in progress.');
+
+    try {
+      isVerifyingAdmin.value = true;
+      final res = await Supabase.instance.client.auth.signInWithPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      if (res.user != null) {
+        if (Get.isRegistered<AdminSessionService>()) {
+          await AdminSessionService.instance.establish();
+        }
+        return (success: true, error: null);
+      }
+      return (success: false, error: 'Invalid admin credentials.');
+    } on AuthException catch (e) {
+      debugPrint('[AppLockController] Auth error: ${e.message}');
+      return (success: false, error: e.message);
+    } catch (e) {
+      debugPrint('[AppLockController] Admin credential verification error: $e');
+      return (success: false, error: 'Verification failed: ${e.toString()}');
+    } finally {
+      isVerifyingAdmin.value = false;
+    }
+  }
+
   // ── Setup & Configuration ─────────────────────────────────────────
 
   Future<void> setPasscode({

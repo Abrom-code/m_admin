@@ -8,14 +8,33 @@ import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 
-class PasscodeSetupDialog extends StatefulWidget {
-  const PasscodeSetupDialog({super.key});
+import 'package:m_admin/features/security/screens/passcode_verification_dialog.dart';
 
-  static Future<void> show(BuildContext context) async {
+class PasscodeSetupDialog extends StatefulWidget {
+  const PasscodeSetupDialog({
+    super.key,
+    this.isVerified = false,
+  });
+
+  final bool isVerified;
+
+  static Future<void> show(BuildContext context, {bool isVerified = false}) async {
+    final lockCtrl = AppLockController.instance;
+    if (lockCtrl.isPasscodeEnabled.value && !isVerified) {
+      final ok = await PasscodeVerificationDialog.show(
+        context,
+        title: 'Change Passcode Lock',
+        subtitle:
+            'Re-enter your previous passcode or login with admin credentials to change your lock.',
+      );
+      if (!ok || !context.mounted) return;
+    }
+
+    if (!context.mounted) return;
     await showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (_) => const PasscodeSetupDialog(),
+      builder: (_) => const PasscodeSetupDialog(isVerified: true),
     );
   }
 

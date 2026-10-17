@@ -6,8 +6,10 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
+import 'package:m_admin/common/widgets/toast/app_toast.dart';
 import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
 import 'package:m_admin/features/security/screens/passcode_setup_dialog.dart';
+import 'package:m_admin/features/security/screens/passcode_verification_dialog.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/utils/constants/app_env.dart';
@@ -466,11 +468,23 @@ class _SecurityPasscodeSection extends StatelessWidget {
               child: SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 value: isEnabled,
-                onChanged: (val) {
+                onChanged: (val) async {
                   if (val) {
                     PasscodeSetupDialog.show(context);
                   } else {
-                    lockCtrl.disablePasscode();
+                    final verified = await PasscodeVerificationDialog.show(
+                      context,
+                      title: 'Disable Passcode Lock',
+                      subtitle:
+                          'Re-enter your previous passcode or login with admin credentials to disable app lock.',
+                    );
+                    if (verified) {
+                      await lockCtrl.disablePasscode();
+                      AppToast.info(
+                        'Passcode Lock Disabled',
+                        message: 'App lock has been turned off.',
+                      );
+                    }
                   }
                 },
                 title: const Text(
