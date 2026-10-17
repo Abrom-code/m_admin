@@ -205,12 +205,16 @@ class AdminNotificationService extends GetxService {
   }
 
   /// Convenience method for new-payment alerts.
-  Future<void> newPendingPayment({required String paymentMethod}) async {
+  Future<void> newPendingPayment({
+    required String paymentMethod,
+    int? id,
+  }) async {
     final method = paymentMethod.isEmpty
         ? 'New'
         : '${paymentMethod[0].toUpperCase()}${paymentMethod.substring(1)}';
 
     await show(
+      id: id ?? 1002, // Consistent ID prevents duplicate notification cards
       title: '💳 New payment pending',
       body: '$method payment is waiting for your review.',
       payload: 'payments',

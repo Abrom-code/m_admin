@@ -48,6 +48,8 @@ class PaymentsController extends GetxController {
 
   int? _lastNotifiedPendingCount;
   bool _hasDoneInitialPendingCheck = false;
+  DateTime? _lastNotificationTime;
+  final Set<String> _notifiedReceiptIds = <String>{};
 
   bool isActing(String id) => actingIds.contains(id);
 
@@ -89,6 +91,8 @@ class PaymentsController extends GetxController {
     actingIds.clear();
     _lastNotifiedPendingCount = null;
     _hasDoneInitialPendingCheck = false;
+    _lastNotificationTime = null;
+    _notifiedReceiptIds.clear();
   }
 
   void _startPolling() {
@@ -178,17 +182,25 @@ class PaymentsController extends GetxController {
       return;
     }
 
+    final recentlyNotified = _lastNotificationTime != null &&
+        DateTime.now().difference(_lastNotificationTime!) <
+            const Duration(seconds: 15);
+
     // Subsequent checks: notify if pending count increased
     if (pending > (_lastNotifiedPendingCount ?? 0)) {
       final newCount = pending - (_lastNotifiedPendingCount ?? 0);
       _lastNotifiedPendingCount = pending;
-      if (Get.isRegistered<AdminNotificationService>()) {
+
+      // Only notify if this increase was NOT already notified via Realtime insert
+      if (!recentlyNotified && Get.isRegistered<AdminNotificationService>()) {
+        _lastNotificationTime = DateTime.now();
         if (newCount == 1) {
           AdminNotificationService.instance.newPendingPayment(paymentMethod: '');
         } else {
           AdminNotificationService.instance.pendingPaymentsAlert(count: pending);
         }
       }
+
       if (activeTab.value == 'pending' || activeTab.value == 'all') {
         if (page.value == 0) loadQueue();
       }
@@ -485,14 +497,15 @@ class PaymentsController extends GetxController {
             schema: 'public',
             table: 'payment_receipts',
             callback: (payload) {
+              if (payload.eventType == PostgresChangeEvent.insert) {
+                final receiptId = payload.newRecord['id']?.toString() ?? '';
+                final method =
+                    payload.newRecord['payment_method']?.toString() ?? '';
+                _handleRealtimeInsert(receiptId: receiptId, method: method);
+              }
               refreshCounts();
               if (activeTab.value == 'pending' || activeTab.value == 'all') {
                 if (page.value == 0) loadQueue();
-              }
-              if (payload.eventType == PostgresChangeEvent.insert) {
-                final method =
-                    payload.newRecord['payment_method']?.toString() ?? '';
-                _notifyNewPayment(method);
               }
             },
           )
@@ -505,6 +518,23 @@ class PaymentsController extends GetxController {
     } catch (e) {
       debugPrint('[PaymentsController] Realtime setup failed: $e');
     }
+  }
+
+  void _handleRealtimeInsert({
+    required String receiptId,
+    required String method,
+  }) {
+    if (receiptId.isNotEmpty && _notifiedReceiptIds.contains(receiptId)) {
+      return;
+    }
+    if (receiptId.isNotEmpty) {
+      _notifiedReceiptIds.add(receiptId);
+      if (_notifiedReceiptIds.length > 100) {
+        _notifiedReceiptIds.remove(_notifiedReceiptIds.first);
+      }
+    }
+    _lastNotificationTime = DateTime.now();
+    _notifyNewPayment(method);
   }
 
   void _notifyNewPayment(String paymentMethod) {
