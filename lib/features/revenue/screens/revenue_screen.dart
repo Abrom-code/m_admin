@@ -9,6 +9,8 @@ import 'package:m_admin/common/widgets/charts/line_chart_painter.dart';
 import 'package:m_admin/data/repositories/dashboard_repository.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/revenue/controllers/revenue_controller.dart';
+import 'package:m_admin/features/revenue/screens/widgets/add_cost_dialog.dart';
+import 'package:m_admin/features/revenue/screens/widgets/costs_management_card.dart';
 import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
 import 'package:m_admin/features/security/screens/passcode_setup_dialog.dart';
 import 'package:m_admin/features/security/widgets/pin_pad_view.dart';
@@ -543,6 +545,43 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           );
                         });
 
+                        final viewModeSelector = Obx(() {
+                          final currentMode = controller.chartViewMode.value;
+                          return SegmentedButton<String>(
+                            showSelectedIcon: false,
+                            segments: const [
+                              ButtonSegment(
+                                value: 'net',
+                                label: Text('Net (After Costs)'),
+                              ),
+                              ButtonSegment(
+                                value: 'gross',
+                                label: Text('Gross'),
+                              ),
+                            ],
+                            selected: {currentMode},
+                            onSelectionChanged: (s) {
+                              if (s.isNotEmpty) {
+                                setState(() => _selectedIndex = null);
+                                controller.setChartViewMode(s.first);
+                              }
+                            },
+                            style: ButtonStyle(
+                              visualDensity: VisualDensity.compact,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              padding: WidgetStateProperty.all(
+                                const EdgeInsets.symmetric(horizontal: 8),
+                              ),
+                              textStyle: WidgetStateProperty.all(
+                                const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          );
+                        });
+
                         if (isCompact) {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -550,19 +589,63 @@ class _RevenueScreenState extends State<RevenueScreen> {
                               rangeSelector,
                               const SizedBox(height: AppSizes.sm),
                               methodSection,
+                              const SizedBox(height: AppSizes.sm),
+                              Row(
+                                children: [
+                                  Text(
+                                    'VIEW:',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.6,
+                                      color: dark
+                                          ? Colors.white60
+                                          : AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  viewModeSelector,
+                                ],
+                              ),
                             ],
                           );
                         }
 
-                        return Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        return Column(
                           children: [
-                            methodSection,
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: rangeSelector,
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                methodSection,
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: rangeSelector,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'VIEW:',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.6,
+                                      color: dark
+                                          ? Colors.white60
+                                          : AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  viewModeSelector,
+                                ],
                               ),
                             ),
                           ],
@@ -573,7 +656,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
                     // ── Chart Content & Summaries ───────────────────────────
                     Obx(() {
-                      final series = controller.revenueSeries;
+                      final rawSeries = controller.revenueSeries;
+                      final series = controller.effectiveRevenueSeries;
+                      final isNetView = controller.chartViewMode.value == 'net';
                       final activeMethod =
                           controller.selectedMethodFilter.value;
                       final days = controller.rangeDays.value;
@@ -599,7 +684,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           : '$days-day window';
 
                       if (controller.isChartLoading.value ||
-                          (controller.isLoading.value && series.isEmpty)) {
+                          (controller.isLoading.value && rawSeries.isEmpty)) {
                         return SizedBox(
                           height: 240,
                           child: Center(
@@ -633,7 +718,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
                         );
                       }
 
-                      if (series.isEmpty || series.every((p) => p.value == 0)) {
+                      final hasAnyActivity = rawSeries.any((p) => p.value > 0) ||
+                          (isNetView && controller.periodCostRecords.isNotEmpty);
+                      if (rawSeries.isEmpty || !hasAnyActivity) {
                         return SizedBox(
                           height: 220,
                           child: Center(
@@ -659,14 +746,22 @@ class _RevenueScreenState extends State<RevenueScreen> {
                         );
                       }
 
-                      final total = series.fold(0.0, (sum, p) => sum + p.value);
-                      final peak = series.isNotEmpty
-                          ? series.map((p) => p.value).reduce(math.max)
+                      final totalGross = controller.primaryTotal;
+                      final totalCosts = controller.primaryTotalCosts;
+                      final netRevenue = controller.primaryNetRevenue;
+                      final profitMargin = controller.primaryProfitMargin;
+
+                      final allTimeNet = controller.allTimeNetRevenue;
+
+                      final peak = rawSeries.isNotEmpty
+                          ? rawSeries.map((p) => p.value).reduce(math.max)
                           : 0.0;
-                      final daysCount = series.length > 1
-                          ? series.length
+                      final daysCount = rawSeries.length > 1
+                          ? rawSeries.length
                           : days;
-                      final avg = total / (daysCount > 0 ? daysCount : 1);
+                      final avg = isNetView
+                          ? (netRevenue / (daysCount > 0 ? daysCount : 1))
+                          : (totalGross / (daysCount > 0 ? daysCount : 1));
 
                       // Clamp selectedIndex for main series
                       if (_selectedIndex != null &&
@@ -680,12 +775,21 @@ class _RevenueScreenState extends State<RevenueScreen> {
                       if (_selectedIndex != null &&
                           _selectedIndex! < series.length) {
                         final selPoint = series[_selectedIndex!];
+                        final rawPoint = _selectedIndex! < rawSeries.length
+                            ? rawSeries[_selectedIndex!]
+                            : selPoint;
+                        final dayCost = controller.getCostForDay(selPoint.day);
+                        final isDeficit = isNetView && selPoint.value < 0;
+
                         final String formattedAmount;
                         if (controller.isPriceHidden.value) {
                           formattedAmount = 'ETB ••••••';
                         } else {
-                          final base =
-                              'ETB ${NumberFormat('#,##0.00').format(selPoint.value)}';
+                          final base = isNetView
+                              ? (isDeficit
+                                  ? 'Deficit: -ETB ${NumberFormat('#,##0.00').format(selPoint.value.abs())}'
+                                  : 'Net: ETB ${NumberFormat('#,##0.00').format(selPoint.value)}')
+                              : 'ETB ${NumberFormat('#,##0.00').format(rawPoint.value)}';
                           formattedAmount = activeMethod != null
                               ? '$base (${PaymentMethodInfo.labelOf(activeMethod)})'
                               : base;
@@ -696,7 +800,13 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
                         final hasBreakdown =
                             activeMethod == null &&
-                            selPoint.methodBreakdown.isNotEmpty;
+                            rawPoint.methodBreakdown.isNotEmpty;
+
+                        final Color tooltipAccentColor = isDeficit
+                            ? const Color(0xFFEF4444)
+                            : (isNetView && dayCost > 0
+                                ? AppColors.success
+                                : chartColor);
 
                         tooltipWidget = Container(
                           padding: const EdgeInsets.symmetric(
@@ -709,7 +819,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                                 : AppColors.white,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: chartColor.withValues(alpha: 0.6),
+                              color: tooltipAccentColor.withValues(alpha: 0.8),
                               width: 1.2,
                             ),
                             boxShadow: [
@@ -724,24 +834,104 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                formattedDate,
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textSecondary,
+                              Center(
+                                child: Text(
+                                  formattedDate,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary,
+                                  ),
                                 ),
                               ),
+                              if (isDeficit) ...[
+                                const SizedBox(height: 2),
+                                Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 1.5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEF4444)
+                                          .withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'DEFICIT (COST > REVENUE)',
+                                      style: TextStyle(
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFFEF4444),
+                                        letterSpacing: 0.4,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 2),
-                              Text(
-                                formattedAmount,
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: chartColor,
+                              Center(
+                                child: Text(
+                                  formattedAmount,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: tooltipAccentColor,
+                                  ),
                                 ),
                               ),
+                              if (dayCost > 0 && !controller.isPriceHidden.value) ...[
+                                const SizedBox(height: 4),
+                                Divider(
+                                  height: 1,
+                                  color: dark ? Colors.white12 : Colors.black12,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text(
+                                      'Gross: ',
+                                      style: TextStyle(
+                                        fontSize: 9.5,
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    Text(
+                                      'ETB ${NumberFormat('#,##0').format(rawPoint.value)}',
+                                      style: TextStyle(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: dark ? Colors.white70 : AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text(
+                                      'Cost: ',
+                                      style: TextStyle(
+                                        fontSize: 9.5,
+                                        color: Color(0xFFEF4444),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    Text(
+                                      '-ETB ${NumberFormat('#,##0').format(dayCost)}',
+                                      style: const TextStyle(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFFEF4444),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                               if (hasBreakdown &&
                                   !controller.isPriceHidden.value) ...[
                                 const SizedBox(height: 4),
@@ -751,7 +941,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 for (final entry
-                                    in selPoint.methodBreakdown.entries)
+                                    in rawPoint.methodBreakdown.entries)
                                   if (entry.value > 0)
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
@@ -791,13 +981,33 @@ class _RevenueScreenState extends State<RevenueScreen> {
                         );
                       }
 
-                      final String totalLabel = activeMethod != null
-                          ? 'TOTAL (${PaymentMethodInfo.labelOf(activeMethod).toUpperCase()})'
-                          : 'TOTAL GROSS REVENUE';
+                      final String netLabel = activeMethod != null
+                          ? 'NET (${PaymentMethodInfo.labelOf(activeMethod).toUpperCase()})'
+                          : 'NET REVENUE (PROFIT)';
 
-                      final String totalValue = controller.isPriceHidden.value
+                      final String netValue = controller.isPriceHidden.value
                           ? 'ETB ••••••'
-                          : 'ETB ${NumberFormat('#,##0.00').format(total)}';
+                          : (netRevenue < 0
+                              ? '- ETB ${NumberFormat('#,##0.00').format(netRevenue.abs())}'
+                              : 'ETB ${NumberFormat('#,##0.00').format(netRevenue)}');
+
+                      final String grossValue = controller.isPriceHidden.value
+                          ? 'ETB ••••••'
+                          : 'ETB ${NumberFormat('#,##0.00').format(totalGross)}';
+
+                      final String costsValue = controller.isPriceHidden.value
+                          ? 'ETB ••••••'
+                          : '- ETB ${NumberFormat('#,##0.00').format(totalCosts)}';
+
+                      final String marginValue = controller.isPriceHidden.value
+                          ? '••••'
+                          : '${profitMargin.toStringAsFixed(1)}%';
+
+                      final String allTimeNetValue = controller.isPriceHidden.value
+                          ? 'ETB ••••••'
+                          : (allTimeNet < 0
+                              ? '- ETB ${NumberFormat('#,##0.00').format(allTimeNet.abs())}'
+                              : 'ETB ${NumberFormat('#,##0.00').format(allTimeNet)}');
 
                       final String peakValue = controller.isPriceHidden.value
                           ? 'ETB ••••••'
@@ -805,11 +1015,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
                       final String avgValue = controller.isPriceHidden.value
                           ? 'ETB ••••••'
-                          : 'ETB ${NumberFormat('#,##0').format(avg.round())}';
-
-                      final String allTimeValue = controller.isPriceHidden.value
-                          ? 'ETB ••••••'
-                          : 'ETB ${NumberFormat('#,##0.00').format(controller.totalRevenueAllTime.value)}';
+                          : (avg < 0
+                              ? '- ETB ${NumberFormat('#,##0').format(avg.abs().round())}'
+                              : 'ETB ${NumberFormat('#,##0').format(avg.round())}');
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -821,10 +1029,42 @@ class _RevenueScreenState extends State<RevenueScreen> {
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               _MetricStatItem(
-                                label: totalLabel,
-                                value: totalValue,
+                                label: netLabel,
+                                value: netValue,
+                                unit: '',
+                                color: netRevenue >= 0
+                                    ? AppColors.success
+                                    : AppColors.error,
+                              ),
+                              _MetricStatItem(
+                                label: 'GROSS REVENUE',
+                                value: grossValue,
                                 unit: '',
                                 color: chartColor,
+                              ),
+                              _MetricStatItem(
+                                label: 'PROMO & COSTS',
+                                value: costsValue,
+                                unit: '',
+                                color: const Color(0xFFEF4444),
+                              ),
+                              _MetricStatItem(
+                                label: 'NET MARGIN',
+                                value: marginValue,
+                                unit: '',
+                                color: profitMargin >= 50
+                                    ? AppColors.success
+                                    : (profitMargin >= 0
+                                        ? AppColors.amberAccent
+                                        : AppColors.error),
+                              ),
+                              _MetricStatItem(
+                                label: 'ALL-TIME NET',
+                                value: allTimeNetValue,
+                                unit: '',
+                                color: allTimeNet >= 0
+                                    ? AppColors.success
+                                    : AppColors.error,
                               ),
                               _MetricStatItem(
                                 label: 'PEAK DAY',
@@ -836,13 +1076,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
                                 label: 'DAILY AVERAGE',
                                 value: avgValue,
                                 unit: '',
-                                color: AppColors.textSecondary,
-                              ),
-                              _MetricStatItem(
-                                label: 'ALL-TIME REVENUE',
-                                value: allTimeValue,
-                                unit: '',
-                                color: AppColors.success,
+                                color: avg >= 0
+                                    ? AppColors.textSecondary
+                                    : AppColors.error,
                               ),
                             ],
                           ),
@@ -851,10 +1087,10 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           // ── Chart Canvas (Main Standalone Single-Series Graph) ──
                           AdminBarChart(
                             points: series,
-                            color: chartColor,
+                            color: isNetView ? AppColors.success : chartColor,
                             height: 240,
                             selectedIndex: _selectedIndex,
-                            showBreakdown: activeMethod == null,
+                            showBreakdown: !isNetView && activeMethod == null,
                             onPointSelected: (idx) {
                               setState(() => _selectedIndex = idx);
                             },
@@ -871,7 +1107,11 @@ class _RevenueScreenState extends State<RevenueScreen> {
                 ),
               ),
 
-              // ── 3. Dedicated Time Length Comparison Box with its own Graph ──
+              // ── 3. Promotion & Operational Costs Card ───────────────────────
+              const SizedBox(height: AppSizes.spaceBtwItems),
+              CostsManagementCard(controller: controller),
+
+              // ── 4. Dedicated Time Length Comparison Box with its own Graph ──
               Obx(() {
                 if (!controller.isCompareEnabled.value) {
                   return const SizedBox.shrink();
@@ -933,8 +1173,9 @@ class RevenueComparisonCard extends StatelessWidget {
 
     return AdminCard(
       child: Obx(() {
-        final series = controller.revenueSeries;
-        final compSeries = controller.comparisonSeries;
+        final isNet = controller.chartViewMode.value == 'net';
+        final series = controller.effectiveRevenueSeries;
+        final compSeries = controller.effectiveComparisonSeries;
         final activeMethod = controller.selectedMethodFilter.value;
 
         final Color chartColor;
@@ -975,10 +1216,10 @@ class RevenueComparisonCard extends StatelessWidget {
           gap1Current = '${controller.rangeDays.value}d';
         }
 
-        final total = controller.primaryTotal;
-        final compTotal = controller.comparisonTotal;
-        final growthPct = controller.revenueGrowthPercentage;
-        final growthAbs = controller.revenueGrowthAbsolute;
+        final total = isNet ? controller.primaryNetRevenue : controller.primaryTotal;
+        final compTotal = isNet ? controller.comparisonNetRevenue : controller.comparisonTotal;
+        final growthPct = isNet ? controller.netRevenueGrowthPercentage : controller.revenueGrowthPercentage;
+        final growthAbs = isNet ? controller.netRevenueGrowthAbsolute : controller.revenueGrowthAbsolute;
         final isPosGrowth = growthAbs >= 0;
 
         final String totalValue = controller.isPriceHidden.value
@@ -1022,19 +1263,24 @@ class RevenueComparisonCard extends StatelessWidget {
               ? compSeries[selIdx]
               : null;
 
-          p1Str = controller.isPriceHidden.value
-              ? 'ETB ••••••'
-              : 'ETB ${NumberFormat('#,##0.00').format(selPoint?.value ?? 0)}';
-          p2Str = controller.isPriceHidden.value
-              ? 'ETB ••••••'
-              : 'ETB ${NumberFormat('#,##0.00').format(compPoint?.value ?? 0)}';
-
           final double val1 = selPoint?.value ?? 0;
           final double val2 = compPoint?.value ?? 0;
+
+          p1Str = controller.isPriceHidden.value
+              ? 'ETB ••••••'
+              : (val1 < 0
+                  ? '-ETB ${NumberFormat('#,##0.00').format(val1.abs())}'
+                  : 'ETB ${NumberFormat('#,##0.00').format(val1)}');
+          p2Str = controller.isPriceHidden.value
+              ? 'ETB ••••••'
+              : (val2 < 0
+                  ? '-ETB ${NumberFormat('#,##0.00').format(val2.abs())}'
+                  : 'ETB ${NumberFormat('#,##0.00').format(val2)}');
+
           diffVal = val1 - val2;
-          diffPct = val2 > 0
-              ? (diffVal / val2) * 100
-              : (val1 > 0 ? 100.0 : 0.0);
+          diffPct = val2.abs() > 0
+              ? (diffVal / val2.abs()) * 100
+              : (val1 != 0 ? 100.0 : 0.0);
           isPos = diffVal >= 0;
 
           date1 = selPoint != null
@@ -1493,7 +1739,7 @@ class _RevenueTopBar extends StatelessWidget {
     return Row(
       children: [
         Text(
-          'Gross Revenue',
+          'Revenue Analytics',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
@@ -1551,6 +1797,23 @@ class _RevenueTopBar extends StatelessWidget {
             padding: const EdgeInsets.all(6),
             constraints: const BoxConstraints(),
             splashRadius: 18,
+          ),
+        ),
+        const Spacer(),
+
+        FilledButton.icon(
+          onPressed: () => AddCostDialog.show(context, controller),
+          icon: const Icon(Iconsax.wallet_minus_copy, size: 15),
+          label: const Text('Add Cost'),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFEF4444),
+            foregroundColor: Colors.white,
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6.5),
+            textStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ],

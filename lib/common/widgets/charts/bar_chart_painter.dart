@@ -47,33 +47,92 @@ class BarChartPainter extends CustomPainter {
     final maxY2 = hasComparison
         ? comparisonPoints!.map((p) => p.value).fold<double>(0.0, math.max)
         : 0.0;
-    final maxY = math.max(maxY1, maxY2);
-    final effectiveMax = maxY > 0 ? maxY : 1.0;
+    final maxY = math.max(0.0, math.max(maxY1, maxY2));
+
+    final minY1 = points.isNotEmpty
+        ? points.map((p) => p.value).fold<double>(0.0, math.min)
+        : 0.0;
+    final minY2 = hasComparison
+        ? comparisonPoints!.map((p) => p.value).fold<double>(0.0, math.min)
+        : 0.0;
+    final minY = math.min(0.0, math.min(minY1, minY2));
+
+    final hasDeficit = minY < 0.0;
+    final totalSpan = math.max(maxY - minY, 1.0);
 
     const topPadding = 16.0;
-    const bottomPadding = 4.0;
+    final bottomPadding = hasDeficit ? 14.0 : 4.0;
     final usableHeight =
         math.max(size.height - topPadding - bottomPadding, 10.0);
 
-    // ── Background Faint Horizontal Grid Lines ──────────────────────────
+    // Baseline y-coordinate:
+    // When minY == 0, zeroFraction = 0, y0 is at the bottom (size.height - bottomPadding).
+    // When minY < 0, y0 is proportionally positioned above the bottom.
+    final zeroFraction = (0.0 - minY) / totalSpan;
+    final y0 = (size.height - bottomPadding) - (zeroFraction * usableHeight);
+
+    // ── Background Horizontal Grid Lines & Baselines ────────────────────
     final gridPaint = Paint()
       ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05)
       ..strokeWidth = 1.0;
 
-    for (int i = 1; i <= 3; i++) {
-      final y = size.height - bottomPadding - (usableHeight * (i / 4.0));
-      _drawDashedLine(canvas, Offset(0, y), Offset(size.width, y), gridPaint);
-    }
+    if (!hasDeficit) {
+      // Standard positive grid lines
+      for (int i = 1; i <= 3; i++) {
+        final y = size.height - bottomPadding - (usableHeight * (i / 4.0));
+        _drawDashedLine(canvas, Offset(0, y), Offset(size.width, y), gridPaint);
+      }
 
-    // Baseline
-    final baseLinePaint = Paint()
-      ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08)
-      ..strokeWidth = 1.0;
-    canvas.drawLine(
-      Offset(0, size.height - bottomPadding),
-      Offset(size.width, size.height - bottomPadding),
-      baseLinePaint,
-    );
+      // Bottom baseline
+      final baseLinePaint = Paint()
+        ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08)
+        ..strokeWidth = 1.0;
+      canvas.drawLine(
+        Offset(0, size.height - bottomPadding),
+        Offset(size.width, size.height - bottomPadding),
+        baseLinePaint,
+      );
+    } else {
+      // Mixed positive & negative deficit mode grid lines
+      // 1. Positive upper dashed line (if maxY > 0)
+      if (maxY > 0) {
+        final yPositiveMid = y0 - ((y0 - topPadding) * 0.5);
+        _drawDashedLine(canvas, Offset(0, yPositiveMid), Offset(size.width, yPositiveMid), gridPaint);
+      }
+      // 2. Negative lower dashed line
+      final yNegativeMid = y0 + ((size.height - bottomPadding - y0) * 0.5);
+      _drawDashedLine(canvas, Offset(0, yNegativeMid), Offset(size.width, yNegativeMid), gridPaint);
+
+      // 3. Subtle bottom boundary
+      final bottomBorderPaint = Paint()
+        ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.06)
+        ..strokeWidth = 1.0;
+      canvas.drawLine(
+        Offset(0, size.height - bottomPadding),
+        Offset(size.width, size.height - bottomPadding),
+        bottomBorderPaint,
+      );
+
+      // 4. Prominent Zero Baseline (Break-even line)
+      final zeroLinePaint = Paint()
+        ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.22)
+        ..strokeWidth = 1.2;
+      _drawDashedLine(canvas, Offset(0, y0), Offset(size.width, y0), zeroLinePaint);
+
+      // Small break-even "0" label on the left edge
+      final zeroTextPainter = TextPainter(
+        text: TextSpan(
+          text: '0',
+          style: TextStyle(
+            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.38),
+            fontSize: 8.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      zeroTextPainter.paint(canvas, Offset(3, y0 - zeroTextPainter.height - 2));
+    }
 
     final slotWidth = size.width / totalCount;
 
@@ -81,6 +140,8 @@ class BarChartPainter extends CustomPainter {
       // ── Comparative Paired Bars Mode ─────────────────────────────────
       final pairWidth = math.max(6.0, math.min(slotWidth * 0.82, 38.0));
       final subBarWidth = math.max(2.5, (pairWidth - 2.5) / 2.0);
+      const deficitColor1 = Color(0xFFEF4444);
+      const deficitColor2 = Color(0xFFF43F5E);
 
       for (int i = 0; i < totalCount; i++) {
         final p1 = i < points.length ? points[i] : null;
@@ -112,14 +173,9 @@ class BarChartPainter extends CustomPainter {
         final left1 = cx - (pairWidth / 2);
         final right1 = left1 + subBarWidth;
         if (p1 != null && p1.value > 0) {
-          final barHeight1 = (p1.value / effectiveMax) * usableHeight;
-          final barTop1 = size.height - bottomPadding - barHeight1;
-          final barRect1 = Rect.fromLTRB(
-            left1,
-            barTop1,
-            right1,
-            size.height - bottomPadding,
-          );
+          final barHeight1 = (p1.value / totalSpan) * usableHeight;
+          final barTop1 = y0 - barHeight1;
+          final barRect1 = Rect.fromLTRB(left1, barTop1, right1, y0);
           final rrect1 = RRect.fromRectAndCorners(
             barRect1,
             topLeft: const Radius.circular(3.0),
@@ -151,19 +207,50 @@ class BarChartPainter extends CustomPainter {
                 ..strokeWidth = 1.0,
             );
           }
+        } else if (p1 != null && p1.value < 0) {
+          // Negative sub-bar 1 (Cost > Revenue Deficit)
+          final barHeight1 = (p1.value.abs() / totalSpan) * usableHeight;
+          final barBottom1 = y0 + barHeight1;
+          final barRect1 = Rect.fromLTRB(left1, y0, right1, barBottom1);
+          final rrect1 = RRect.fromRectAndCorners(
+            barRect1,
+            bottomLeft: const Radius.circular(3.0),
+            bottomRight: const Radius.circular(3.0),
+          );
+
+          final gradient1 = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              deficitColor1.withValues(alpha: 0.95 * dimAlpha),
+              deficitColor1.withValues(alpha: 0.60 * dimAlpha),
+            ],
+          );
+
+          canvas.drawRRect(
+            rrect1,
+            Paint()
+              ..shader = gradient1.createShader(barRect1)
+              ..style = PaintingStyle.fill,
+          );
+
+          if (isSelected) {
+            canvas.drawRRect(
+              rrect1,
+              Paint()
+                ..color = Colors.white.withValues(alpha: isDark ? 0.9 : 0.8)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.0,
+            );
+          }
         } else {
           final zeroPaint = Paint()
             ..color = (isDark ? Colors.white30 : Colors.black26)
                 .withValues(alpha: (isAnySelected && !isSelected) ? 0.15 : 0.4);
           canvas.drawRRect(
             RRect.fromRectAndRadius(
-              Rect.fromLTRB(
-                left1,
-                size.height - bottomPadding - 2,
-                right1,
-                size.height - bottomPadding,
-              ),
-              const Radius.circular(1.5),
+              Rect.fromLTRB(left1, y0 - 1.2, right1, y0 + 1.2),
+              const Radius.circular(1.2),
             ),
             zeroPaint,
           );
@@ -173,14 +260,9 @@ class BarChartPainter extends CustomPainter {
         final left2 = right1 + 2.5;
         final right2 = left2 + subBarWidth;
         if (p2 != null && p2.value > 0) {
-          final barHeight2 = (p2.value / effectiveMax) * usableHeight;
-          final barTop2 = size.height - bottomPadding - barHeight2;
-          final barRect2 = Rect.fromLTRB(
-            left2,
-            barTop2,
-            right2,
-            size.height - bottomPadding,
-          );
+          final barHeight2 = (p2.value / totalSpan) * usableHeight;
+          final barTop2 = y0 - barHeight2;
+          final barRect2 = Rect.fromLTRB(left2, barTop2, right2, y0);
           final rrect2 = RRect.fromRectAndCorners(
             barRect2,
             topLeft: const Radius.circular(3.0),
@@ -212,19 +294,50 @@ class BarChartPainter extends CustomPainter {
                 ..strokeWidth = 1.0,
             );
           }
+        } else if (p2 != null && p2.value < 0) {
+          // Negative sub-bar 2 (Comparison period deficit)
+          final barHeight2 = (p2.value.abs() / totalSpan) * usableHeight;
+          final barBottom2 = y0 + barHeight2;
+          final barRect2 = Rect.fromLTRB(left2, y0, right2, barBottom2);
+          final rrect2 = RRect.fromRectAndCorners(
+            barRect2,
+            bottomLeft: const Radius.circular(3.0),
+            bottomRight: const Radius.circular(3.0),
+          );
+
+          final gradient2 = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              deficitColor2.withValues(alpha: 0.95 * dimAlpha),
+              deficitColor2.withValues(alpha: 0.60 * dimAlpha),
+            ],
+          );
+
+          canvas.drawRRect(
+            rrect2,
+            Paint()
+              ..shader = gradient2.createShader(barRect2)
+              ..style = PaintingStyle.fill,
+          );
+
+          if (isSelected) {
+            canvas.drawRRect(
+              rrect2,
+              Paint()
+                ..color = Colors.white.withValues(alpha: isDark ? 0.9 : 0.8)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.0,
+            );
+          }
         } else {
           final zeroPaint = Paint()
             ..color = (isDark ? Colors.white30 : Colors.black26)
                 .withValues(alpha: (isAnySelected && !isSelected) ? 0.15 : 0.4);
           canvas.drawRRect(
             RRect.fromRectAndRadius(
-              Rect.fromLTRB(
-                left2,
-                size.height - bottomPadding - 2,
-                right2,
-                size.height - bottomPadding,
-              ),
-              const Radius.circular(1.5),
+              Rect.fromLTRB(left2, y0 - 1.2, right2, y0 + 1.2),
+              const Radius.circular(1.2),
             ),
             zeroPaint,
           );
@@ -233,6 +346,7 @@ class BarChartPainter extends CustomPainter {
     } else {
       // ── Standard Single Series Mode ──────────────────────────────────
       final barWidth = math.max(2.5, math.min(slotWidth * 0.72, 28.0));
+      const deficitColor = Color(0xFFEF4444);
 
       for (int i = 0; i < points.length; i++) {
         final p = points[i];
@@ -246,7 +360,8 @@ class BarChartPainter extends CustomPainter {
         // Draw subtle selection guide behind active bar
         if (isSelected) {
           final guidePaint = Paint()
-            ..color = color.withValues(alpha: isDark ? 0.12 : 0.08);
+            ..color = (p.value < 0 ? deficitColor : color)
+                .withValues(alpha: isDark ? 0.12 : 0.08);
           canvas.drawRRect(
             RRect.fromRectAndRadius(
               Rect.fromLTRB(
@@ -261,21 +376,83 @@ class BarChartPainter extends CustomPainter {
           );
         }
 
-        final barHeight = (p.value / effectiveMax) * usableHeight;
-
-        if (p.value <= 0 || barHeight < 1.0) {
-          // Zero or near-zero pill indicator
+        if (p.value == 0) {
+          // Zero pill indicator resting on zero baseline
           final zeroPaint = Paint()
             ..color = (isDark ? Colors.white30 : Colors.black26)
                 .withValues(alpha: (isAnySelected && !isSelected) ? 0.15 : 0.4);
           canvas.drawRRect(
             RRect.fromRectAndRadius(
-              Rect.fromLTRB(
-                left,
-                size.height - bottomPadding - 2,
-                right,
-                size.height - bottomPadding,
+              Rect.fromLTRB(left, y0 - 1.2, right, y0 + 1.2),
+              const Radius.circular(1.2),
+            ),
+            zeroPaint,
+          );
+          continue;
+        }
+
+        if (p.value < 0) {
+          // ── Negative Bar (Deficit: Cost > Revenue) ─────────────────────
+          final barHeight = (p.value.abs() / totalSpan) * usableHeight;
+          if (barHeight < 1.5) {
+            final minDeficitPaint = Paint()
+              ..color = deficitColor.withValues(alpha: 0.8 * dimAlpha);
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(
+                Rect.fromLTRB(left, y0, right, y0 + 2.5),
+                const Radius.circular(1.2),
               ),
+              minDeficitPaint,
+            );
+            continue;
+          }
+
+          final barTop = y0;
+          final barBottom = y0 + barHeight;
+          final barRect = Rect.fromLTRB(left, barTop, right, barBottom);
+
+          final rrect = RRect.fromRectAndCorners(
+            barRect,
+            bottomLeft: const Radius.circular(3.5),
+            bottomRight: const Radius.circular(3.5),
+          );
+
+          final gradient = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              deficitColor.withValues(alpha: 0.95 * dimAlpha),
+              deficitColor.withValues(alpha: 0.60 * dimAlpha),
+            ],
+          );
+
+          final fillPaint = Paint()
+            ..shader = gradient.createShader(barRect)
+            ..style = PaintingStyle.fill;
+
+          canvas.drawRRect(rrect, fillPaint);
+
+          if (isSelected) {
+            canvas.drawRRect(
+              rrect,
+              Paint()
+                ..color = Colors.white.withValues(alpha: isDark ? 0.9 : 0.8)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.2,
+            );
+          }
+          continue;
+        }
+
+        // ── Positive Bar (Revenue / Profit) ─────────────────────────────
+        final barHeight = (p.value / totalSpan) * usableHeight;
+        if (barHeight < 1.0) {
+          final zeroPaint = Paint()
+            ..color = (isDark ? Colors.white30 : Colors.black26)
+                .withValues(alpha: (isAnySelected && !isSelected) ? 0.15 : 0.4);
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTRB(left, y0 - 2, right, y0),
               const Radius.circular(1.5),
             ),
             zeroPaint,
@@ -283,10 +460,10 @@ class BarChartPainter extends CustomPainter {
           continue;
         }
 
-        final barTop = size.height - bottomPadding - barHeight;
-        final barBottom = size.height - bottomPadding;
+        final barTop = y0 - barHeight;
+        final barBottom = y0;
 
-        if (showBreakdown && p.methodBreakdown.isNotEmpty && p.value > 0) {
+        if (showBreakdown && p.methodBreakdown.isNotEmpty) {
           // ── Stacked Bar by Payment Method ─────────────────────────────
           double currentBottom = barBottom;
           final entries = p.methodBreakdown.entries.toList();

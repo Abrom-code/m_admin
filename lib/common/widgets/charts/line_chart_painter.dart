@@ -70,6 +70,26 @@ class LineChartPainter extends CustomPainter {
       return Offset(dx.clamp(0.0, size.width), dy.clamp(0.0, size.height));
     }
 
+    // ── 0. Draw Zero Baseline if Data Crosses Zero (Deficit Mode) ─────
+    if (minY < 0 && maxY > 0) {
+      final zeroY = size.height - verticalPadding - ((0.0 - minY) / range) * usableHeight;
+      final zeroPaint = Paint()
+        ..color = (Colors.white).withValues(alpha: 0.20)
+        ..strokeWidth = 1.0;
+      const dashW = 4.0;
+      const dashS = 3.0;
+      double startX = horizontalPadding;
+      final endX = size.width - horizontalPadding;
+      while (startX < endX) {
+        canvas.drawLine(
+          Offset(startX, zeroY),
+          Offset(math.min(startX + dashW, endX), zeroY),
+          zeroPaint,
+        );
+        startX += dashW + dashS;
+      }
+    }
+
     // ── 1. Draw Comparison Curve (if present) ──────────────────────────
     if (hasComparison && comparisonPoints!.length >= 2) {
       final compOffsets = comparisonPoints!.map(toOffset).toList();
