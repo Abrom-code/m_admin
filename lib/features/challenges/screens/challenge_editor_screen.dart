@@ -527,6 +527,8 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
+                              _ReviewPolicySelectorBox(ctrl: _ctrl, isWide: isWide),
+                              const SizedBox(height: 16),
                               Obx(
                                 () => DropdownButtonFormField<String>(
                                   initialValue: _ctrl.status.value.isEmpty ? 'draft' : _ctrl.status.value.toLowerCase(),
@@ -779,6 +781,180 @@ class _StreamTab extends StatelessWidget {
     );
   }
 }
+
+// ── Review Policy Selector Box ───────────────────────────────────────────────
+
+class _ReviewPolicySelectorBox extends StatelessWidget {
+  const _ReviewPolicySelectorBox({required this.ctrl, this.isWide = false});
+
+  final ChallengeEditorController ctrl;
+  final bool isWide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final current = ctrl.reviewPolicy.value;
+      final immediateOption = _ReviewPolicyOption(
+        title: 'Immediate (On Submit)',
+        subtitle: 'Students can review questions and explanations right after finishing.',
+        icon: Icons.visibility_outlined,
+        isSelected: current == 'on_completion' || current == 'completed',
+        onTap: () => ctrl.reviewPolicy.value = 'on_completion',
+      );
+
+      final closedOption = _ReviewPolicyOption(
+        title: 'When Closed (At End)',
+        subtitle: 'Review is locked until round ends. Best for preventing answer leaks.',
+        icon: Icons.lock_clock_outlined,
+        isSelected: current == 'when_closed' || current == 'closed',
+        onTap: () => ctrl.reviewPolicy.value = 'when_closed',
+      );
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.assignment_turned_in_outlined, size: 15, color: AppColors.primary),
+              const SizedBox(width: 6),
+              const Text(
+                'Question Review Policy',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: (current == 'when_closed' || current == 'closed' ? AppColors.warning : AppColors.success)
+                      .withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  current == 'when_closed' || current == 'closed' ? 'LOCKED TILL END' : 'INSTANT REVIEW',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: current == 'when_closed' || current == 'closed' ? AppColors.warning : AppColors.success,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (isWide)
+            Row(
+              children: [
+                Expanded(child: immediateOption),
+                const SizedBox(width: 12),
+                Expanded(child: closedOption),
+              ],
+            )
+          else ...[
+            immediateOption,
+            const SizedBox(height: 8),
+            closedOption,
+          ],
+        ],
+      );
+    });
+  }
+}
+
+class _ReviewPolicyOption extends StatelessWidget {
+  const _ReviewPolicyOption({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = AppColors.primary;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? activeColor.withValues(alpha: dark ? 0.15 : 0.08)
+              : (dark ? Colors.white.withValues(alpha: 0.03) : const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? activeColor
+                : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? activeColor.withValues(alpha: 0.15)
+                    : (dark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFE2E8F0)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                size: 18,
+                color: isSelected ? activeColor : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: isSelected ? activeColor : (dark ? Colors.white : Colors.black87),
+                        ),
+                      ),
+                      if (isSelected) ...[
+                        const SizedBox(width: 6),
+                        Icon(Icons.check_circle_rounded, size: 14, color: activeColor),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 // ── Question Tile (No borders around choices, correct answer in teal) ─────────
 

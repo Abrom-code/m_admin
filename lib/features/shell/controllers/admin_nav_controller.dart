@@ -40,7 +40,7 @@ abstract final class AdminNavPage {
   static const int settings = 11;
 }
 
-/// Drives the shell's sidebar and its `IndexedStack`.
+/// Drives the shell's sidebar and its lazy tab container.
 class AdminNavController extends GetxController {
   static AdminNavController get instance => Get.find();
 
@@ -83,20 +83,13 @@ class AdminNavController extends GetxController {
     super.onInit();
     if (Get.isRegistered<AdminSessionService>()) {
       final session = AdminSessionService.instance;
-      if (session.isAuthenticated) {
-        loadReportedCount();
-      }
       ever(session.admin, (admin) {
-        if (!admin.isEmpty) {
-          loadReportedCount();
-        } else {
+        if (admin.isEmpty) {
           reportedQuestionCount.value = 0;
           pendingPaymentCount.value = 0;
           unreadAlertCount.value = 0;
         }
       });
-    } else {
-      loadReportedCount();
     }
   }
 
@@ -111,6 +104,11 @@ class AdminNavController extends GetxController {
     if (index < 0 || index >= items.length) return;
     FocusManager.instance.primaryFocus?.unfocus();
     selectedIndex.value = index;
+
+    // Only query reported count when user visits Reported Questions tab
+    if (index == AdminNavPage.reportedQuestions) {
+      loadReportedCount();
+    }
   }
 
   int badgeFor(AdminNavBadge? source) {

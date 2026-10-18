@@ -246,6 +246,70 @@ class ChallengeCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(width: 4),
+
+                // Review Policy Badge
+                Tooltip(
+                  message: challenge.canReviewWhenClosed
+                      ? 'Review Policy: Locked until challenge closes'
+                      : 'Review Policy: Immediate review on completion',
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: (challenge.canReviewWhenClosed ? AppColors.warning : AppColors.success).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: (challenge.canReviewWhenClosed ? AppColors.warning : AppColors.success).withValues(alpha: 0.35),
+                        width: 0.6,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          challenge.canReviewWhenClosed ? Icons.lock_clock_outlined : Icons.visibility_outlined,
+                          size: 9.5,
+                          color: challenge.canReviewWhenClosed ? AppColors.warning : AppColors.success,
+                        ),
+                        const SizedBox(width: 2.5),
+                        Text(
+                          challenge.canReviewWhenClosed ? 'At End' : 'Immediate',
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w700,
+                            color: challenge.canReviewWhenClosed ? AppColors.warning : AppColors.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                if (challenge.isPremium) ...[
+                  const SizedBox(width: 4),
+                  Tooltip(
+                    message: 'Premium Only Challenge',
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4), width: 0.6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Iconsax.crown_copy, size: 9, color: AppColors.warning),
+                          SizedBox(width: 2),
+                          Text(
+                            'PRO',
+                            style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: AppColors.warning),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
 
                 const Spacer(),
 

@@ -129,52 +129,62 @@ class DashboardController extends GetxController {
     }
   }
 
+  final chartsLoaded = false.obs;
+
   Future<void> load() async {
     try {
       isLoading.value = true;
-      isChartLoading.value = true;
       errorMessage.value = null;
+
+      final s = await _repo.fetchStats();
+      stats.value = s;
+
+      pendingQuestionReportsCount.value = s.reportedQuestionsCount;
+      noteReviewersCount.value = s.noteReviewersCount;
+      noteReviewsCount.value = s.noteReviewsCount;
+
+      // Keep the sidebar badge consistent with the KPI stat
+      if (Get.isRegistered<AdminNavController>()) {
+        AdminNavController.instance.pendingPaymentCount.value = s.pendingPayments;
+        AdminNavController.instance.reportedQuestionCount.value = s.reportedQuestionsCount;
+      }
+    } catch (e) {
+      errorMessage.value = AppExceptionHandler.handle(e).message;
+    } finally {
+      isLoading.value = false;
+    }
+
+    // Lazily load chart analytics asynchronously without blocking primary UI
+    ensureChartsLoaded();
+  }
+
+  Future<void> ensureChartsLoaded({bool force = false}) async {
+    if (chartsLoaded.value && !force) return;
+    try {
+      isChartLoading.value = true;
 
       final range = customDateRange.value;
       final Future<List<DailyPoint>> signupsFuture = range != null
           ? _repo.fetchSignupsDaily(null, range.start, range.end)
           : _repo.fetchSignupsDaily(rangeDays.value);
 
-      // Fan out all queries in parallel.
       final results = await Future.wait([
-        _repo.fetchStats(),
         signupsFuture,
         _repo.fetchSubjectTestCounts(),
         _repo.fetchSubscriptionFunnel(),
         _repo.fetchStreamSplit(),
-        loadQuestionReports(),
         _repo.fetchHourlySignups(filter: hourlyFilter.value),
       ]);
 
-      stats.value = results[0] as DashboardStats;
-      signupSeries.value = results[1] as List<DailyPoint>;
-      subjectTestCounts.value = results[2] as List<SubjectTestCount>;
-      subscriptionFunnel.value = results[3] as List<FunnelPoint>;
-      streamSplit.value = results[4] as List<StreamPoint>;
-      hourlySignups.value = results[6] as List<HourlySignupPoint>;
-
-      if (stats.value != null) {
-        pendingQuestionReportsCount.value = stats.value!.reportedQuestionsCount;
-        noteReviewersCount.value = stats.value!.noteReviewersCount;
-        noteReviewsCount.value = stats.value!.noteReviewsCount;
-      }
-
-      // Keep the sidebar badge consistent with the KPI stat so they always
-      // show the same number regardless of which refreshed last.
-      final pending = stats.value?.pendingPayments ?? 0;
-      if (Get.isRegistered<AdminNavController>()) {
-        AdminNavController.instance.pendingPaymentCount.value = pending;
-        AdminNavController.instance.reportedQuestionCount.value = pendingQuestionReportsCount.value;
-      }
+      signupSeries.value = results[0] as List<DailyPoint>;
+      subjectTestCounts.value = results[1] as List<SubjectTestCount>;
+      subscriptionFunnel.value = results[2] as List<FunnelPoint>;
+      streamSplit.value = results[3] as List<StreamPoint>;
+      hourlySignups.value = results[4] as List<HourlySignupPoint>;
+      chartsLoaded.value = true;
     } catch (e) {
-      errorMessage.value = AppExceptionHandler.handle(e).message;
+      debugPrint('[DashboardController] Error loading charts: $e');
     } finally {
-      isLoading.value = false;
       isChartLoading.value = false;
     }
   }

@@ -124,18 +124,20 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
     }
   }
 
-  Future<void> _purgeRejected() async {
-    if (_stats == null || _stats!.rejectedReceiptsCount == 0) {
-      SnackbarHelper.info('Clean', 'There are no rejected receipts in the database.');
+  Future<void> _purgeExpiredRejectedScreenshots() async {
+    if (_stats == null || _stats!.rejectedScreenshotsOlderThan3Days == 0) {
+      SnackbarHelper.info('Clean', 'There are no rejected screenshots older than 3 days.');
       return;
     }
 
+    final eligibleCount = _stats!.rejectedScreenshotsOlderThan3Days;
+    final spaceMb = (eligibleCount * 0.25).toStringAsFixed(1);
     final confirmed = await _confirmDialog(
-      title: 'Purge All Rejected Receipts?',
+      title: 'Prune Expired Rejected Screenshots?',
       message:
-          'This will permanently delete ${_stats!.rejectedReceiptsCount} rejected receipt(s) and their storage screenshots from the database.\n\n'
-          'This action cannot be undone.',
-      confirmLabel: 'Purge Rejected Receipts',
+          'This will delete $eligibleCount screenshot image file(s) (~$spaceMb MB) from Cloudflare R2 storage.\n\n'
+          'SAFE LIFECYCLE: Database rows, user IDs, amounts, rejection reasons, and dispute logs will remain 100% intact in PostgreSQL (only receipt_path and receipt_url will be cleared).',
+      confirmLabel: 'Prune $eligibleCount Screenshot(s)',
       color: AppColors.error,
     );
 
@@ -143,15 +145,15 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
 
     setState(() {
       _isProcessing = true;
-      _processingMessage = 'Purging rejected receipts from database and storage...';
+      _processingMessage = 'Pruning 3-day expired rejected screenshots from Cloudflare R2...';
     });
 
     try {
-      final count = await _controller.purgeAllRejected();
-      SnackbarHelper.success('Purged', 'Removed $count rejected receipt(s) and storage files.');
+      final count = await _controller.purgeRejectedScreenshotsOlderThan3Days();
+      SnackbarHelper.success('Storage Reclaimed', 'Pruned $count expired screenshot file(s) while retaining database audit records.');
       await _loadStats();
     } catch (e) {
-      SnackbarHelper.error('Error', 'Failed to purge rejected receipts: $e');
+      SnackbarHelper.error('Error', 'Failed to prune expired screenshots: $e');
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
@@ -315,11 +317,13 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
                   ),
                   const SizedBox(height: 8),
                   _StatCard(
-                    label: 'Rejected in Database',
-                    value: NumberFormat('#,##0').format(_stats!.rejectedReceiptsCount),
+                    label: 'Rejected > 3 Days',
+                    value: NumberFormat('#,##0').format(_stats!.rejectedScreenshotsOlderThan3Days),
                     icon: Iconsax.close_circle_copy,
                     color: AppColors.error,
-                    subtitle: _stats!.rejectedReceiptsCount > 0 ? 'Purgeable' : 'Clean',
+                    subtitle: _stats!.rejectedScreenshotsOlderThan3Days > 0
+                        ? '~${(_stats!.rejectedScreenshotsOlderThan3Days * 0.25).toStringAsFixed(1)} MB'
+                        : 'Clean',
                   ),
                 ] else ...[
                   Row(
@@ -346,11 +350,13 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: _StatCard(
-                          label: 'Rejected in DB',
-                          value: NumberFormat('#,##0').format(_stats!.rejectedReceiptsCount),
+                          label: 'Rejected > 3 Days',
+                          value: NumberFormat('#,##0').format(_stats!.rejectedScreenshotsOlderThan3Days),
                           icon: Iconsax.close_circle_copy,
                           color: AppColors.error,
-                          subtitle: _stats!.rejectedReceiptsCount > 0 ? 'Purgeable' : 'Clean',
+                          subtitle: _stats!.rejectedScreenshotsOlderThan3Days > 0
+                              ? '~${(_stats!.rejectedScreenshotsOlderThan3Days * 0.25).toStringAsFixed(1)} MB'
+                              : 'Clean',
                         ),
                       ),
                     ],
@@ -414,18 +420,18 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
                 ),
                 const SizedBox(height: 8),
 
-                // ── Action 3: Purge remaining rejected receipts ───────────────
+                // ── Action 3: Prune 3-day expired rejected screenshots ────────
                 _ActionTile(
                   icon: Iconsax.close_circle_copy,
                   iconColor: AppColors.error,
-                  title: 'Purge All Rejected Receipts',
+                  title: 'Prune Expired Rejected Screenshots (> 3 Days Old)',
                   subtitle:
-                      'Permanently deletes leftover rejected receipt rows and their screenshots from the database.',
-                  buttonLabel: 'Purge Rejected',
+                      'Deletes storage files older than 3 days while keeping PostgreSQL audit trail, dispute history, and rate-limiting logs 100% intact.',
+                  buttonLabel: 'Prune > 3 Days',
                   buttonColor: AppColors.error,
                   isCompact: isCompact,
-                  enabled: !_isProcessing && (_stats?.rejectedReceiptsCount ?? 0) > 0,
-                  onTap: _purgeRejected,
+                  enabled: !_isProcessing && (_stats?.rejectedScreenshotsOlderThan3Days ?? 0) > 0,
+                  onTap: _purgeExpiredRejectedScreenshots,
                 ),
                 const SizedBox(height: AppSizes.md),
 

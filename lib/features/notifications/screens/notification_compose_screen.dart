@@ -1,14 +1,17 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
-import 'package:intl/intl.dart';
+import 'package:m_admin/data/repositories/challenge_repository.dart';
 import 'package:m_admin/data/repositories/users_repository.dart';
+import 'package:m_admin/features/challenges/models/challenge_model.dart';
 import 'package:m_admin/features/notifications/controllers/notifications_controller.dart';
-import 'package:m_admin/features/notifications/models/admin_notification_model.dart';
+import 'package:m_admin/features/notifications/services/admin_notification_link_parser.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
+import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 import 'package:m_admin/utils/validators/validators.dart';
 
 class NotificationComposeScreen extends StatefulWidget {
@@ -21,18 +24,17 @@ class NotificationComposeScreen extends StatefulWidget {
       _NotificationComposeScreenState();
 }
 
-class _NotificationComposeScreenState extends State<NotificationComposeScreen>
-    with SingleTickerProviderStateMixin {
+class _NotificationComposeScreenState extends State<NotificationComposeScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
   final _bodyCtrl = TextEditingController();
   final _userSearchCtrl = TextEditingController();
   String _type = 'announcement';
   String _audience = 'all';
-  late TabController _tabController;
 
-  // User-search state
-  final _usersRepo = UsersRepository();
+  // User-search state (lazily instantiated so no Supabase call occurs on init)
+  UsersRepository? _usersRepo;
+  UsersRepository get usersRepo => _usersRepo ??= UsersRepository();
   List<AdminUserModel> _userResults = [];
   AdminUserModel? _selectedUser;
   bool _isSearching = false;
@@ -49,7 +51,7 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
     'all': 'All students',
     'stream:Natural': 'Natural stream',
     'stream:Social': 'Social stream',
-    'status:active': 'Active (premium) users',
+    'status:active': 'Active (premium)',
     'status:inactive': 'Inactive users',
     'status:pending': 'Pending users',
     'user': 'Specific user',
@@ -58,16 +60,59 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _titleCtrl.addListener(_onTextChanged);
+    _bodyCtrl.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _titleCtrl.removeListener(_onTextChanged);
+    _bodyCtrl.removeListener(_onTextChanged);
     _titleCtrl.dispose();
     _bodyCtrl.dispose();
     _userSearchCtrl.dispose();
-    _tabController.dispose();
     super.dispose();
+  }
+
+  void _insertTag(String prefix, String suffix, [String defaultText = '']) {
+    final text = _bodyCtrl.text;
+    final selection = _bodyCtrl.selection;
+    if (selection.isValid && selection.start >= 0 && selection.end >= selection.start) {
+      final selectedText = text.substring(selection.start, selection.end);
+      final inner = selectedText.isNotEmpty ? selectedText : defaultText;
+      final newText = text.replaceRange(selection.start, selection.end, '$prefix$inner$suffix');
+      final newCursor = selection.start + prefix.length + inner.length + suffix.length;
+      _bodyCtrl.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newCursor),
+      );
+    } else {
+      final newText = '$text$prefix$defaultText$suffix';
+      _bodyCtrl.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newText.length),
+      );
+    }
+    setState(() {});
+  }
+
+  Future<void> _showChallengePickerDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => _ChallengePickerModal(
+        onSelect: (challenge) {
+          _insertTag(
+            '[a href="challenge:${challenge.id}"]',
+            '[/a]',
+            'Join Challenge',
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _searchUsers(String query) async {
@@ -77,7 +122,7 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
     }
     setState(() => _isSearching = true);
     try {
-      final results = await _usersRepo.fetchUsers(search: query, pageSize: 8);
+      final results = await usersRepo.fetchUsers(search: query, pageSize: 8);
       if (mounted) setState(() => _userResults = results.users);
     } finally {
       if (mounted) setState(() => _isSearching = false);
@@ -91,12 +136,17 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
     return _audience;
   }
 
+  String get _audienceLabel {
+    if (_audience == 'user' && _selectedUser != null) {
+      return _selectedUser!.displayName;
+    }
+    return _audienceOptions[_audience] ?? _audience;
+  }
+
   Future<void> _submit() async {
     if (widget.controller.isSending.value) return;
     if (_audience == 'user' && _selectedUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a user first.')),
-      );
+      SnackbarHelper.warning('User required', 'Please select a specific user to target.');
       return;
     }
     if (!_formKey.currentState!.validate()) return;
@@ -109,16 +159,23 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
     );
 
     if (ok && mounted) {
-      _titleCtrl.clear();
-      _bodyCtrl.clear();
-      _userSearchCtrl.clear();
-      setState(() {
-        _type = 'announcement';
-        _audience = 'all';
-        _selectedUser = null;
-        _userResults = [];
-      });
-      _tabController.animateTo(1);
+      SnackbarHelper.success(
+        'Notification Sent',
+        'Notification successfully sent to $_audienceLabel',
+      );
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop(true);
+      } else {
+        _titleCtrl.clear();
+        _bodyCtrl.clear();
+        _userSearchCtrl.clear();
+        setState(() {
+          _type = 'announcement';
+          _audience = 'all';
+          _selectedUser = null;
+          _userResults = [];
+        });
+      }
     }
   }
 
@@ -128,23 +185,13 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: const Text('Compose Notification'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Iconsax.edit_2_copy, size: 20), text: 'Compose'),
-            Tab(icon: Icon(Iconsax.notification_copy, size: 20), text: 'Sent'),
-          ],
-        ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [_buildComposeTab(dark), _buildSentTab()],
-      ),
+      body: _buildComposeTab(dark),
     );
   }
 
@@ -165,113 +212,61 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
                     children: [
                       Row(
                         children: [
-                          Container(
-                            height: 40,
-                            width: 40,
-                            decoration: BoxDecoration(
-                              color: AppColors.info.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(
-                                AppSizes.borderRadiusMd,
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: _type,
+                              decoration: const InputDecoration(
+                                labelText: 'Type',
+                                prefixIcon: Icon(Iconsax.category_copy, size: 20),
                               ),
-                            ),
-                            child: const Icon(
-                              Iconsax.notification_copy,
-                              color: AppColors.info,
-                              size: 20,
+                              items: [
+                                for (final e in _types.entries)
+                                  DropdownMenuItem(
+                                    value: e.key,
+                                    child: Text(
+                                      e.value,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                              onChanged: (v) => setState(() => _type = v ?? _type),
                             ),
                           ),
                           const SizedBox(width: AppSizes.sm),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Compose notification',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: _audienceOptions.containsKey(_audience)
+                                  ? _audience
+                                  : 'all',
+                              decoration: const InputDecoration(
+                                labelText: 'Audience',
+                                prefixIcon: Icon(Iconsax.people_copy, size: 20),
+                              ),
+                              items: [
+                                for (final e in _audienceOptions.entries)
+                                  DropdownMenuItem(
+                                    value: e.key,
+                                    child: Text(
+                                      e.value,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  'Send a push notification to students',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
                               ],
+                              onChanged: (v) => setState(() {
+                                _audience = v ?? _audience;
+                                if (_audience != 'user') {
+                                  _selectedUser = null;
+                                  _userResults = [];
+                                  _userSearchCtrl.clear();
+                                }
+                              }),
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: AppSizes.spaceBtwItems),
-                      const Divider(height: 1),
-                      const SizedBox(height: AppSizes.spaceBtwItems),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final useColumn = constraints.maxWidth < 500;
-
-                          final typeField = DropdownButtonFormField<String>(
-                            initialValue: _type,
-                            decoration: const InputDecoration(
-                              labelText: 'Type',
-                              prefixIcon: Icon(Iconsax.category_copy, size: 20),
-                            ),
-                            items: [
-                              for (final e in _types.entries)
-                                DropdownMenuItem(
-                                  value: e.key,
-                                  child: Text(e.value),
-                                ),
-                            ],
-                            onChanged: (v) =>
-                                setState(() => _type = v ?? _type),
-                          );
-
-                          final audienceField = DropdownButtonFormField<String>(
-                            initialValue:
-                                _audienceOptions.containsKey(_audience)
-                                ? _audience
-                                : 'all',
-                            decoration: const InputDecoration(
-                              labelText: 'Audience',
-                              prefixIcon: Icon(Iconsax.people_copy, size: 20),
-                            ),
-                            items: [
-                              for (final e in _audienceOptions.entries)
-                                DropdownMenuItem(
-                                  value: e.key,
-                                  child: Text(e.value),
-                                ),
-                            ],
-                            onChanged: (v) => setState(() {
-                              _audience = v ?? _audience;
-                              if (_audience != 'user') {
-                                _selectedUser = null;
-                                _userResults = [];
-                                _userSearchCtrl.clear();
-                              }
-                            }),
-                          );
-
-                          if (useColumn) {
-                            return Column(
-                              children: [
-                                typeField,
-                                const SizedBox(height: AppSizes.spaceBtwItems),
-                                audienceField,
-                              ],
-                            );
-                          }
-
-                          return Row(
-                            children: [
-                              Expanded(child: typeField),
-                              const SizedBox(width: AppSizes.md),
-                              Expanded(child: audienceField),
-                            ],
-                          );
-                        },
                       ),
                       // User picker — visible only when audience = 'user'
                       if (_audience == 'user') ...[
@@ -362,19 +357,37 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
                             : 'Title is required',
                       ),
                       const SizedBox(height: AppSizes.spaceBtwItems),
+                      _QuickInsertTagToolbar(
+                        onInsertChallenge: _showChallengePickerDialog,
+                        onInsertPlayStore: () => _insertTag(
+                          '[a href="https://play.google.com/store/apps/details?id=com.abopia.matricet"]',
+                          '[/a]',
+                          'Update MatricET',
+                        ),
+                        onInsertTelegramChannel: () => _insertTag(
+                          '[a href="https://t.me/MatricET"]',
+                          '[/a]',
+                          'Join Channel',
+                        ),
+                        onInsertTelegramSupport: () => _insertTag(
+                          '[a href="https://t.me/matricetbot"]',
+                          '[/a]',
+                          'Contact Support',
+                        ),
+                        onFormatBold: () => _insertTag('[b]', '[/b]', 'bold text'),
+                        onFormatItalic: () => _insertTag('[i]', '[/i]', 'italic text'),
+                        onFormatUnderline: () => _insertTag('[u]', '[/u]', 'underlined text'),
+                      ),
+                      const SizedBox(height: AppSizes.xs),
                       TextFormField(
                         controller: _bodyCtrl,
-                        maxLines: 5,
-                        minLines: 3,
+                        minLines: 8,
+                        maxLines: 16,
                         textCapitalization: TextCapitalization.sentences,
                         decoration: const InputDecoration(
-                          labelText: 'Message',
-                          hintText: 'Enter notification message',
+                          labelText: 'Message Body',
+                          hintText: 'Enter notification message (supports [b]bold[/b], links, etc.)...',
                           alignLabelWithHint: true,
-                          prefixIcon: Padding(
-                            padding: EdgeInsets.only(bottom: 60),
-                            child: Icon(Iconsax.message_text_copy, size: 20),
-                          ),
                         ),
                         validator: (v) =>
                             AppValidator.validateEmptyText('Message', v) == null
@@ -383,6 +396,13 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: AppSizes.spaceBtwItems),
+                _LiveStudentPreviewCard(
+                  title: _titleCtrl.text,
+                  body: _bodyCtrl.text,
+                  type: _type,
+                  audience: _effectiveAudience,
                 ),
                 const SizedBox(height: AppSizes.spaceBtwItems),
                 Container(
@@ -420,8 +440,11 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
                 ),
                 const SizedBox(height: AppSizes.spaceBtwSections),
                 Obx(
-                  () => Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  () => Wrap(
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: AppSizes.sm,
+                    runSpacing: AppSizes.sm,
                     children: [
                       OutlinedButton(
                         onPressed: widget.controller.isSending.value
@@ -438,11 +461,10 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
                                 });
                               },
                         style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(120, 44),
+                          minimumSize: const Size(110, 44),
                         ),
                         child: const Text('Clear'),
                       ),
-                      const SizedBox(width: AppSizes.sm),
                       ElevatedButton.icon(
                         onPressed: widget.controller.isSending.value
                             ? null
@@ -464,7 +486,7 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
                         label: Text(
                           widget.controller.isSending.value
                               ? 'Sending...'
-                              : 'Send',
+                              : 'Send Notification',
                         ),
                       ),
                     ],
@@ -474,141 +496,6 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen>
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSentTab() {
-    return Obx(() {
-      if (widget.controller.isLoading.value && widget.controller.rows.isEmpty) {
-        return const Center(child: CircularProgressIndicator());
-      }
-
-      if (widget.controller.rows.isEmpty) {
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Iconsax.notification_bing_copy,
-                size: 64,
-                color: AppColors.darkGrey.withValues(alpha: 0.5),
-              ),
-              const SizedBox(height: AppSizes.md),
-              const Text(
-                'No notifications sent yet',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-              ),
-            ],
-          ),
-        );
-      }
-
-      return ListView.separated(
-        padding: const EdgeInsets.all(AppSizes.md),
-        itemCount: widget.controller.rows.length,
-        separatorBuilder: (context, index) =>
-            const SizedBox(height: AppSizes.sm),
-        itemBuilder: (context, index) {
-          final notification = widget.controller.rows[index];
-          return _NotificationCard(notification: notification);
-        },
-      );
-    });
-  }
-}
-
-class _NotificationCard extends StatelessWidget {
-  const _NotificationCard({required this.notification});
-
-  final AdminNotificationModel notification;
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = AppHelperFunctions.isDark(context);
-
-    final (label, color) = switch (notification.type) {
-      'announcement' => ('Announcement', AppColors.info),
-      'new_content' => ('New content', AppColors.success),
-      'payment' => ('Payment', AppColors.warning),
-      _ => (notification.type, AppColors.darkGrey),
-    };
-
-    return Container(
-      padding: const EdgeInsets.all(AppSizes.md),
-      decoration: BoxDecoration(
-        color: dark ? AppColors.darkCard : AppColors.white,
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
-        border: Border.all(
-          color: dark
-              ? AppColors.darkGrey.withValues(alpha: 0.3)
-              : AppColors.grey.withValues(alpha: 0.2),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            spreadRadius: -2,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                ),
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSizes.xs),
-              Expanded(
-                child: Text(
-                  notification.audienceLabel,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-              if (notification.createdAt != null)
-                Text(
-                  DateFormat('MMM d, HH:mm').format(notification.createdAt!),
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSizes.xs),
-          Text(
-            notification.title,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: AppSizes.xs),
-          Text(
-            notification.body,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary,
-            ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
       ),
     );
   }
@@ -773,3 +660,630 @@ class _UserResultTile extends StatelessWidget {
     );
   }
 }
+
+// ── Quick-Insert Tag Toolbar & Helper Widgets ─────────────────────────────────
+
+class _QuickInsertTagToolbar extends StatelessWidget {
+  const _QuickInsertTagToolbar({
+    required this.onInsertChallenge,
+    required this.onInsertPlayStore,
+    required this.onInsertTelegramChannel,
+    required this.onInsertTelegramSupport,
+    required this.onFormatBold,
+    required this.onFormatItalic,
+    required this.onFormatUnderline,
+  });
+
+  final VoidCallback onInsertChallenge;
+  final VoidCallback onInsertPlayStore;
+  final VoidCallback onInsertTelegramChannel;
+  final VoidCallback onInsertTelegramSupport;
+  final VoidCallback onFormatBold;
+  final VoidCallback onFormatItalic;
+  final VoidCallback onFormatUnderline;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Iconsax.magicpen_copy, size: 14, color: AppColors.primary),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                'Quick Tags & Link Actions',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: dark ? Colors.white70 : AppColors.textSecondary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _ToolbarChip(
+                label: 'Challenge',
+                icon: Iconsax.cup_copy,
+                color: const Color(0xFFE65100),
+                onTap: onInsertChallenge,
+                tooltip: 'Select active/upcoming challenge & insert link',
+              ),
+              const SizedBox(width: 6),
+              _ToolbarChip(
+                label: 'Play Store',
+                icon: Iconsax.shop_copy,
+                color: const Color(0xFF2E7D32),
+                onTap: onInsertPlayStore,
+                tooltip: 'Insert MatricET Google Play Store link',
+              ),
+              const SizedBox(width: 6),
+              _ToolbarChip(
+                label: 'Telegram Channel',
+                icon: Iconsax.send_2_copy,
+                color: const Color(0xFF0097A7),
+                onTap: onInsertTelegramChannel,
+                tooltip: 'Insert official MatricET Telegram channel link',
+              ),
+              const SizedBox(width: 6),
+              _ToolbarChip(
+                label: 'Telegram Support',
+                icon: Iconsax.message_question_copy,
+                color: const Color(0xFF0288D1),
+                onTap: onInsertTelegramSupport,
+                tooltip: 'Insert Telegram bot support link',
+              ),
+              const SizedBox(width: 8),
+              Container(
+                height: 18,
+                width: 1,
+                color: dark ? Colors.white24 : Colors.black12,
+              ),
+              const SizedBox(width: 8),
+              _FormatBtn(
+                label: 'B',
+                isBold: true,
+                onTap: onFormatBold,
+                tooltip: 'Bold: [b]text[/b]',
+              ),
+              const SizedBox(width: 4),
+              _FormatBtn(
+                label: 'I',
+                isItalic: true,
+                onTap: onFormatItalic,
+                tooltip: 'Italic: [i]text[/i]',
+              ),
+              const SizedBox(width: 4),
+              _FormatBtn(
+                label: 'U',
+                isUnderline: true,
+                onTap: onFormatUnderline,
+                tooltip: 'Underline: [u]text[/u]',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+
+class _ToolbarChip extends StatelessWidget {
+  const _ToolbarChip({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.tooltip,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final chip = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (tooltip != null) {
+      return Tooltip(message: tooltip, child: chip);
+    }
+    return chip;
+  }
+}
+
+class _FormatBtn extends StatelessWidget {
+  const _FormatBtn({
+    required this.label,
+    required this.onTap,
+    this.isBold = false,
+    this.isItalic = false,
+    this.isUnderline = false,
+    this.tooltip,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool isBold;
+  final bool isItalic;
+  final bool isUnderline;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final btn = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        width: 26,
+        height: 25,
+        decoration: BoxDecoration(
+          color: dark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: dark ? Colors.white24 : Colors.black12),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              fontStyle: isItalic ? FontStyle.italic : FontStyle.normal,
+              decoration: isUnderline
+                  ? TextDecoration.underline
+                  : TextDecoration.none,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (tooltip != null) {
+      return Tooltip(message: tooltip, child: btn);
+    }
+    return btn;
+  }
+}
+
+class _ChallengePickerModal extends StatefulWidget {
+  const _ChallengePickerModal({required this.onSelect});
+
+  final ValueChanged<LeaderboardChallengeModel> onSelect;
+
+  @override
+  State<_ChallengePickerModal> createState() => _ChallengePickerModalState();
+}
+
+class _ChallengePickerModalState extends State<_ChallengePickerModal> {
+  final _repo = ChallengeRepository();
+  bool _isLoading = true;
+  List<LeaderboardChallengeModel> _challenges = [];
+  String _filter = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final list = await _repo.fetchChallenges(pageSize: 30);
+      if (mounted) {
+        setState(() {
+          _challenges = list;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final filtered = _filter.isEmpty
+        ? _challenges
+        : _challenges
+            .where((c) => c.title.toLowerCase().contains(_filter.toLowerCase()))
+            .toList();
+
+    return AlertDialog(
+      backgroundColor: dark ? AppColors.darkCard : AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
+      ),
+      title: Row(
+        children: [
+          const Icon(Iconsax.cup_copy, color: AppColors.warning, size: 22),
+          const SizedBox(width: AppSizes.sm),
+          const Expanded(
+            child: Text(
+              'Select Challenge',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 20),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 480,
+        height: 380,
+        child: Column(
+          children: [
+            TextField(
+              decoration: const InputDecoration(
+                hintText: 'Search challenge by title...',
+                prefixIcon: Icon(Iconsax.search_normal_copy, size: 18),
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _filter = v.trim()),
+            ),
+            const SizedBox(height: AppSizes.sm),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : filtered.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No challenges found',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (context, i) {
+                            final c = filtered[i];
+                            return ListTile(
+                              dense: true,
+                              title: Text(
+                                c.title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              subtitle: Text(
+                                'Status: ${c.status} • ${c.durationMinutes}m',
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              trailing: const Icon(Icons.chevron_right, size: 18),
+                              onTap: () {
+                                widget.onSelect(c);
+                                Navigator.of(context).pop();
+                              },
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Live Student Mobile Preview Card ──────────────────────────────────────────
+
+class _LiveStudentPreviewCard extends StatefulWidget {
+  const _LiveStudentPreviewCard({
+    required this.title,
+    required this.body,
+    required this.type,
+    required this.audience,
+  });
+
+  final String title;
+  final String body;
+  final String type;
+  final String audience;
+
+  @override
+  State<_LiveStudentPreviewCard> createState() =>
+      _LiveStudentPreviewCardState();
+}
+
+class _LiveStudentPreviewCardState extends State<_LiveStudentPreviewCard> {
+  final List<TapGestureRecognizer> _recognizers = [];
+
+  @override
+  void dispose() {
+    _clearRecognizers();
+    super.dispose();
+  }
+
+  void _clearRecognizers() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _clearRecognizers();
+    final dark = AppHelperFunctions.isDark(context);
+    final hasTitle = widget.title.trim().isNotEmpty;
+    final hasBody = widget.body.trim().isNotEmpty;
+
+    final primaryLink =
+        AdminNotificationLinkParser.extractPrimaryLink(widget.body);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: dark ? AppColors.darkCard : AppColors.white,
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.25),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            spreadRadius: -2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSizes.md,
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(AppSizes.borderRadiusLg - 1),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Iconsax.mobile_copy,
+                  size: 16,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: AppSizes.xs),
+                const Expanded(
+                  child: Text(
+                    'Student App Live Preview',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(
+                      AppSizes.borderRadiusSm,
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.circle, size: 6, color: AppColors.success),
+                      SizedBox(width: 4),
+                      Text(
+                        'Live Sync',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.success,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(AppSizes.md),
+            child: Container(
+              padding: const EdgeInsets.all(AppSizes.md),
+              decoration: BoxDecoration(
+                color: dark ? const Color(0xFF181C28) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                border: Border.all(
+                  color: dark ? Colors.white10 : Colors.black12,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Iconsax.notification_copy,
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Flexible(
+                        child: Text(
+                          'MatricET',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '• Just now',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: dark ? Colors.white54 : Colors.black45,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    hasTitle ? widget.title : 'Notification Title...',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: hasTitle
+                          ? (dark ? Colors.white : Colors.black87)
+                          : (dark ? Colors.white38 : Colors.black38),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  if (!hasBody)
+                    Text(
+                      'Notification message will be parsed with interactive links, bold, italic, and underline tags in real time...',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontStyle: FontStyle.italic,
+                        color: dark ? Colors.white38 : Colors.black38,
+                      ),
+                    )
+                  else
+                    RichText(
+                      text: TextSpan(
+                        children: AdminNotificationLinkParser.buildSpans(
+                          rawText: widget.body,
+                          baseStyle: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.4,
+                            color: dark
+                                ? Colors.white70
+                                : const Color(0xFF334155),
+                          ),
+                          linkStyle: const TextStyle(
+                            fontSize: 12.5,
+                            height: 1.4,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizers: _recognizers,
+                          onLinkTap: (url) {
+                            SnackbarHelper.info(
+                              'Student App Link Tap',
+                              'Navigates to: $url',
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  if (primaryLink != null) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppSizes.borderRadiusMd,
+                            ),
+                          ),
+                          elevation: 0,
+                        ),
+                        icon: const Icon(Iconsax.link_21_copy, size: 16),
+                        label: Text(
+                          primaryLink.actionButtonLabel,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        onPressed: () {
+                          SnackbarHelper.info(
+                            'Action Button Tap',
+                            'Navigates to: ${primaryLink.url}',
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

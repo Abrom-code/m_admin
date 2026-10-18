@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
-import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/content/controllers/question_reports_controller.dart';
 import 'package:m_admin/features/content/models/question_report_admin_model.dart';
 import 'package:m_admin/features/content/screens/test_editor_screen.dart';
@@ -23,7 +22,6 @@ class QuestionReportsScreen extends StatelessWidget {
     final canPop = Navigator.of(context).canPop();
 
     final content = AdminScaffold(
-      pageIndex: AdminNavPage.reportedQuestions,
       onRefresh: () async {
         await controller.loadReports();
         await controller.loadPendingCount();

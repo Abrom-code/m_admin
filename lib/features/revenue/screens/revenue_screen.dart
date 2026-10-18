@@ -14,7 +14,6 @@ import 'package:m_admin/features/revenue/screens/widgets/costs_management_card.d
 import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
 import 'package:m_admin/features/security/screens/passcode_setup_dialog.dart';
 import 'package:m_admin/features/security/widgets/pin_pad_view.dart';
-import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
@@ -239,7 +238,6 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
       if (isLocked) {
         return AdminScaffold(
-          pageIndex: AdminNavPage.revenue,
           scrollable: false,
           body: _RevenueLockedView(
             controller: controller,
@@ -249,7 +247,6 @@ class _RevenueScreenState extends State<RevenueScreen> {
       }
 
       return AdminScaffold(
-        pageIndex: AdminNavPage.revenue,
         onRefresh: controller.load,
         body: Obx(() {
           if (controller.isLoading.value && controller.revenueSeries.isEmpty) {

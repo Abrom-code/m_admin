@@ -14,11 +14,15 @@ class ReceiptStorageStats {
   const ReceiptStorageStats({
     required this.totalActiveScreenshots,
     required this.olderThanOneWeekScreenshots,
+    required this.rejectedScreenshotsOlderThan3Days,
+    required this.totalRejectedScreenshots,
     required this.rejectedReceiptsCount,
   });
 
   final int totalActiveScreenshots;
   final int olderThanOneWeekScreenshots;
+  final int rejectedScreenshotsOlderThan3Days;
+  final int totalRejectedScreenshots;
   final int rejectedReceiptsCount;
 }
 
@@ -38,7 +42,10 @@ class AdminPaymentRepository {
       var query = _supabase
           .from('payment_receipts')
           .select(
-            '*, users!inner(id, first_name, last_name, full_name, email, stream, '
+            'id, user_id, amount, currency, payment_method, status, created_at, '
+            'reviewed_by, reviewed_at, rejection_reason, receipt_path, receipt_url, '
+            'verification_url, plan_key, plan_duration_months, '
+            'users!inner(id, first_name, last_name, full_name, email, stream, '
             'subscription_status)',
           );
 
@@ -194,8 +201,14 @@ class AdminPaymentRepository {
     }
   }
 
-  /// Rejects a payment: removes the screenshot from storage, sets user to inactive,
-  /// and permanently deletes the receipt row from payment_receipts database table.
+  /// Rejects a payment: marks status as 'rejected' with admin rejection reason and timestamp.
+  /// Sets user subscription to inactive.
+  ///
+  /// CRITICAL AUDIT LIFECYCLE:
+  /// The row in `payment_receipts` is NEVER deleted from PostgreSQL to preserve
+  /// accounting records, dispute history, and rate-limiting audit logs.
+  /// The screenshot binary is kept for 3 days to allow dispute resolution, after
+  /// which it can be pruned via [purgeRejectedScreenshotsOlderThan3Days].
   Future<void> reject({
     required String receiptId,
     required String userId,
@@ -204,20 +217,15 @@ class AdminPaymentRepository {
     String? receiptPath,
   }) async {
     try {
-      var path = receiptPath;
-      if (path == null || path.isEmpty) {
-        final row = await _supabase
-            .from('payment_receipts')
-            .select('receipt_path')
-            .eq('id', receiptId)
-            .maybeSingle();
-        path = row?['receipt_path']?.toString();
-      }
+      final nowIso = DateTime.now().toUtc().toIso8601String();
 
-      // 1. Remove screenshot from Cloudflare R2 or legacy storage bucket
-      if (path != null && path.isNotEmpty) {
-        await _deleteReceiptFiles([path]);
-      }
+      // 1. Update receipt record in PostgreSQL (KEEP the row, do NOT delete!)
+      await _supabase.from('payment_receipts').update({
+        'status': 'rejected',
+        'reviewed_by': adminUid,
+        'reviewed_at': nowIso,
+        'rejection_reason': reason,
+      }).eq('id', receiptId);
 
       // 2. Set user subscription status to inactive
       await _supabase
@@ -227,20 +235,18 @@ class AdminPaymentRepository {
             'subscription_expires_at': null,
           })
           .eq('id', userId);
-
-      // 3. Permanently delete the receipt row from the database table
-      await _supabase.from('payment_receipts').delete().eq('id', receiptId);
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
   }
 
   /// Fetches counts for storage cleanup: active receipts with screenshots,
-  /// screenshots older than 7 days, and any remaining rejected receipts.
+  /// screenshots older than 7 days, and rejected screenshots older than 3 days.
   Future<ReceiptStorageStats> getCleanupStats() async {
     try {
       final nowUtc = DateTime.now().toUtc();
       final oneWeekAgo = nowUtc.subtract(const Duration(days: 7)).toIso8601String();
+      final threeDaysAgo = nowUtc.subtract(const Duration(days: 3)).toIso8601String();
 
       // 1. Approved receipts with uploaded screenshot
       final totalActiveRows = await _supabase
@@ -261,8 +267,27 @@ class AdminPaymentRepository {
           .lt('created_at', oneWeekAgo)
           .count(CountOption.exact);
 
-      // 3. Any leftover rejected receipts in database
-      final rejectedRows = await _supabase
+      // 3. Rejected receipts with screenshots older than 3 days (eligible for R2 prune)
+      final rejectedOlderThan3Days = await _supabase
+          .from('payment_receipts')
+          .select('id')
+          .eq('status', 'rejected')
+          .not('receipt_path', 'is', null)
+          .neq('receipt_path', '')
+          .lte('created_at', threeDaysAgo)
+          .count(CountOption.exact);
+
+      // 4. Total rejected receipts with uploaded screenshots
+      final totalRejectedScreenshots = await _supabase
+          .from('payment_receipts')
+          .select('id')
+          .eq('status', 'rejected')
+          .not('receipt_path', 'is', null)
+          .neq('receipt_path', '')
+          .count(CountOption.exact);
+
+      // 5. Total rejected rows in PostgreSQL (for audit metric display)
+      final totalRejectedRows = await _supabase
           .from('payment_receipts')
           .select('id')
           .eq('status', 'rejected')
@@ -271,7 +296,9 @@ class AdminPaymentRepository {
       return ReceiptStorageStats(
         totalActiveScreenshots: totalActiveRows.count,
         olderThanOneWeekScreenshots: olderThanOneWeekRows.count,
-        rejectedReceiptsCount: rejectedRows.count,
+        rejectedScreenshotsOlderThan3Days: rejectedOlderThan3Days.count,
+        totalRejectedScreenshots: totalRejectedScreenshots.count,
+        rejectedReceiptsCount: totalRejectedRows.count,
       );
     } catch (e) {
       throw AppExceptionHandler.handle(e);
@@ -358,38 +385,63 @@ class AdminPaymentRepository {
     }
   }
 
-  /// Permanently removes any leftover or historic rejected receipts from
-  /// the database and deletes their screenshots from storage.
-  Future<int> purgeAllRejectedReceipts() async {
+  /// Purges screenshot binaries from Cloudflare R2 / storage for rejected receipts
+  /// older than 3 days, while preserving the full database audit trail (keeping row,
+  /// user ID, amount, rejection reason, and timestamps 100% intact).
+  Future<int> purgeRejectedScreenshotsOlderThan3Days() async {
     try {
+      final threeDaysAgo = DateTime.now()
+          .toUtc()
+          .subtract(const Duration(days: 3))
+          .toIso8601String();
+
       final rows = await _supabase
           .from('payment_receipts')
           .select('id, receipt_path')
           .eq('status', 'rejected')
+          .not('receipt_path', 'is', null)
+          .neq('receipt_path', '')
+          .lte('created_at', threeDaysAgo)
           .limit(500);
 
       final list = List<Map<String, dynamic>>.from(rows);
       if (list.isEmpty) return 0;
 
       final paths = <String>[];
+      final ids = <String>[];
+
       for (final r in list) {
-        final p = r['receipt_path']?.toString();
-        if (p != null && p.isNotEmpty) paths.add(p);
+        final path = r['receipt_path']?.toString();
+        final id = r['id']?.toString();
+        if (path != null && path.isNotEmpty) paths.add(path);
+        if (id != null && id.isNotEmpty) ids.add(id);
       }
 
-      // 1. Delete storage files from Cloudflare R2 / legacy storage
+      // 1. Delete image binaries from Cloudflare R2 storage
       await _deleteReceiptFiles(paths);
 
-      // 2. Delete rows from payment_receipts
-      await _supabase
-          .from('payment_receipts')
-          .delete()
-          .eq('status', 'rejected');
+      // 2. Set receipt_path = NULL and receipt_url = NULL (NEVER delete rows!)
+      for (var i = 0; i < ids.length; i += 50) {
+        final chunk = ids.sublist(i, (i + 50).clamp(0, ids.length));
+        await _supabase
+            .from('payment_receipts')
+            .update({
+              'receipt_path': null,
+              'receipt_url': null,
+            })
+            .inFilter('id', chunk);
+      }
 
-      return list.length;
+      return ids.length;
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
+  }
+
+  /// Legacy alias: redirects to [purgeRejectedScreenshotsOlderThan3Days] to guarantee
+  /// that PostgreSQL database rows are NEVER deleted.
+  Future<int> purgeAllRejectedReceipts() async {
+    return purgeRejectedScreenshotsOlderThan3Days();
   }
 
   /// Helper to delete files from Cloudflare R2 (or legacy Supabase storage).

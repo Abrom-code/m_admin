@@ -1,4 +1,3 @@
-import 'package:m_admin/features/content/screens/question_reports_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -7,13 +6,14 @@ import 'package:m_admin/data/services/admin_notification_service.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
 import 'package:m_admin/features/challenges/screens/challenges_list_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
+import 'package:m_admin/features/content/screens/question_reports_screen.dart';
 import 'package:m_admin/features/dashboard/screens/dashboard_screen.dart';
 import 'package:m_admin/features/notes/screens/notes_screen.dart';
 import 'package:m_admin/features/notifications/screens/notifications_screen.dart';
 import 'package:m_admin/features/payments/screens/payments_screen.dart';
 import 'package:m_admin/features/payments/screens/widgets/receipt_cleanup_dialog.dart';
-import 'package:m_admin/features/revenue/screens/revenue_screen.dart';
 import 'package:m_admin/features/pilot_exams/screens/pilot_exams_screen.dart';
+import 'package:m_admin/features/revenue/screens/revenue_screen.dart';
 import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
 import 'package:m_admin/features/security/screens/passcode_setup_dialog.dart';
 import 'package:m_admin/features/sessions/screens/sessions_screen.dart';
@@ -67,7 +67,12 @@ class _AdminShellState extends State<AdminShell> {
 
         final appBar = AppBar(
           title: Obx(
-            () => Text(AdminNavController.items[nav.selectedIndex.value].label),
+            () => Text(
+              nav.selectedIndex.value >= 0 &&
+                      nav.selectedIndex.value < AdminNavController.items.length
+                  ? AdminNavController.items[nav.selectedIndex.value].label
+                  : 'Admin console',
+            ),
           ),
           actions: [
             Obx(() {
@@ -80,6 +85,11 @@ class _AdminShellState extends State<AdminShell> {
                 icon: const Icon(Icons.cleaning_services_rounded, size: 20),
               );
             }),
+            IconButton(
+              tooltip: 'Admin Settings',
+              onPressed: () => Get.toNamed(AdminRoutes.settings),
+              icon: const Icon(Iconsax.setting_2_copy, size: 20),
+            ),
             Obx(() {
               final lockCtrl = Get.isRegistered<AppLockController>()
                   ? AppLockController.instance
@@ -141,7 +151,7 @@ class _AdminShellState extends State<AdminShell> {
           );
         }
 
-        // Narrow layout: bottom navigation bar + drawer for secondary pages (Dashboard, Sessions, Settings).
+        // Narrow layout: bottom navigation bar + drawer for secondary pages.
         return Scaffold(
           key: _scaffoldKey,
           drawerEnableOpenDragGesture: false,
@@ -179,7 +189,7 @@ class _AdminShellState extends State<AdminShell> {
   }
 }
 
-// ── Bottom Navigation Bar ──────────────────────────────────────────────────
+// ── Bottom Navigation Bar (Strict 5-Tab Focus) ─────────────────────────────
 
 class _AdminBottomNavBar extends StatelessWidget {
   const _AdminBottomNavBar({required this.nav});
@@ -193,11 +203,11 @@ class _AdminBottomNavBar extends StatelessWidget {
     return Obx(() {
       final currentIdx = nav.selectedIndex.value;
       const bottomNavPages = [
+        AdminNavPage.dashboard,
         AdminNavPage.payments,
         AdminNavPage.notifications,
-        AdminNavPage.users,
-        AdminNavPage.content,
         AdminNavPage.challenges,
+        AdminNavPage.sessions,
       ];
       final matchedIdx = bottomNavPages.indexOf(currentIdx);
       final selectedDest = matchedIdx >= 0 ? matchedIdx : 0;
@@ -224,6 +234,11 @@ class _AdminBottomNavBar extends StatelessWidget {
             nav.changePage(bottomNavPages[index]);
           },
           destinations: [
+            const NavigationDestination(
+              icon: Icon(Iconsax.chart_2_copy, size: 20),
+              selectedIcon: Icon(Iconsax.chart_2, size: 20, color: AppColors.primary),
+              label: 'Dashboard',
+            ),
             NavigationDestination(
               icon: _NavBadge(
                 count: nav.pendingPaymentCount.value,
@@ -251,19 +266,14 @@ class _AdminBottomNavBar extends StatelessWidget {
               label: 'Alerts',
             ),
             const NavigationDestination(
-              icon: Icon(Iconsax.people_copy, size: 20),
-              selectedIcon: Icon(Iconsax.profile_2user, size: 20, color: AppColors.primary),
-              label: 'Users',
-            ),
-            const NavigationDestination(
-              icon: Icon(Iconsax.book_copy, size: 20),
-              selectedIcon: Icon(Iconsax.book, size: 20, color: AppColors.primary),
-              label: 'Content',
-            ),
-            const NavigationDestination(
               icon: Icon(Iconsax.cup_copy, size: 20),
               selectedIcon: Icon(Iconsax.cup, size: 20, color: AppColors.primary),
               label: 'Challenges',
+            ),
+            const NavigationDestination(
+              icon: Icon(Iconsax.mobile_copy, size: 20),
+              selectedIcon: Icon(Iconsax.mobile, size: 20, color: AppColors.primary),
+              label: 'Sessions',
             ),
           ],
         ),
@@ -301,40 +311,63 @@ class _NavBadge extends StatelessWidget {
   }
 }
 
-// ── Tab Bodies ─────────────────────────────────────────────────────────────
+// ── Lazy Tab Instantiation (Eliminate Eager Multi-Screen Boot) ──────────────
 
-class _Pages extends StatelessWidget {
+class _Pages extends StatefulWidget {
   const _Pages({required this.nav});
 
   final AdminNavController nav;
 
   @override
+  State<_Pages> createState() => _PagesState();
+}
+
+class _PagesState extends State<_Pages> {
+  /// Tracks which tabs have been initialized at least once.
+  final Set<int> _loadedTabs = {0};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadedTabs.add(widget.nav.selectedIndex.value);
+  }
+
+  Widget _buildScreen(int index) {
+    return switch (index) {
+      AdminNavPage.dashboard => const DashboardScreen(),
+      AdminNavPage.payments => const PaymentsScreen(),
+      AdminNavPage.revenue => const RevenueScreen(),
+      AdminNavPage.notifications => const NotificationsScreen(),
+      AdminNavPage.users => const UsersScreen(),
+      AdminNavPage.content => const ContentScreen(),
+      AdminNavPage.notes => const NotesScreen(),
+      AdminNavPage.pilotExams => const PilotExamsScreen(),
+      AdminNavPage.reportedQuestions => const QuestionReportsScreen(),
+      AdminNavPage.challenges => const ChallengesListScreen(),
+      AdminNavPage.sessions => const SessionsScreen(),
+      AdminNavPage.settings => const SettingsScreen(),
+      _ => const SizedBox.shrink(),
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final currentIdx = nav.selectedIndex.value;
-      const pages = <Widget>[
-        DashboardScreen(),
-        PaymentsScreen(),
-        RevenueScreen(),
-        NotificationsScreen(),
-        UsersScreen(),
-        ContentScreen(),
-        NotesScreen(),
-        PilotExamsScreen(),
-        QuestionReportsScreen(),
-        ChallengesListScreen(),
-        SessionsScreen(),
-        SettingsScreen(),
-      ];
+      final currentIdx = widget.nav.selectedIndex.value;
+      if (currentIdx >= 0 && currentIdx < AdminNavController.items.length) {
+        _loadedTabs.add(currentIdx);
+      }
 
       return IndexedStack(
-        index: currentIdx,
+        index: currentIdx.clamp(0, AdminNavController.items.length - 1),
         children: [
-          for (var i = 0; i < pages.length; i++)
+          for (var i = 0; i < AdminNavController.items.length; i++)
             ExcludeFocus(
               excluding: currentIdx != i,
               child: FocusScope(
-                child: pages[i],
+                child: _loadedTabs.contains(i)
+                    ? _buildScreen(i)
+                    : const SizedBox.shrink(),
               ),
             ),
         ],

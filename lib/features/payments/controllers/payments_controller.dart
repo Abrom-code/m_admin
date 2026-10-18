@@ -421,15 +421,19 @@ class PaymentsController extends GetxController {
     }
   }
 
-  Future<int> purgeAllRejected() async {
+  Future<int> purgeRejectedScreenshotsOlderThan3Days() async {
     isCleaningStorage.value = true;
     try {
-      final count = await _repo.purgeAllRejectedReceipts();
+      final count = await _repo.purgeRejectedScreenshotsOlderThan3Days();
       await refreshAll();
       return count;
     } finally {
       isCleaningStorage.value = false;
     }
+  }
+
+  Future<int> purgeAllRejected() async {
+    return purgeRejectedScreenshotsOlderThan3Days();
   }
 
   Future<bool> deleteSingleScreenshot(PaymentReview review) async {

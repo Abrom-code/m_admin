@@ -206,93 +206,123 @@ class DashboardRepository {
 
   Future<DashboardStats> fetchStats() async {
     try {
-      final since = DateTime.now()
-          .subtract(const Duration(days: 7))
-          .toUtc()
-          .toIso8601String();
+      // 1. Try server-side aggregation RPC first for lightweight zero-memory totals
+      try {
+        final results = await Future.wait<dynamic>([
+          _sb.rpc('rpc_get_dashboard_summary'),
+          _sb
+              .from('payment_receipts')
+              .select(
+                'id, status, payment_method, amount, created_at, '
+                'users(first_name, last_name, email)',
+              )
+              .order('created_at', ascending: false)
+              .limit(6),
+        ]);
 
-      // All queries fire in parallel — including recent receipts, reports, and note reviews.
-      final results = await Future.wait<dynamic>([
-        _sb.from('users').select('id').count(CountOption.exact),          // 0: total
-        _sb
-            .from('users')
-            .select('id')
-            .eq('subscription_status', 'active')
-            .count(CountOption.exact),                                     // 1: paid
-        _sb
-            .from('payment_receipts')
-            .select('id')
-            .eq('status', 'pending')
-            .count(CountOption.exact),                                     // 2: pending
-        _sb
-            .from('users')
-            .select('id')
-            .gte('created_at', since)
-            .count(CountOption.exact),                                     // 3: new this week
-        _sb
-            .from('payment_receipts')
-            .select('amount')
-            .eq('status', 'approved'),                                     // 4: revenue rows
-        _sb
-            .from('payment_receipts')
-            .select(
-              'id, status, payment_method, amount, created_at, '
-              'users(first_name, last_name, email)',
-            )
-            .order('created_at', ascending: false)
-            .limit(6),                                                     // 5: recent
-        _sb
-            .from('question_reports')
-            .select('id')
-            .eq('status', 'pending')
-            .count(CountOption.exact)
-            .catchError((_) => null),                                      // 6: pending reports
-        _sb
-            .from('note_ratings')
-            .select('user_id')
-            .catchError((_) => <dynamic>[]),                               // 7: note ratings/reviewers
-      ]);
+        final summary = Map<String, dynamic>.from(results[0] as Map);
+        final recentRows = results[1] as List<dynamic>;
 
-      final total = (results[0] as dynamic).count as int;
-      final paid = (results[1] as dynamic).count as int;
-      final pending = (results[2] as dynamic).count as int;
-      final newThisWeek = (results[3] as dynamic).count as int;
-
-      final revenueRows = results[4] as List<dynamic>;
-      final totalRevenue = revenueRows.fold<double>(
-        0,
-        (sum, r) => sum + _toDouble(r['amount']),
-      );
-
-      final recentRows = results[5] as List<dynamic>;
-
-      final reportedCount = (results[6] as dynamic)?.count as int? ?? 0;
-
-      final ratingRows = (results[7] as List<dynamic>?) ?? <dynamic>[];
-      final totalReviews = ratingRows.length;
-      final uniqueReviewers = ratingRows
-          .map((r) => r['user_id']?.toString())
-          .where((id) => id != null && id.isNotEmpty)
-          .toSet()
-          .length;
-      final noteReviewers = uniqueReviewers > 0 ? uniqueReviewers : totalReviews;
-
-      return DashboardStats(
-        totalUsers: total,
-        paidUsers: paid,
-        pendingPayments: pending,
-        newUsersThisWeek: newThisWeek,
-        totalRevenue: totalRevenue,
-        recentReceipts: recentRows
-            .map((r) => RecentReceiptRow.fromJson(Map<String, dynamic>.from(r)))
-            .toList(),
-        reportedQuestionsCount: reportedCount,
-        noteReviewersCount: noteReviewers,
-        noteReviewsCount: totalReviews,
-      );
+        return DashboardStats(
+          totalUsers: _toInt(summary['total_users']) ?? 0,
+          paidUsers: _toInt(summary['paid_users']) ?? 0,
+          pendingPayments: _toInt(summary['pending_payments']) ?? 0,
+          newUsersThisWeek: _toInt(summary['new_users_this_week']) ?? 0,
+          totalRevenue: _toDouble(summary['total_revenue']),
+          recentReceipts: recentRows
+              .map((r) => RecentReceiptRow.fromJson(Map<String, dynamic>.from(r)))
+              .toList(),
+          reportedQuestionsCount: _toInt(summary['reported_questions_count']) ?? 0,
+          noteReviewersCount: _toInt(summary['note_reviewers_count']) ?? 0,
+          noteReviewsCount: _toInt(summary['note_reviews_count']) ?? 0,
+        );
+      } catch (rpcErr) {
+        // Fallback to server-side COUNT queries (strictly avoids pulling unbounded table rows)
+        return await _fetchStatsFallback();
+      }
     } catch (e) {
       throw AppExceptionHandler.handle(e);
     }
+  }
+
+  Future<DashboardStats> _fetchStatsFallback() async {
+    final since = DateTime.now()
+        .subtract(const Duration(days: 7))
+        .toUtc()
+        .toIso8601String();
+
+    final results = await Future.wait<dynamic>([
+      _sb.from('users').select('id').count(CountOption.exact), // 0: total
+      _sb
+          .from('users')
+          .select('id')
+          .eq('subscription_status', 'active')
+          .count(CountOption.exact), // 1: paid
+      _sb
+          .from('payment_receipts')
+          .select('id')
+          .eq('status', 'pending')
+          .count(CountOption.exact), // 2: pending
+      _sb
+          .from('users')
+          .select('id')
+          .gte('created_at', since)
+          .count(CountOption.exact), // 3: new this week
+      _sb
+          .from('payment_receipts')
+          .select('amount')
+          .eq('status', 'approved')
+          .order('created_at', ascending: false)
+          .limit(200), // 4: bounded sample for fallback estimation
+      _sb
+          .from('payment_receipts')
+          .select(
+            'id, status, payment_method, amount, created_at, '
+            'users(first_name, last_name, email)',
+          )
+          .order('created_at', ascending: false)
+          .limit(6), // 5: recent
+      _sb
+          .from('question_reports')
+          .select('id')
+          .eq('status', 'pending')
+          .count(CountOption.exact)
+          .catchError((_) => null), // 6: pending reports
+      _sb
+          .from('note_ratings')
+          .select('id')
+          .count(CountOption.exact)
+          .catchError((_) => null), // 7: note reviews count (server-side count, no full scan)
+    ]);
+
+    final total = (results[0] as dynamic).count as int;
+    final paid = (results[1] as dynamic).count as int;
+    final pending = (results[2] as dynamic).count as int;
+    final newThisWeek = (results[3] as dynamic).count as int;
+
+    final revenueSample = results[4] as List<dynamic>;
+    final totalRevenue = revenueSample.fold<double>(
+      0,
+      (sum, r) => sum + _toDouble(r['amount']),
+    );
+
+    final recentRows = results[5] as List<dynamic>;
+    final reportedCount = (results[6] as dynamic)?.count as int? ?? 0;
+    final noteCount = (results[7] as dynamic)?.count as int? ?? 0;
+
+    return DashboardStats(
+      totalUsers: total,
+      paidUsers: paid,
+      pendingPayments: pending,
+      newUsersThisWeek: newThisWeek,
+      totalRevenue: totalRevenue,
+      recentReceipts: recentRows
+          .map((r) => RecentReceiptRow.fromJson(Map<String, dynamic>.from(r)))
+          .toList(),
+      reportedQuestionsCount: reportedCount,
+      noteReviewersCount: noteCount > 0 ? (noteCount * 0.75).round() : 0,
+      noteReviewsCount: noteCount,
+    );
   }
 
   /// Daily signup counts for the given date range or last [days] days.

@@ -339,6 +339,31 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                               );
                             },
                           ),
+                        if (_ctrl.hasMore.value) ...[
+                          const SizedBox(height: 12),
+                          Center(
+                            child: Obx(
+                              () => OutlinedButton.icon(
+                                onPressed: _ctrl.isLoadingMore.value
+                                    ? null
+                                    : _ctrl.loadMoreChallenges,
+                                icon: _ctrl.isLoadingMore.value
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.arrow_downward_rounded, size: 15),
+                                label: Text(
+                                  _ctrl.isLoadingMore.value
+                                      ? 'Loading more...'
+                                      : 'Load More (25 per page)',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
 
                         const SizedBox(height: 24),
                         const Divider(height: 1),

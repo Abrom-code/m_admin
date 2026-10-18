@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
-import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/routes/routes.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
@@ -117,7 +116,6 @@ class ContentScreen extends StatelessWidget {
     final controller = Get.put(ContentController());
 
     return AdminScaffold(
-      pageIndex: AdminNavPage.content,
       onRefresh: controller.loadSubjects,
       scrollable: false,
       body: Column(
@@ -631,11 +629,7 @@ class _ContentReportsCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
-          if (Get.isRegistered<AdminNavController>()) {
-            AdminNavController.instance.changePage(AdminNavPage.reportedQuestions);
-          } else {
-            Get.toNamed(AdminRoutes.questionReports);
-          }
+          Get.toNamed(AdminRoutes.questionReports);
         },
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
         child: Container(

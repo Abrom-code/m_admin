@@ -22,7 +22,11 @@ class ChallengeRepository {
   Future<List<ChallengeQuestionModel>> fetchQuestionsForChallenge(String challengeId, {String? setId}) async {
     final rows = await _sb
         .from('challenge_questions')
-        .select('*')
+        .select(
+          'id, challenge_id, set_id, order_index, question_text, choices, '
+          'correct_choice, explanation, explanation_en, explanation_am, '
+          'image_url, passage_id',
+        )
         .eq('challenge_id', challengeId)
         .order('order_index', ascending: true);
 
@@ -58,10 +62,16 @@ class ChallengeRepository {
     String? status,
     String? audience,
     int? subjectId,
+    int page = 0,
+    int pageSize = 25,
   }) async {
     var query = _sb
         .from('leaderboard_challenges')
-        .select('*, subjects(name), challenge_questions(id)');
+        .select(
+          'id, set_id, subject_id, audience, title, starts_at, ends_at, '
+          'duration_seconds, status, created_by, created_at, is_premium, review_policy, '
+          'subjects(name), challenge_questions(id)',
+        );
 
     if (status != null && status.isNotEmpty && status != 'all') {
       query = query.eq('status', status);
@@ -73,7 +83,9 @@ class ChallengeRepository {
       query = query.eq('subject_id', subjectId);
     }
 
-    final rows = await query.order('created_at', ascending: false);
+    final rows = await query
+        .order('created_at', ascending: false)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
     return (rows as List)
         .map((r) => LeaderboardChallengeModel.fromJson(r as Map<String, dynamic>))
         .toList();
@@ -82,7 +94,11 @@ class ChallengeRepository {
   Future<LeaderboardChallengeModel> fetchChallengeDetail(String challengeId) async {
     final row = await _sb
         .from('leaderboard_challenges')
-        .select('*, subjects(name), challenge_questions(id)')
+        .select(
+          'id, set_id, subject_id, audience, title, starts_at, ends_at, '
+          'duration_seconds, status, created_by, created_at, is_premium, review_policy, '
+          'subjects(name), challenge_questions(id)',
+        )
         .eq('id', challengeId)
         .single();
     return LeaderboardChallengeModel.fromJson(row);

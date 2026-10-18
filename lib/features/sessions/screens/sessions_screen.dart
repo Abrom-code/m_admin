@@ -205,7 +205,7 @@ class SessionsController extends GetxController {
   final selectedFilter = SessionFilter.all.obs;
 
   final page = 0.obs;
-  static const pageSize = 30;
+  static const pageSize = 25;
 
   int get totalSessions => allRows.length;
   int get lockedCount => allRows.where((r) => r.isCurrentConnected).length;

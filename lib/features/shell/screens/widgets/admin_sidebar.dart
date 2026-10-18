@@ -74,13 +74,13 @@ class AdminSidebar extends StatelessWidget {
             ),
 
             const Divider(height: 1),
-            _SidebarFooter(onLogout: onLogout),
+            _SidebarFooter(onLogout: onLogout, onNavigate: onNavigate),
           ],
         ),
       ),
     ),
-    );
-  }
+  );
+}
 }
 
 class _SidebarBrand extends StatelessWidget {
@@ -190,11 +190,10 @@ class _SidebarItem extends StatelessWidget {
               if (badgeCount > 0)
                 _Badge(
                   count: badgeCount,
-                  color: item.badgeSource == AdminNavBadge.reportedQuestions
+                  color: (item.badgeSource == AdminNavBadge.unreadAlerts ||
+                          item.badgeSource == AdminNavBadge.reportedQuestions)
                       ? AppColors.error
-                      : (item.badgeSource == AdminNavBadge.unreadAlerts
-                          ? AppColors.error
-                          : AppColors.warning),
+                      : AppColors.warning,
                 ),
             ],
           ),
@@ -233,9 +232,10 @@ class _Badge extends StatelessWidget {
 }
 
 class _SidebarFooter extends StatelessWidget {
-  const _SidebarFooter({required this.onLogout});
+  const _SidebarFooter({required this.onLogout, this.onNavigate});
 
   final VoidCallback onLogout;
+  final VoidCallback? onNavigate;
 
   @override
   Widget build(BuildContext context) {

@@ -26,6 +26,7 @@ class ChallengeSchedulerController extends GetxController {
   final startsAt = Rxn<DateTime>();
   final endsAt = Rxn<DateTime>();
   final currentStatus = 'draft'.obs;
+  final selectedReviewPolicy = 'on_completion'.obs; // 'on_completion', 'when_closed'
 
   final questionSets = <ChallengeQuestionSetModel>[].obs;
   final formKey = GlobalKey<FormState>();
@@ -65,6 +66,7 @@ class ChallengeSchedulerController extends GetxController {
         startsAt.value = ch.startsAt;
         endsAt.value = ch.endsAt;
         currentStatus.value = ch.status;
+        selectedReviewPolicy.value = ch.reviewPolicy;
       } else if (preselectedSetId != null) {
         onSetSelected(preselectedSetId);
       }
@@ -133,6 +135,7 @@ class ChallengeSchedulerController extends GetxController {
         if (startsAt.value != null) 'starts_at': startsAt.value!.toIso8601String(),
         if (endsAt.value != null) 'ends_at': endsAt.value!.toIso8601String(),
         'status': 'draft',
+        'review_policy': selectedReviewPolicy.value,
       });
 
       SnackbarHelper.success('Saved', 'Challenge saved as draft');
@@ -175,6 +178,7 @@ class ChallengeSchedulerController extends GetxController {
         'starts_at': startsAt.value!.toIso8601String(),
         'ends_at': endsAt.value!.toIso8601String(),
         'status': 'draft',
+        'review_policy': selectedReviewPolicy.value,
       });
 
       final publishedStatus = await _repo.publishChallenge(challenge.id);

@@ -29,11 +29,15 @@ void main() {
       const stats = ReceiptStorageStats(
         totalActiveScreenshots: 45,
         olderThanOneWeekScreenshots: 38,
+        rejectedScreenshotsOlderThan3Days: 8,
+        totalRejectedScreenshots: 12,
         rejectedReceiptsCount: 12,
       );
 
       expect(stats.totalActiveScreenshots, equals(45));
       expect(stats.olderThanOneWeekScreenshots, equals(38));
+      expect(stats.rejectedScreenshotsOlderThan3Days, equals(8));
+      expect(stats.totalRejectedScreenshots, equals(12));
       expect(stats.rejectedReceiptsCount, equals(12));
     });
   });

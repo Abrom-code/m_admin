@@ -5,6 +5,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:m_admin/data/repositories/dashboard_repository.dart';
 import 'package:m_admin/data/repositories/revenue_costs_repository.dart';
 import 'package:m_admin/features/revenue/models/revenue_cost_record.dart';
+import 'package:m_admin/features/revenue/models/revenue_income_record.dart';
 import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
@@ -82,6 +83,10 @@ class RevenueController extends GetxController {
     costFilterMode.value = mode;
   }
 
+  // ── Manual Revenue & Income Entries ──────────────────────────────
+  final incomeRecords = <RevenueIncomeRecord>[].obs;
+  final isIncomeLoading = false.obs;
+
   // ── Time Comparison Feature ──────────────────────────────────────
   final isCompareEnabled = false.obs;
   final compareOption = 'previous'.obs; // 'previous', '7d', '14d', '30d', '90d', 'custom'
@@ -104,9 +109,8 @@ class RevenueController extends GetxController {
     }
 
     if (Get.isRegistered<AdminNavController>()) {
-      ever(AdminNavController.instance.selectedIndex, (index) {
-        if (index != AdminNavPage.revenue &&
-            Get.isRegistered<AppLockController>() &&
+      ever(AdminNavController.instance.selectedIndex, (_) {
+        if (Get.isRegistered<AppLockController>() &&
             AppLockController.instance.isPasscodeEnabled.value) {
           isRevenueLocked.value = true;
         }
@@ -116,6 +120,7 @@ class RevenueController extends GetxController {
     if (autoLoad) {
       load();
       loadCosts();
+      loadIncome();
     }
   }
 
@@ -188,6 +193,57 @@ class RevenueController extends GetxController {
     await costsRepo.saveCosts(costRecords);
   }
 
+  // ── Income CRUD & Synchronization ─────────────────────────────────
+
+  Future<void> loadIncome() async {
+    try {
+      isIncomeLoading.value = true;
+      final list = await costsRepo.loadIncome();
+      incomeRecords.value = list;
+    } catch (_) {
+      // Handled in repo
+    } finally {
+      isIncomeLoading.value = false;
+    }
+  }
+
+  Future<void> addIncomeRecord({
+    required String title,
+    required double amount,
+    required String paymentMethod,
+    required DateTime date,
+    String? notes,
+  }) async {
+    final record = RevenueIncomeRecord(
+      id: '${DateTime.now().millisecondsSinceEpoch}_${math.Random().nextInt(9999)}',
+      title: title.trim(),
+      amount: amount,
+      paymentMethod: paymentMethod,
+      date: date,
+      notes: notes?.trim().isEmpty == true ? null : notes?.trim(),
+      createdAt: DateTime.now(),
+    );
+
+    costRecords.refresh();
+    incomeRecords.insert(0, record);
+    incomeRecords.sort((a, b) => b.date.compareTo(a.date));
+    await costsRepo.saveIncome(incomeRecords);
+  }
+
+  Future<void> updateIncomeRecord(RevenueIncomeRecord updated) async {
+    final idx = incomeRecords.indexWhere((c) => c.id == updated.id);
+    if (idx != -1) {
+      incomeRecords[idx] = updated;
+      incomeRecords.sort((a, b) => b.date.compareTo(a.date));
+      await costsRepo.saveIncome(incomeRecords);
+    }
+  }
+
+  Future<void> deleteIncomeRecord(String id) async {
+    incomeRecords.removeWhere((c) => c.id == id);
+    await costsRepo.saveIncome(incomeRecords);
+  }
+
   // ── Cost Computations ─────────────────────────────────────────────
 
   /// Returns total costs incurred on a specific calendar day.
@@ -254,30 +310,100 @@ class RevenueController extends GetxController {
   double get allTimeTotalCosts =>
       costRecords.fold(0.0, (sum, c) => sum + c.amount);
 
+  /// All-time manual income.
+  double get allTimeManualIncome =>
+      incomeRecords.fold(0.0, (sum, i) => sum + i.amount);
+
+  /// Gross revenue all-time (Receipts + Manual Income).
+  double get allTimeGrossRevenue =>
+      totalRevenueAllTime.value + allTimeManualIncome;
+
   /// Net revenue all-time (All-Time Gross Revenue - All-Time Costs).
   double get allTimeNetRevenue =>
-      totalRevenueAllTime.value - allTimeTotalCosts;
+      allTimeGrossRevenue - allTimeTotalCosts;
 
   /// All-time net profit margin percentage.
   double get allTimeProfitMargin {
-    final gross = totalRevenueAllTime.value;
+    final gross = allTimeGrossRevenue;
     if (gross <= 0) return allTimeNetRevenue >= 0 ? 0.0 : -100.0;
     return (allTimeNetRevenue / gross) * 100.0;
   }
 
-  /// Series to render on chart based on [chartViewMode]:
-  /// If 'net', values are decreased by each day's promotion/costs.
-  List<DailyPoint> get effectiveRevenueSeries {
-    if (chartViewMode.value == 'gross') {
-      return revenueSeries;
+  // ── Manual Income Computations ────────────────────────────────────
+
+  /// Returns total manual income incurred on a specific calendar day.
+  double getIncomeForDay(DateTime day) {
+    double total = 0.0;
+    for (final inc in incomeRecords) {
+      if (inc.date.year == day.year &&
+          inc.date.month == day.month &&
+          inc.date.day == day.day) {
+        if (selectedMethodFilter.value == null ||
+            selectedMethodFilter.value!.isEmpty ||
+            inc.paymentMethod.toLowerCase().contains(selectedMethodFilter.value!.toLowerCase())) {
+          total += inc.amount;
+        }
+      }
     }
+    return total;
+  }
+
+  /// Returns total manual income within a given date range.
+  double getTotalIncomeForRange(DateTime start, DateTime end) {
+    final startDay = DateTime(start.year, start.month, start.day);
+    final endDay = DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
+    double total = 0.0;
+    for (final inc in incomeRecords) {
+      if (!inc.date.isBefore(startDay) && !inc.date.isAfter(endDay)) {
+        if (selectedMethodFilter.value == null ||
+            selectedMethodFilter.value!.isEmpty ||
+            inc.paymentMethod.toLowerCase().contains(selectedMethodFilter.value!.toLowerCase())) {
+          total += inc.amount;
+        }
+      }
+    }
+    return total;
+  }
+
+  /// List of manual income records within the currently active primary date range.
+  List<RevenueIncomeRecord> get periodIncomeRecords {
+    final range = getPrimaryDateRange();
+    final startDay = DateTime(range.start.year, range.start.month, range.start.day);
+    final endDay = DateTime(range.end.year, range.end.month, range.end.day, 23, 59, 59, 999);
+    return incomeRecords.where((i) {
+      return !i.date.isBefore(startDay) && !i.date.isAfter(endDay);
+    }).toList();
+  }
+
+  /// Total manual income in the primary period.
+  double get primaryManualIncome {
+    final range = getPrimaryDateRange();
+    return getTotalIncomeForRange(range.start, range.end);
+  }
+
+  /// Series to render on chart based on [chartViewMode]:
+  /// Includes daily manual income, and if 'net', values are decreased by daily costs.
+  List<DailyPoint> get effectiveRevenueSeries {
     return revenueSeries.map((p) {
+      final dayIncome = getIncomeForDay(p.day);
       final dayCost = getCostForDay(p.day);
-      final net = p.value - dayCost;
+      final gross = p.value + dayIncome;
+      final val = chartViewMode.value == 'gross' ? gross : (gross - dayCost);
+
+      final breakdown = Map<String, double>.from(p.methodBreakdown);
+      for (final inc in incomeRecords) {
+        if (inc.date.year == p.day.year &&
+            inc.date.month == p.day.month &&
+            inc.date.day == p.day.day) {
+          final m = inc.paymentMethod.toLowerCase();
+          breakdown[m] = (breakdown[m] ?? 0.0) + inc.amount;
+        }
+      }
+
       return DailyPoint(
         day: p.day,
-        value: net,
-        methodBreakdown: p.methodBreakdown,
+        value: val,
+        methodBreakdown: breakdown,
       );
     }).toList();
   }
@@ -352,7 +478,7 @@ class RevenueController extends GetxController {
 
   // ── Comparative Metrics ──────────────────────────────────────────
   double get primaryTotal =>
-      revenueSeries.fold(0.0, (sum, p) => sum + p.value);
+      revenueSeries.fold(0.0, (sum, p) => sum + p.value) + primaryManualIncome;
 
   double get comparisonTotal =>
       comparisonSeries.fold(0.0, (sum, p) => sum + p.value);

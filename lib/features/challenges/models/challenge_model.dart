@@ -68,6 +68,7 @@ class LeaderboardChallengeModel {
   final int questionCount;
   final int attemptCount;
   final bool isPremium;
+  final String reviewPolicy; // 'on_completion', 'when_closed'
 
   LeaderboardChallengeModel({
     required this.id,
@@ -86,7 +87,17 @@ class LeaderboardChallengeModel {
     this.questionCount = 0,
     this.attemptCount = 0,
     this.isPremium = false,
+    this.reviewPolicy = 'on_completion',
   });
+
+  bool get canReviewImmediately =>
+      reviewPolicy == 'on_completion' || reviewPolicy == 'completed';
+
+  bool get canReviewWhenClosed =>
+      reviewPolicy == 'when_closed' || reviewPolicy == 'closed';
+
+  String get reviewPolicyLabel =>
+      canReviewWhenClosed ? 'Review when closed' : 'Review immediately';
 
   bool get isDraft => status == 'draft';
 
@@ -205,6 +216,7 @@ class LeaderboardChallengeModel {
       questionCount: qCount,
       attemptCount: attempts,
       isPremium: isPrem,
+      reviewPolicy: json['review_policy']?.toString() ?? 'on_completion',
     );
   }
 
@@ -225,6 +237,7 @@ class LeaderboardChallengeModel {
     int? questionCount,
     int? attemptCount,
     bool? isPremium,
+    String? reviewPolicy,
   }) {
     return LeaderboardChallengeModel(
       id: id ?? this.id,
@@ -243,6 +256,7 @@ class LeaderboardChallengeModel {
       questionCount: questionCount ?? this.questionCount,
       attemptCount: attemptCount ?? this.attemptCount,
       isPremium: isPremium ?? this.isPremium,
+      reviewPolicy: reviewPolicy ?? this.reviewPolicy,
     );
   }
 
@@ -262,6 +276,7 @@ class LeaderboardChallengeModel {
       'question_count': questionCount,
       'attempt_count': attemptCount,
       'is_premium': isPremium,
+      'review_policy': reviewPolicy,
       'created_at': createdAt.toIso8601String(),
       if (createdBy != null) 'created_by': createdBy,
     };

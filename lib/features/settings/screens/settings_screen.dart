@@ -10,7 +10,6 @@ import 'package:m_admin/common/widgets/toast/app_toast.dart';
 import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
 import 'package:m_admin/features/security/screens/passcode_setup_dialog.dart';
 import 'package:m_admin/features/security/screens/passcode_verification_dialog.dart';
-import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/payments/controllers/payments_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/payments/screens/widgets/receipt_cleanup_dialog.dart';
@@ -370,9 +369,9 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(SettingsController());
+    final canPop = Navigator.of(context).canPop();
 
-    return AdminScaffold(
-      pageIndex: AdminNavPage.settings,
+    final body = AdminScaffold(
       onRefresh: () async {
         await controller.loadSettings();
         await controller.checkDatabaseHealth();
@@ -396,6 +395,16 @@ class SettingsScreen extends StatelessWidget {
         ],
       ),
     );
+
+    if (canPop) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Admin Settings'),
+        ),
+        body: body,
+      );
+    }
+    return body;
   }
 }
 

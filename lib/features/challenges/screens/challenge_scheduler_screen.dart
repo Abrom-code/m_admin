@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
@@ -365,6 +365,33 @@ class _ChallengeSchedulerScreenState extends State<ChallengeSchedulerScreen> {
                           }),
                         ],
                       ),
+                      const SizedBox(height: AppSizes.spaceBtwItems),
+
+                      const Text('Question Review Policy *', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                      const SizedBox(height: 6),
+                      Obx(() {
+                        final policy = _ctrl.selectedReviewPolicy.value;
+                        return Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _ReviewPolicyCard(
+                              label: 'Immediate (On Submit)',
+                              subtitle: 'Visible right after finishing',
+                              icon: Icons.visibility_outlined,
+                              selected: policy == 'on_completion' || policy == 'completed',
+                              onTap: () => _ctrl.selectedReviewPolicy.value = 'on_completion',
+                            ),
+                            _ReviewPolicyCard(
+                              label: 'When Closed (At End)',
+                              subtitle: 'Locked until round closes',
+                              icon: Icons.lock_clock_outlined,
+                              selected: policy == 'when_closed' || policy == 'closed',
+                              onTap: () => _ctrl.selectedReviewPolicy.value = 'when_closed',
+                            ),
+                          ],
+                        );
+                      }),
                     ],
                   ),
                 ),
@@ -557,6 +584,77 @@ class _AudienceCard extends StatelessWidget {
                 fontWeight: selected ? FontWeight.bold : FontWeight.w500,
                 color: selected ? AppColors.primary : (dark ? Colors.white70 : Colors.black87),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewPolicyCard extends StatelessWidget {
+  const _ReviewPolicyCard({
+    required this.label,
+    required this.subtitle,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String subtitle;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.primary.withValues(alpha: 0.12)
+              : (dark ? AppColors.darkCard : AppColors.white),
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+          border: Border.all(
+            color: selected ? AppColors.primary : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+            width: selected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: selected ? AppColors.primary : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                    color: selected ? AppColors.primary : (dark ? Colors.white70 : Colors.black87),
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

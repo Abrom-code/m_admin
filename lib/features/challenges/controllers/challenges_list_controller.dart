@@ -193,12 +193,48 @@ class ChallengesListController extends GetxController {
     } catch (_) {}
   }
 
-  Future<void> loadChallenges() async {
+  final page = 0.obs;
+  final hasMore = true.obs;
+  final isLoadingMore = false.obs;
+  static const pageSize = 25;
+
+  Future<void> loadChallenges({bool reload = true}) async {
     try {
-      final rows = await _repo.fetchChallenges();
-      challenges.value = rows;
+      if (reload) {
+        page.value = 0;
+        hasMore.value = true;
+      }
+      final rows = await _repo.fetchChallenges(
+        page: page.value,
+        pageSize: pageSize,
+      );
+      if (reload) {
+        challenges.value = rows;
+      } else {
+        challenges.addAll(rows);
+      }
+      hasMore.value = rows.length >= pageSize;
     } catch (e) {
       SnackbarHelper.error('Error loading challenges', AppExceptionHandler.handle(e).message);
+    }
+  }
+
+  Future<void> loadMoreChallenges() async {
+    if (isLoadingMore.value || !hasMore.value) return;
+    try {
+      isLoadingMore.value = true;
+      page.value++;
+      final rows = await _repo.fetchChallenges(
+        page: page.value,
+        pageSize: pageSize,
+      );
+      challenges.addAll(rows);
+      hasMore.value = rows.length >= pageSize;
+    } catch (e) {
+      page.value--;
+      SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
+    } finally {
+      isLoadingMore.value = false;
     }
   }
 

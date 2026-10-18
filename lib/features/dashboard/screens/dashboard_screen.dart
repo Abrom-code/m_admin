@@ -12,6 +12,7 @@ import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/payments/screens/payment_detail_screen.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
+import 'package:m_admin/routes/routes.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
@@ -25,7 +26,10 @@ class DashboardScreen extends StatelessWidget {
 
     return AdminScaffold(
       pageIndex: AdminNavPage.dashboard,
-      onRefresh: controller.load,
+      onRefresh: () async {
+        await controller.load();
+        await controller.ensureChartsLoaded(force: true);
+      },
       body: Obx(() {
         if (controller.isLoading.value && controller.stats.value == null) {
           return const Padding(
@@ -264,7 +268,7 @@ class _DashboardTopBar extends StatelessWidget {
               const SizedBox(width: 8),
             if (pendingReportsCount > 0)
               InkWell(
-                onTap: () => AdminNavController.instance.changePage(AdminNavPage.reportedQuestions),
+                onTap: () => Get.toNamed(AdminRoutes.questionReports),
                 borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                 child: Container(
                   padding:
@@ -357,7 +361,7 @@ class _ContentKpiGrid extends StatelessWidget {
               tag: 'All Time',
               tagColor: AppColors.primary,
               subtext: '${stats.newUsersThisWeek} new this week',
-              onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
+              onTap: () => Get.toNamed(AdminRoutes.users),
             ),
             Obx(() {
               final natural = DashboardController.instance.naturalStudentsCount;
@@ -376,7 +380,7 @@ class _ContentKpiGrid extends StatelessWidget {
                 tag: '$natPct% / $socPct%',
                 tagColor: AppColors.primary,
                 subtext: 'Nat: ${NumberFormat('#,##0').format(natural)} • Soc: ${NumberFormat('#,##0').format(social)}',
-                onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
+                onTap: () => Get.toNamed(AdminRoutes.users),
               );
             }),
             _ContentKpiCard(
@@ -399,7 +403,7 @@ class _ContentKpiGrid extends StatelessWidget {
               tag: '7-day pace',
               tagColor: AppColors.info,
               subtext: 'Weekly momentum',
-              onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
+              onTap: () => Get.toNamed(AdminRoutes.users),
             ),
             Obx(() {
               final reportedCount = DashboardController.instance.pendingQuestionReportsCount.value;
@@ -411,7 +415,7 @@ class _ContentKpiGrid extends StatelessWidget {
                 subtext: reportedCount > 0
                     ? '$reportedCount pending question ${reportedCount == 1 ? "report" : "reports"}'
                     : 'All questions in good shape',
-                onTap: () => AdminNavController.instance.changePage(AdminNavPage.reportedQuestions),
+                onTap: () => Get.toNamed(AdminRoutes.questionReports),
               );
             }),
             Obx(() {
@@ -425,7 +429,7 @@ class _ContentKpiGrid extends StatelessWidget {
                 subtext: reviews > 0
                     ? '$reviews student ${reviews == 1 ? "rating" : "ratings"} recorded'
                     : 'Student notes feedback',
-                onTap: () => AdminNavController.instance.changePage(AdminNavPage.notes),
+                onTap: () => Get.toNamed(AdminRoutes.notes),
               );
             }),
           ],
