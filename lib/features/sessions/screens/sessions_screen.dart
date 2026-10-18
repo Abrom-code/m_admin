@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -70,6 +71,11 @@ class SessionRow {
   bool get hasBlockedAuth => blockedCount > 0;
   String get firebaseUid => userId;
 
+  bool get isCurrentBlocked => recentStatus == DeviceRecentStatus.blocked;
+  bool get isCurrentReadyToPair =>
+      recentStatus == DeviceRecentStatus.reset || recentStatus == DeviceRecentStatus.ready;
+  bool get isCurrentConnected => recentStatus == DeviceRecentStatus.connected;
+
   /// Determines the latest lifecycle status of this user's device:
   /// - `blocked`: The user attempted to log in from an unauthorized phone most recently.
   /// - `reset`: Admin reset the device, and the student hasn't paired a new device yet.
@@ -78,10 +84,14 @@ class SessionRow {
   DeviceRecentStatus get recentStatus {
     // 1. If currently unbound (no device locked)
     if (!isLocked) {
-      if (hasBlockedAuth &&
-          (lastResetAt == null ||
-              (lastBlockedAt != null && lastBlockedAt!.toUtc().isAfter(lastResetAt!.toUtc())))) {
-        return DeviceRecentStatus.blocked;
+      if (hasBlockedAuth) {
+        final resetAfterBlocked =
+            lastResetAt != null &&
+            lastBlockedAt != null &&
+            lastResetAt!.toUtc().isAfter(lastBlockedAt!.toUtc());
+        if (!resetAfterBlocked) {
+          return DeviceRecentStatus.blocked;
+        }
       }
       if (resetCount > 0 || lastResetAt != null) {
         return DeviceRecentStatus.reset;
@@ -91,10 +101,14 @@ class SessionRow {
 
     // 2. Currently bound (isLocked == true):
     if (lastBlockedAt != null) {
-      final resetTime = lastResetAt;
-      final isBlockedAfterReset =
-          resetTime == null || lastBlockedAt!.toUtc().isAfter(resetTime.toUtc());
-      if (isBlockedAfterReset) {
+      // If the device was paired/updated or reset AFTER the last blocked attempt,
+      // it is now actively connected and no longer blocked.
+      final resetAfterBlocked =
+          lastResetAt != null && lastResetAt!.toUtc().isAfter(lastBlockedAt!.toUtc());
+      final updatedAfterBlocked =
+          updatedAt != null && updatedAt!.toUtc().isAfter(lastBlockedAt!.toUtc());
+
+      if (!resetAfterBlocked && !updatedAfterBlocked) {
         return DeviceRecentStatus.blocked;
       }
     }
@@ -178,6 +192,8 @@ class SessionsController extends GetxController {
 
   final _sb = Supabase.instance.client;
   RealtimeChannel? _channel;
+  Timer? _debounceTimer;
+  bool _isFetching = false;
 
   final rows = <SessionRow>[].obs;
   final allRows = <SessionRow>[].obs;
@@ -192,9 +208,11 @@ class SessionsController extends GetxController {
   static const pageSize = 30;
 
   int get totalSessions => allRows.length;
-  int get lockedCount => allRows.where((r) => r.isLocked).length;
-  int get unlockedCount => allRows.where((r) => !r.isLocked).length;
-  int get blockedAuthCount => allRows.where((r) => r.hasBlockedAuth).length;
+  int get lockedCount => allRows.where((r) => r.isCurrentConnected).length;
+  int get connectedCount => lockedCount;
+  int get unlockedCount => allRows.where((r) => r.isCurrentReadyToPair).length;
+  int get readyToPairCount => unlockedCount;
+  int get blockedAuthCount => allRows.where((r) => r.isCurrentBlocked).length;
 
   @override
   void onInit() {
@@ -205,11 +223,20 @@ class SessionsController extends GetxController {
 
   @override
   void onClose() {
+    _debounceTimer?.cancel();
     if (_channel != null) {
       _sb.removeChannel(_channel!);
+      _channel = null;
     }
     searchController.dispose();
     super.onClose();
+  }
+
+  void _debouncedReload({Duration delay = const Duration(seconds: 3)}) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(delay, () {
+      if (!isClosed) load(showIndicator: false);
+    });
   }
 
   void _subscribeRealtime() {
@@ -219,22 +246,114 @@ class SessionsController extends GetxController {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'user_sessions',
-          callback: (_) => load(),
+          callback: (payload) {
+            final eventType = payload.eventType;
+
+            if (eventType == PostgresChangeEvent.delete) {
+              final oldUid = (payload.oldRecord['user_id'] ?? payload.oldRecord['firebase_uid'])
+                  ?.toString()
+                  .trim()
+                  .toLowerCase();
+              if (oldUid != null && oldUid.isNotEmpty) {
+                allRows.removeWhere((r) => r.userId.trim().toLowerCase() == oldUid);
+                _applyFilterAndSearch();
+              }
+              return;
+            }
+
+            final newRecord = payload.newRecord;
+            final rawUid = (newRecord['user_id'] ?? newRecord['firebase_uid'])?.toString() ?? '';
+            final uid = rawUid.trim().toLowerCase();
+            if (uid.isEmpty) return;
+
+            final newDeviceId = newRecord['device_id']?.toString() ?? '';
+            final newModel = newRecord['device_model']?.toString();
+            final newOs = newRecord['os_version']?.toString();
+            final newLastActive = EthiopianTimeHelper.parseToEastAfricaTime(newRecord['last_active_at']);
+            final newUpdatedAt = EthiopianTimeHelper.parseToEastAfricaTime(newRecord['updated_at']);
+
+            final idx = allRows.indexWhere((r) => r.userId.trim().toLowerCase() == uid);
+
+            if (eventType == PostgresChangeEvent.update) {
+              if (idx != -1) {
+                // In-memory update: eliminates expensive table re-queries on heartbeats
+                allRows[idx] = allRows[idx].copyWith(
+                  deviceId: newDeviceId,
+                  deviceModel: newModel ?? allRows[idx].deviceModel,
+                  osVersion: newOs ?? allRows[idx].osVersion,
+                  lastActiveAt: newLastActive ?? allRows[idx].lastActiveAt,
+                  updatedAt: newUpdatedAt ?? allRows[idx].updatedAt,
+                );
+                _applyFilterAndSearch();
+              } else {
+                _debouncedReload();
+              }
+              return;
+            }
+
+            if (eventType == PostgresChangeEvent.insert) {
+              if (idx != -1) {
+                allRows[idx] = allRows[idx].copyWith(
+                  deviceId: newDeviceId,
+                  deviceModel: newModel,
+                  osVersion: newOs,
+                  lastActiveAt: newLastActive,
+                  updatedAt: newUpdatedAt,
+                );
+                _applyFilterAndSearch();
+              } else {
+                _debouncedReload();
+              }
+            }
+          },
         )
         ..onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'device_history',
           callback: (payload) {
-            load();
             if (payload.eventType == PostgresChangeEvent.insert) {
               final action = payload.newRecord['action']?.toString() ?? '';
+              final rawUid = payload.newRecord['user_id']?.toString() ?? '';
+              final uid = rawUid.trim().toLowerCase();
+
               if (action == 'BLOCKED_ATTEMPT') {
                 final model = payload.newRecord['device_model']?.toString() ?? 'device';
+                final note = payload.newRecord['note']?.toString();
+                final createdAt = EthiopianTimeHelper.parseToEastAfricaTime(payload.newRecord['created_at']) ?? DateTime.now();
+
                 SnackbarHelper.error(
                   'Blocked Auth Attempt',
                   'Unauthorized login attempt from $model blocked.',
                 );
+
+                final idx = allRows.indexWhere((r) => r.userId.trim().toLowerCase() == uid);
+                if (idx != -1) {
+                  // Instant in-memory update with zero network egress
+                  allRows[idx] = allRows[idx].copyWith(
+                    blockedCount: allRows[idx].blockedCount + 1,
+                    lastBlockedAt: createdAt,
+                    lastBlockedDeviceModel: model,
+                    lastBlockedNote: note,
+                  );
+                  _applyFilterAndSearch();
+                } else {
+                  _debouncedReload();
+                }
+              } else if (action == 'ADMIN_RESET') {
+                final createdAt = EthiopianTimeHelper.parseToEastAfricaTime(payload.newRecord['created_at']) ?? DateTime.now();
+                final idx = allRows.indexWhere((r) => r.userId.trim().toLowerCase() == uid);
+                if (idx != -1) {
+                  // Instant in-memory reset status update with zero network egress
+                  allRows[idx] = allRows[idx].copyWith(
+                    deviceId: '',
+                    resetCount: allRows[idx].resetCount + 1,
+                    lastResetAt: createdAt,
+                  );
+                  _applyFilterAndSearch();
+                } else {
+                  _debouncedReload();
+                }
               }
             }
           },
@@ -249,53 +368,66 @@ class SessionsController extends GetxController {
     }
   }
 
-  Future<void> load() async {
+  Future<void> load({bool showIndicator = true}) async {
+    if (_isFetching) return;
+    _isFetching = true;
     try {
-      isLoading.value = true;
+      if (showIndicator) isLoading.value = true;
       errorMessage.value = null;
 
-      // 1. Query sessions
-      final sessionData = await _sb
-          .from('user_sessions')
-          .select('''
-            user_id, device_id, device_model, os_version, last_active_at, updated_at,
-            users(first_name, last_name, full_name, email)
-          ''')
-          .order('updated_at', ascending: false);
+      // Execute queries concurrently in parallel with strict limits to minimize bandwidth and egress
+      final results = await Future.wait<dynamic>([
+        // 0. Active/Recent sessions (bounded to 500)
+        _sb
+            .from('user_sessions')
+            .select('''
+              user_id, device_id, device_model, os_version, last_active_at, updated_at,
+              users(first_name, last_name, full_name, email)
+            ''')
+            .order('updated_at', ascending: false)
+            .limit(500),
 
-      // 2. Query blocked authentication attempts from device_history
-      List<Map<String, dynamic>> blockedHistory = [];
-      try {
-        final historyData = await _sb
+        // 1. Recent blocked authentication attempts (bounded to 250)
+        _sb
             .from('device_history')
             .select('user_id, device_id, device_model, os_version, note, created_at')
             .eq('action', 'BLOCKED_ATTEMPT')
-            .order('created_at', ascending: false);
-        blockedHistory = List<Map<String, dynamic>>.from(historyData as List);
-      } catch (e) {
-        debugPrint('[SessionsController] Error fetching device_history: $e');
-      }
+            .order('created_at', ascending: false)
+            .limit(250)
+            .catchError((e) {
+              debugPrint('[SessionsController] Error fetching device_history: $e');
+              return <dynamic>[];
+            }),
 
-      // 3. Query admin reset history from device_history to count resets per user and get last reset time
-      final Map<String, int> resetCountByUser = {};
-      final Map<String, DateTime> lastResetByUser = {};
-      try {
-        final resetData = await _sb
+        // 2. Recent admin resets (bounded to 300)
+        _sb
             .from('device_history')
             .select('user_id, created_at')
             .eq('action', 'ADMIN_RESET')
-            .order('created_at', ascending: false);
-        for (final item in (resetData as List)) {
-          final uid = item['user_id']?.toString().trim().toLowerCase();
-          if (uid != null && uid.isNotEmpty) {
-            resetCountByUser[uid] = (resetCountByUser[uid] ?? 0) + 1;
-            if (!lastResetByUser.containsKey(uid) && item['created_at'] != null) {
-              lastResetByUser[uid] = EthiopianTimeHelper.parseToEastAfricaTime(item['created_at']) ?? DateTime.now();
-            }
+            .order('created_at', ascending: false)
+            .limit(300)
+            .catchError((e) {
+              debugPrint('[SessionsController] Error fetching reset counts: $e');
+              return <dynamic>[];
+            }),
+      ]);
+
+      final sessionData = results[0] as List;
+      final blockedHistory = List<Map<String, dynamic>>.from(results[1] as List);
+      final resetData = results[2] as List;
+
+      // Group resets by user_id
+      final Map<String, int> resetCountByUser = {};
+      final Map<String, DateTime> lastResetByUser = {};
+      for (final item in resetData) {
+        final uid = item['user_id']?.toString().trim().toLowerCase();
+        if (uid != null && uid.isNotEmpty) {
+          resetCountByUser[uid] = (resetCountByUser[uid] ?? 0) + 1;
+          if (!lastResetByUser.containsKey(uid) && item['created_at'] != null) {
+            lastResetByUser[uid] =
+                EthiopianTimeHelper.parseToEastAfricaTime(item['created_at']) ?? DateTime.now();
           }
         }
-      } catch (e) {
-        debugPrint('[SessionsController] Error fetching reset counts: $e');
       }
 
       // Group blocked attempts by user_id
@@ -307,7 +439,7 @@ class SessionsController extends GetxController {
         }
       }
 
-      final list = (sessionData as List).map((r) {
+      final list = sessionData.map((r) {
         final rowMap = Map<String, dynamic>.from(r);
         final rawUid = (rowMap['user_id'] ?? rowMap['firebase_uid'])?.toString() ?? '';
         final uid = rawUid.trim().toLowerCase();
@@ -325,15 +457,17 @@ class SessionsController extends GetxController {
       final missingUids = blockedByUser.keys.where((uid) => !existingUids.contains(uid)).toList();
       if (missingUids.isNotEmpty) {
         try {
+          // Bounded chunk to avoid large payloads / URL overflows
+          final safeMissingUids = missingUids.take(50).toList();
           final missingUsersData = await _sb
               .from('users')
               .select('id, first_name, last_name, full_name, email')
-              .inFilter('id', missingUids);
+              .inFilter('id', safeMissingUids);
           final missingUsersMap = {
             for (final u in (missingUsersData as List))
               u['id'].toString().trim().toLowerCase(): Map<String, dynamic>.from(u)
           };
-          for (final uid in missingUids) {
+          for (final uid in safeMissingUids) {
             final u = missingUsersMap[uid] ?? {};
             final attempts = blockedByUser[uid]!;
             final latest = attempts.first;
@@ -372,6 +506,7 @@ class SessionsController extends GetxController {
       errorMessage.value = AppExceptionHandler.handle(e).message;
     } finally {
       isLoading.value = false;
+      _isFetching = false;
     }
   }
 
@@ -397,8 +532,10 @@ class SessionsController extends GetxController {
     int maxMs = r.updatedAt?.millisecondsSinceEpoch ?? 0;
     final activeMs = r.lastActiveAt?.millisecondsSinceEpoch ?? 0;
     final blockedMs = r.lastBlockedAt?.millisecondsSinceEpoch ?? 0;
+    final resetMs = r.lastResetAt?.millisecondsSinceEpoch ?? 0;
     if (activeMs > maxMs) maxMs = activeMs;
     if (blockedMs > maxMs) maxMs = blockedMs;
+    if (resetMs > maxMs) maxMs = resetMs;
     return maxMs;
   }
 
@@ -409,9 +546,9 @@ class SessionsController extends GetxController {
     final filtered = allRows.where((r) {
       final matchesFilter = switch (filter) {
         SessionFilter.all => true,
-        SessionFilter.locked => r.isLocked,
-        SessionFilter.readyToPair => !r.isLocked,
-        SessionFilter.blockedAuth => r.hasBlockedAuth,
+        SessionFilter.locked => r.isCurrentConnected,
+        SessionFilter.readyToPair => r.isCurrentReadyToPair,
+        SessionFilter.blockedAuth => r.isCurrentBlocked,
       };
 
       if (!matchesFilter) return false;
@@ -583,7 +720,7 @@ class _SessionMetricRibbon extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             _SessionMetricPill(
-              label: 'Locked (1 Device)',
+              label: 'Connected (1 Device)',
               value: '${controller.lockedCount}',
               icon: Iconsax.shield_tick_copy,
               color: AppColors.success,
@@ -794,7 +931,7 @@ class _SessionFilterBar extends StatelessWidget {
             if (filter == SessionFilter.all) return const SizedBox.shrink();
 
             final (name, color) = switch (filter) {
-              SessionFilter.locked => ('Locked', AppColors.success),
+              SessionFilter.locked => ('Connected', AppColors.success),
               SessionFilter.readyToPair => ('Ready to Pair', AppColors.warning),
               SessionFilter.blockedAuth => ('Blocked Auth', AppColors.error),
               _ => ('Filtered', AppColors.primary),
@@ -862,17 +999,17 @@ class _SessionTable extends StatelessWidget {
         onRetry: controller.load,
         onRefresh: controller.load,
         emptyTitle: switch (controller.selectedFilter.value) {
-          SessionFilter.blockedAuth => 'No blocked login attempts',
+          SessionFilter.blockedAuth => 'No currently blocked attempts',
           SessionFilter.readyToPair => 'No devices ready to pair',
-          SessionFilter.locked => 'No locked devices',
+          SessionFilter.locked => 'No connected devices',
           SessionFilter.all => controller.searchQuery.value.isNotEmpty
               ? 'No matching sessions'
               : 'No active device sessions found',
         },
         emptyMessage: switch (controller.selectedFilter.value) {
-          SessionFilter.blockedAuth => 'No unauthorized login attempts have been logged.',
-          SessionFilter.readyToPair => 'All current accounts have an assigned device lock.',
-          SessionFilter.locked => 'No current accounts have an active device lock.',
+          SessionFilter.blockedAuth => 'All unauthorized login attempts have been resolved or reset.',
+          SessionFilter.readyToPair => 'All current accounts have an active device or are currently blocked.',
+          SessionFilter.locked => 'No current accounts have an active connected device.',
           SessionFilter.all => controller.searchQuery.value.isNotEmpty
               ? 'Try adjusting your search terms.'
               : 'Sessions are registered when students open the mobile app.',
@@ -979,7 +1116,7 @@ class _SessionTable extends StatelessWidget {
                 const SizedBox(width: 2),
 
                 // 2. Middle icon: Reset Device Lock (Allow New Phone)
-                if (row.isLocked) ...[
+                if (row.isLocked || row.isCurrentBlocked) ...[
                   IconButton(
                     tooltip: 'Reset Device Lock (Allow New Phone)',
                     iconSize: 17,
@@ -1133,6 +1270,7 @@ class _DeviceIdCell extends StatelessWidget {
     final hasDevice = session.deviceId.isNotEmpty;
     final model = session.deviceModel;
     final os = session.osVersion;
+    final isCurrentBlocked = session.isCurrentBlocked;
     final hasBlocked = session.hasBlockedAuth;
 
     if (!hasDevice) {
@@ -1145,26 +1283,26 @@ class _DeviceIdCell extends StatelessWidget {
           Row(
             children: [
               Icon(
-                hasBlocked
+                isCurrentBlocked
                     ? Icons.gpp_bad_rounded
                     : (isReset ? Icons.restart_alt_rounded : Icons.phonelink_off_rounded),
                 size: 14,
-                color: hasBlocked
+                color: isCurrentBlocked
                     ? AppColors.error
                     : (isReset ? AppColors.warning : AppColors.textSecondary),
               ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  hasBlocked
+                  isCurrentBlocked
                       ? 'No device bound'
-                      : (isReset ? 'Device reset • Ready' : 'Ready to connect'),
+                      : (isReset ? 'Device reset • Ready to pair' : 'Ready to pair'),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                   style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
-                    color: hasBlocked
+                    color: isCurrentBlocked
                         ? AppColors.error
                         : (isReset ? AppColors.warning : AppColors.textSecondary),
                   ),
@@ -1172,7 +1310,7 @@ class _DeviceIdCell extends StatelessWidget {
               ),
             ],
           ),
-          if (hasBlocked && session.lastBlockedDeviceModel != null) ...[
+          if (isCurrentBlocked && session.lastBlockedDeviceModel != null) ...[
             const SizedBox(height: 2),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -1517,7 +1655,7 @@ void _showBlockedDetailsDialog(
           onPressed: () => Navigator.of(ctx).pop(),
           child: const Text('Close'),
         ),
-        if (session.isLocked)
+        if (session.isLocked || session.isCurrentBlocked)
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.warning,
