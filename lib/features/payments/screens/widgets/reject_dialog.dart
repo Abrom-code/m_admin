@@ -102,8 +102,8 @@ class _RejectDialogState extends State<_RejectDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
             const Text(
-              'This reason is shown to the student in their notification. '
-              'Be specific so they know exactly what to fix and resubmit.',
+              'Specify why this receipt is being rejected. '
+              'The receipt record and screenshot will be removed from database and storage.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
             const SizedBox(height: AppSizes.md),

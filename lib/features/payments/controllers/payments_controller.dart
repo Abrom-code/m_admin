@@ -387,16 +387,7 @@ class PaymentsController extends GetxController {
 
       SnackbarHelper.success(
         'Payment rejected',
-        'Receipt deleted from database & storage. ${review.displayName} has been notified.',
-      );
-
-      await _notify(
-        review.userId,
-        'rejected',
-        title: 'Payment Rejected',
-        body:
-            'Your payment receipt for ${review.planLabel} could not be approved: $trimmed',
-        reason: trimmed,
+        'Receipt deleted from database & storage.',
       );
       await refreshCounts();
       _refreshDashboard();
@@ -495,6 +486,8 @@ class PaymentsController extends GetxController {
     String? body,
     String? reason,
   }) async {
+    // Never send push notifications for rejected payments
+    if (status.toLowerCase() == 'rejected') return;
     try {
       await _repo.sendPaymentPush(
         userId: userId,

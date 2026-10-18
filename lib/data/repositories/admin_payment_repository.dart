@@ -490,6 +490,7 @@ class AdminPaymentRepository {
     String? body,
     String? reason,
   }) async {
+    if (status.toLowerCase() == 'rejected') return;
     try {
       final response = await http
           .post(
