@@ -73,12 +73,16 @@ class NotificationsRepository {
     required String type,
     required String audience,
     Map<String, dynamic> payload = const {},
+    bool saveToDb = true,
   }) async {
     try {
       // The edge function inserts the notification row into the DB AND sends
       // FCM. We don't insert here — doing so caused duplicate rows because
       // the edge function also inserts. Realtime picks up the DB row inserted
       // by the edge function for foregrounded student apps.
+      //
+      // If saveToDb is false (e.g. challenge notifications), the edge function
+      // skips database insertion and only delivers the FCM push.
 
       // 2. FCM push — reaches backgrounded / killed student apps.
       //    Build the audience object the edge function expects.
@@ -121,6 +125,7 @@ class NotificationsRepository {
               'target_status': ?edgeTargetStatus,
               'user_id': ?edgeUserId,
               'payload': payload,
+              'skip_db': !saveToDb,
             }),
           )
           .timeout(const Duration(seconds: 30));

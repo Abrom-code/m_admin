@@ -562,6 +562,11 @@ async function handlePaymentStatus(body: PaymentStatusBody) {
     return { ok: false, error: "missing user_id or status" };
   }
 
+  // Do not send push notification when payment is rejected
+  if (body.status.toLowerCase() === "rejected") {
+    return { ok: true, skipped: true, reason: "Payment rejection notifications disabled" };
+  }
+
   const supabase = getSupabaseClient();
   const { data: user } = await supabase
     .from("users")
@@ -626,6 +631,8 @@ interface AnnouncementBody {
   user_id?: string | null;
   payload?: Record<string, unknown> | null;
   created_by?: string | null;
+  skip_db?: boolean;
+  save_to_db?: boolean;
 }
 
 async function handleAnnouncement(body: AnnouncementBody) {
@@ -693,43 +700,69 @@ async function handleAnnouncement(body: AnnouncementBody) {
   const rawType = (body.type ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
   const notifType = (rawType && allowedTypes.includes(rawType)) ? rawType : "announcement";
 
-  // Build insert payload
-  const insertPayload: Record<string, unknown> = {
-    user_id: rowUserId,
-    title,
-    body: notifBody,
-    type: notifType,
-    target_stream: targetStream,
-    payload: body.payload ?? {},
-    is_read: false,
-  };
+  const payloadType = (body.payload && typeof body.payload === "object")
+    ? String((body.payload as Record<string, unknown>).type || "").toLowerCase()
+    : "";
 
-  if (body.created_by != null && body.created_by.trim().length > 0) {
-    insertPayload.created_by = body.created_by.trim();
-  }
+  // Challenge notifications must not be stored on Supabase — push FCM only
+  const isChallenge =
+    notifType === "challenge" ||
+    rawType === "challenge" ||
+    rawType === "challenge_round" ||
+    payloadType === "challenge" ||
+    payloadType === "challenge_round" ||
+    payloadType === "challenge_live" ||
+    payloadType === "challenge_closed";
 
-  // Save in notifications table with fallback if created_by FK fails
-  let { data: inserted, error: insertError } = await supabase
-    .from("notifications")
-    .insert(insertPayload)
-    .select("id")
-    .single();
+  const shouldSkipDb =
+    body.skip_db === true ||
+    body.save_to_db === false ||
+    isChallenge;
 
-  if (insertError && insertPayload.created_by) {
-    console.warn("Insert failed with created_by, retrying without created_by:", insertError);
-    delete insertPayload.created_by;
-    const retry = await supabase
+  let insertedId: number | string | null = null;
+
+  if (!shouldSkipDb) {
+    // Build insert payload
+    const insertPayload: Record<string, unknown> = {
+      user_id: rowUserId,
+      title,
+      body: notifBody,
+      type: notifType,
+      target_stream: targetStream,
+      payload: body.payload ?? {},
+      is_read: false,
+    };
+
+    if (body.created_by != null && body.created_by.trim().length > 0) {
+      insertPayload.created_by = body.created_by.trim();
+    }
+
+    // Save in notifications table with fallback if created_by FK fails
+    let { data: inserted, error: insertError } = await supabase
       .from("notifications")
       .insert(insertPayload)
       .select("id")
       .single();
-    inserted = retry.data;
-    insertError = retry.error;
-  }
 
-  if (insertError) {
-    console.error("handleAnnouncement: insert failed", insertError);
-    return { ok: false, error: insertError.message };
+    if (insertError && insertPayload.created_by) {
+      console.warn("Insert failed with created_by, retrying without created_by:", insertError);
+      delete insertPayload.created_by;
+      const retry = await supabase
+        .from("notifications")
+        .insert(insertPayload)
+        .select("id")
+        .single();
+      inserted = retry.data;
+      insertError = retry.error;
+    }
+
+    if (insertError) {
+      console.error("handleAnnouncement: insert failed", insertError);
+      return { ok: false, error: insertError.message };
+    }
+    insertedId = inserted?.id ?? null;
+  } else {
+    console.log(`handleAnnouncement: skipping Supabase notifications DB insert (isChallenge=${isChallenge}, skip_db=${body.skip_db})`);
   }
 
   // Build clean string-only FCM data payload
@@ -739,7 +772,7 @@ async function handleAnnouncement(body: AnnouncementBody) {
   const customData = sanitizeFcmData(body.payload);
   const data: Record<string, string> = {
     type: notifType,
-    notification_id: String(inserted?.id ?? ""),
+    ...(insertedId ? { notification_id: String(insertedId) } : {}),
     title,
     body: notifBody,
     ...customData,

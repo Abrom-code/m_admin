@@ -204,19 +204,6 @@ Deno.serve(async (req: Request) => {
       console.log(`Flipped ${newlyLive.length} challenges to live`);
 
       for (const ch of newlyLive) {
-        // Check if a live notification was already created for this challenge
-        const { data: existing } = await supabase
-          .from("notifications")
-          .select("id")
-          .eq("type", "challenge")
-          .contains("payload", { challenge_id: String(ch.id), type: "challenge_live" })
-          .limit(1);
-
-        if (existing && existing.length > 0) {
-          console.log(`Skipping live notification for challenge ${ch.id} — already notified (notification ${existing[0].id})`);
-          continue;
-        }
-
         const { data: subject } = await supabase
           .from("subjects")
           .select("name")
@@ -228,31 +215,12 @@ Deno.serve(async (req: Request) => {
         const notifBody = `${ch.title} (${subjName}) is now open. Test your skills and compete for the leaderboard!`;
         const targetStream = ch.audience === "both" ? null : ch.audience;
 
-        // Insert exactly one notification row
-        const { data: inserted } = await supabase
-          .from("notifications")
-          .insert({
-            title: notifTitle,
-            body: notifBody,
-            type: "challenge",
-            target_stream: targetStream,
-            payload: {
-              type: "challenge_live",
-              challenge_id: String(ch.id),
-            },
-            is_read: false,
-            created_at: new Date().toISOString(),
-          })
-          .select("id")
-          .single();
-
-        // Send data-only FCM push to student devices
+        // Challenge is live: Push notification only (no Supabase notifications table row).
         await sendFcmToStream(
           targetStream,
           {
             type: "challenge_live",
             challenge_id: String(ch.id),
-            notification_id: String(inserted?.id ?? ""),
             title: notifTitle,
             body: notifBody,
           },
@@ -260,7 +228,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 2. Flip live -> closed (In-app Supabase notification only, no FCM push interrupt)
+    // 2. Flip live -> closed (no Supabase notifications table row, no push needed)
     const { data: newlyClosed, error: closeErr } = await supabase
       .from("leaderboard_challenges")
       .update({ status: "closed" })
@@ -271,43 +239,7 @@ Deno.serve(async (req: Request) => {
     if (closeErr) {
       console.error("Error flipping live to closed:", closeErr);
     } else if (newlyClosed && newlyClosed.length > 0) {
-      console.log(`Flipped ${newlyClosed.length} challenges to closed`);
-
-      for (const ch of newlyClosed) {
-        // Check if a closed notification was already created for this challenge
-        const { data: existing } = await supabase
-          .from("notifications")
-          .select("id")
-          .eq("type", "challenge")
-          .contains("payload", { challenge_id: String(ch.id), type: "challenge_closed" })
-          .limit(1);
-
-        if (existing && existing.length > 0) {
-          continue;
-        }
-
-        const notifTitle = "🏆 Challenge Closed — Results In!";
-        const notifBody = `${ch.title} has ended. Check the leaderboard to see your rank and download the practice set!`;
-        const targetStream = ch.audience === "both" ? null : ch.audience;
-
-        // Insert in Supabase notifications table for in-app feed
-        await supabase
-          .from("notifications")
-          .insert({
-            title: notifTitle,
-            body: notifBody,
-            type: "challenge",
-            target_stream: targetStream,
-            payload: {
-              type: "challenge_closed",
-              challenge_id: String(ch.id),
-            },
-            is_read: false,
-            created_at: new Date().toISOString(),
-          });
-
-        // NOTE: No FCM push is sent for 'closed' to keep mobile notification panel clean & avoid fatigue.
-      }
+      console.log(`Flipped ${newlyClosed.length} challenges to closed (no DB notification or FCM needed)`);
     }
 
     return new Response(

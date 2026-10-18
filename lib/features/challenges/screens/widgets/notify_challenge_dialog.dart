@@ -114,6 +114,7 @@ class _NotifyChallengeDialogState extends State<NotifyChallengeDialog> {
         body: body,
         type: 'announcement',
         audience: _selectedAudience,
+        saveToDb: false, // FCM push only — do not store on Supabase notifications table
         payload: {
           'type': 'challenge_round',
           'challenge_id': widget.challenge.id,

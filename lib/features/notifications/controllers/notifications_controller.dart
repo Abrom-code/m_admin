@@ -111,11 +111,15 @@ class NotificationsController extends GetxController {
     if (isSending.value) return false; // guard against double-tap
     try {
       isSending.value = true;
+      final isChallengeType = type == 'challenge' ||
+          type == 'challenge_round' ||
+          type == 'challenge_reward';
       await _repo.sendBroadcast(
         title: title,
         body: body,
         type: type,
         audience: audience,
+        saveToDb: !isChallengeType,
       );
       SnackbarHelper.success('Sent', 'Notification delivered.');
       await load(); // refresh the list so the new row appears
