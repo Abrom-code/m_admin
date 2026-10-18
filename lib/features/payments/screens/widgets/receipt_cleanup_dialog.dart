@@ -27,7 +27,7 @@ class ReceiptCleanupDialog extends StatefulWidget {
 }
 
 class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
-  final _controller = PaymentsController.instance;
+  late final PaymentsController _controller;
 
   bool _loadingStats = true;
   bool _isProcessing = false;
@@ -37,6 +37,9 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
   @override
   void initState() {
     super.initState();
+    _controller = Get.isRegistered<PaymentsController>()
+        ? PaymentsController.instance
+        : Get.put(PaymentsController());
     _loadStats();
   }
 
@@ -162,21 +165,43 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
   }) {
     return showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        content: Text(message, style: const TextStyle(fontSize: 13, height: 1.5)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+      builder: (ctx) {
+        final dark = AppHelperFunctions.isDark(ctx);
+
+        return AlertDialog(
+          backgroundColor: dark ? AppColors.darkCard : AppColors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: color),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(confirmLabel),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          actionsOverflowButtonSpacing: 8,
+          actionsOverflowDirection: VerticalDirection.up,
+          title: Text(
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-        ],
-      ),
+          content: Text(
+            message,
+            style: const TextStyle(fontSize: 13, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: color,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(confirmLabel),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -184,12 +209,16 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
     final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final dialogWidth = (screenWidth - 32).clamp(280.0, 520.0);
+    final isCompact = dialogWidth < 430;
 
     return AlertDialog(
       backgroundColor: dark ? AppColors.darkCard : AppColors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
       ),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       titlePadding: const EdgeInsets.fromLTRB(AppSizes.md, AppSizes.md, AppSizes.md, 0),
       contentPadding: const EdgeInsets.all(AppSizes.md),
       title: Row(
@@ -208,19 +237,30 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
           ),
           const SizedBox(width: AppSizes.sm),
           const Expanded(
-            child: Text(
-              'Receipt Storage Cleanup',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Receipt Storage Cleanup',
+                  style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'Cloudflare R2 storage quota optimizer',
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+              ],
             ),
           ),
           IconButton(
             icon: const Icon(Icons.close_rounded, size: 20),
+            tooltip: 'Close',
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],
       ),
       content: SizedBox(
-        width: 520,
+        width: dialogWidth,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -236,7 +276,7 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
               ),
               const SizedBox(height: AppSizes.md),
 
-              // ── Live Metric Tiles ──────────────────────────────────────────
+              // ── Live Metric Tiles (Responsive without LayoutBuilder) ───────
               if (_loadingStats)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
@@ -249,39 +289,73 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
                   ),
                 )
               else if (_stats != null)
-                Row(
-                  children: [
-                    Expanded(
-                      child: _StatCard(
-                        label: 'Active Screenshots',
-                        value: NumberFormat('#,##0').format(_stats!.totalActiveScreenshots),
-                        icon: Iconsax.image_copy,
-                        color: AppColors.primary,
-                        subtitle: '~${(_stats!.totalActiveScreenshots * 0.25).toStringAsFixed(1)} MB',
+                if (isCompact) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _StatCard(
+                          label: 'Active Screenshots',
+                          value: NumberFormat('#,##0').format(_stats!.totalActiveScreenshots),
+                          icon: Iconsax.image_copy,
+                          color: AppColors.primary,
+                          subtitle: '~${(_stats!.totalActiveScreenshots * 0.25).toStringAsFixed(1)} MB',
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _StatCard(
-                        label: '> 1 Week Old',
-                        value: NumberFormat('#,##0').format(_stats!.olderThanOneWeekScreenshots),
-                        icon: Iconsax.timer_1_copy,
-                        color: AppColors.warning,
-                        subtitle: '~${(_stats!.olderThanOneWeekScreenshots * 0.25).toStringAsFixed(1)} MB',
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _StatCard(
+                          label: '> 1 Week Old',
+                          value: NumberFormat('#,##0').format(_stats!.olderThanOneWeekScreenshots),
+                          icon: Iconsax.timer_1_copy,
+                          color: AppColors.warning,
+                          subtitle: '~${(_stats!.olderThanOneWeekScreenshots * 0.25).toStringAsFixed(1)} MB',
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _StatCard(
-                        label: 'Rejected in DB',
-                        value: NumberFormat('#,##0').format(_stats!.rejectedReceiptsCount),
-                        icon: Iconsax.close_circle_copy,
-                        color: AppColors.error,
-                        subtitle: _stats!.rejectedReceiptsCount > 0 ? 'Purgeable' : 'Clean',
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _StatCard(
+                    label: 'Rejected in Database',
+                    value: NumberFormat('#,##0').format(_stats!.rejectedReceiptsCount),
+                    icon: Iconsax.close_circle_copy,
+                    color: AppColors.error,
+                    subtitle: _stats!.rejectedReceiptsCount > 0 ? 'Purgeable' : 'Clean',
+                  ),
+                ] else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _StatCard(
+                          label: 'Active Screenshots',
+                          value: NumberFormat('#,##0').format(_stats!.totalActiveScreenshots),
+                          icon: Iconsax.image_copy,
+                          color: AppColors.primary,
+                          subtitle: '~${(_stats!.totalActiveScreenshots * 0.25).toStringAsFixed(1)} MB',
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _StatCard(
+                          label: '> 1 Week Old',
+                          value: NumberFormat('#,##0').format(_stats!.olderThanOneWeekScreenshots),
+                          icon: Iconsax.timer_1_copy,
+                          color: AppColors.warning,
+                          subtitle: '~${(_stats!.olderThanOneWeekScreenshots * 0.25).toStringAsFixed(1)} MB',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _StatCard(
+                          label: 'Rejected in DB',
+                          value: NumberFormat('#,##0').format(_stats!.rejectedReceiptsCount),
+                          icon: Iconsax.close_circle_copy,
+                          color: AppColors.error,
+                          subtitle: _stats!.rejectedReceiptsCount > 0 ? 'Purgeable' : 'Clean',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               const SizedBox(height: AppSizes.md),
 
               if (_isProcessing)
@@ -319,7 +393,8 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
                       'Safely deletes verified receipts older than 1 week from storage while keeping recent submissions.',
                   buttonLabel: 'Clean > 1 Week',
                   buttonColor: AppColors.primary,
-                  enabled: (_stats?.olderThanOneWeekScreenshots ?? 0) > 0,
+                  isCompact: isCompact,
+                  enabled: !_isProcessing && (_stats?.olderThanOneWeekScreenshots ?? 0) > 0,
                   onTap: _cleanOlderThanOneWeek,
                 ),
                 const SizedBox(height: 8),
@@ -333,7 +408,8 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
                       'Purges screenshots for all approved subscribers. Full financial & subscription data stays intact.',
                   buttonLabel: 'Clean All Active',
                   buttonColor: AppColors.warning,
-                  enabled: (_stats?.totalActiveScreenshots ?? 0) > 0,
+                  isCompact: isCompact,
+                  enabled: !_isProcessing && (_stats?.totalActiveScreenshots ?? 0) > 0,
                   onTap: _cleanAllActive,
                 ),
                 const SizedBox(height: 8),
@@ -347,7 +423,8 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
                       'Permanently deletes leftover rejected receipt rows and their screenshots from the database.',
                   buttonLabel: 'Purge Rejected',
                   buttonColor: AppColors.error,
-                  enabled: (_stats?.rejectedReceiptsCount ?? 0) > 0,
+                  isCompact: isCompact,
+                  enabled: !_isProcessing && (_stats?.rejectedReceiptsCount ?? 0) > 0,
                   onTap: _purgeRejected,
                 ),
                 const SizedBox(height: AppSizes.md),
@@ -366,7 +443,7 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
                     return SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       value: autoEnabled,
-                      onChanged: _controller.toggleAutoCleanup,
+                      onChanged: _isProcessing ? null : _controller.toggleAutoCleanup,
                       title: const Text(
                         'Auto-delete active screenshots after 1 week',
                         style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
@@ -384,6 +461,11 @@ class _ReceiptCleanupDialogState extends State<ReceiptCleanupDialog> {
         ),
       ),
       actions: [
+        TextButton.icon(
+          onPressed: _loadingStats || _isProcessing ? null : _loadStats,
+          icon: const Icon(Icons.refresh_rounded, size: 16),
+          label: const Text('Refresh'),
+        ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),
@@ -427,13 +509,18 @@ class _StatCard extends StatelessWidget {
           Row(
             children: [
               Icon(icon, size: 14, color: color),
-              const Spacer(),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: color,
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  subtitle,
+                  textAlign: TextAlign.end,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
                 ),
               ),
             ],
@@ -445,7 +532,7 @@ class _StatCard extends StatelessWidget {
           ),
           Text(
             label,
-            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+            style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -465,6 +552,7 @@ class _ActionTile extends StatelessWidget {
     required this.buttonColor,
     required this.enabled,
     required this.onTap,
+    this.isCompact = false,
   });
 
   final IconData icon;
@@ -475,10 +563,26 @@ class _ActionTile extends StatelessWidget {
   final Color buttonColor;
   final bool enabled;
   final VoidCallback onTap;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
+
+    final actionBtn = ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: buttonColor,
+        foregroundColor: Colors.white,
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        elevation: 0,
+      ),
+      onPressed: enabled ? onTap : null,
+      child: Text(
+        buttonLabel,
+        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+      ),
+    );
 
     return Container(
       padding: const EdgeInsets.all(AppSizes.sm),
@@ -489,46 +593,87 @@ class _ActionTile extends StatelessWidget {
           color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
         ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 16, color: iconColor),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: isCompact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: iconColor.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, size: 15, color: iconColor),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            subtitle,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  subtitle,
-                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: actionBtn,
                 ),
               ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 16, color: iconColor),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                actionBtn,
+              ],
             ),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: buttonColor,
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              elevation: 0,
-            ),
-            onPressed: enabled ? onTap : null,
-            child: Text(buttonLabel, style: const TextStyle(fontSize: 11)),
-          ),
-        ],
-      ),
     );
   }
 }

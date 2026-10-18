@@ -11,6 +11,7 @@ import 'package:m_admin/features/dashboard/screens/dashboard_screen.dart';
 import 'package:m_admin/features/notes/screens/notes_screen.dart';
 import 'package:m_admin/features/notifications/screens/notifications_screen.dart';
 import 'package:m_admin/features/payments/screens/payments_screen.dart';
+import 'package:m_admin/features/payments/screens/widgets/receipt_cleanup_dialog.dart';
 import 'package:m_admin/features/revenue/screens/revenue_screen.dart';
 import 'package:m_admin/features/pilot_exams/screens/pilot_exams_screen.dart';
 import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
@@ -69,6 +70,16 @@ class _AdminShellState extends State<AdminShell> {
             () => Text(AdminNavController.items[nav.selectedIndex.value].label),
           ),
           actions: [
+            Obx(() {
+              final isPayments = nav.selectedIndex.value == AdminNavPage.payments;
+              if (!isPayments) return const SizedBox.shrink();
+
+              return IconButton(
+                tooltip: 'Storage Cleanup',
+                onPressed: () => ReceiptCleanupDialog.show(context),
+                icon: const Icon(Icons.cleaning_services_rounded, size: 20),
+              );
+            }),
             Obx(() {
               final lockCtrl = Get.isRegistered<AppLockController>()
                   ? AppLockController.instance

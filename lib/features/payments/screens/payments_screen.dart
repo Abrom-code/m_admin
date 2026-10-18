@@ -10,7 +10,6 @@ import 'package:m_admin/features/payments/controllers/payments_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/payments/screens/payment_detail_screen.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
-import 'package:m_admin/features/payments/screens/widgets/receipt_cleanup_dialog.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
@@ -30,14 +29,8 @@ class PaymentsScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── 1. Content-Driven Metric Summary Strip & Cleanup Action ──
-          Row(
-            children: [
-              Expanded(child: _PaymentMetricRibbon(controller: controller)),
-              const SizedBox(width: 8),
-              const _StorageCleanupPill(),
-            ],
-          ),
+          // ── 1. Content-Driven Metric Summary Strip ─────────────
+          _PaymentMetricRibbon(controller: controller),
           const SizedBox(height: AppSizes.spaceBtwItems),
 
           // ── 2. Filter & Search Controls ─────────────────────────
@@ -106,46 +99,6 @@ class _PaymentMetricRibbon extends StatelessWidget {
         ),
       );
     });
-  }
-}
-
-class _StorageCleanupPill extends StatelessWidget {
-  const _StorageCleanupPill();
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = AppHelperFunctions.isDark(context);
-
-    return InkWell(
-      onTap: () => ReceiptCleanupDialog.show(context),
-      borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-      child: Container(
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: dark ? AppColors.darkSurface : AppColors.white,
-          borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-          border: Border.all(
-            color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-          ),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cleaning_services_rounded, size: 15, color: AppColors.primary),
-            SizedBox(width: 6),
-            Text(
-              'Storage Cleanup',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
