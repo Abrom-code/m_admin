@@ -268,7 +268,7 @@ class _DashboardTopBar extends StatelessWidget {
               const SizedBox(width: 8),
             if (pendingReportsCount > 0)
               InkWell(
-                onTap: () => Get.toNamed(AdminRoutes.questionReports),
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.reportedQuestions),
                 borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
                 child: Container(
                   padding:
@@ -361,7 +361,7 @@ class _ContentKpiGrid extends StatelessWidget {
               tag: 'All Time',
               tagColor: AppColors.primary,
               subtext: '${stats.newUsersThisWeek} new this week',
-              onTap: () => Get.toNamed(AdminRoutes.users),
+              onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
             ),
             Obx(() {
               final natural = DashboardController.instance.naturalStudentsCount;
@@ -380,7 +380,7 @@ class _ContentKpiGrid extends StatelessWidget {
                 tag: '$natPct% / $socPct%',
                 tagColor: AppColors.primary,
                 subtext: 'Nat: ${NumberFormat('#,##0').format(natural)} • Soc: ${NumberFormat('#,##0').format(social)}',
-                onTap: () => Get.toNamed(AdminRoutes.users),
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
               );
             }),
             _ContentKpiCard(
@@ -403,7 +403,7 @@ class _ContentKpiGrid extends StatelessWidget {
               tag: '7-day pace',
               tagColor: AppColors.info,
               subtext: 'Weekly momentum',
-              onTap: () => Get.toNamed(AdminRoutes.users),
+              onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
             ),
             Obx(() {
               final reportedCount = DashboardController.instance.pendingQuestionReportsCount.value;
@@ -415,7 +415,7 @@ class _ContentKpiGrid extends StatelessWidget {
                 subtext: reportedCount > 0
                     ? '$reportedCount pending question ${reportedCount == 1 ? "report" : "reports"}'
                     : 'All questions in good shape',
-                onTap: () => Get.toNamed(AdminRoutes.questionReports),
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.reportedQuestions),
               );
             }),
             Obx(() {
@@ -429,7 +429,7 @@ class _ContentKpiGrid extends StatelessWidget {
                 subtext: reviews > 0
                     ? '$reviews student ${reviews == 1 ? "rating" : "ratings"} recorded'
                     : 'Student notes feedback',
-                onTap: () => Get.toNamed(AdminRoutes.notes),
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.notes),
               );
             }),
           ],

@@ -117,31 +117,59 @@ class _AdminScaffoldState extends State<AdminScaffold> {
           child: constrained,
         );
 
-        if (!widget.scrollable) return padded;
+        final Widget result;
+        if (!widget.scrollable) {
+          result = padded;
+        } else {
+          final scrollPhysics = widget.physics ?? const ClampingScrollPhysics();
 
-        final scrollPhysics = widget.physics ?? const ClampingScrollPhysics();
-
-        // Scrollable pages get pull-to-refresh for free.
-        if (widget.onRefresh != null) {
-          return RefreshIndicator(
-            onRefresh: widget.onRefresh!,
-            notificationPredicate: (notification) =>
-                notification.depth == 0 &&
-                (notification is! OverscrollNotification ||
-                    notification.dragDetails != null),
-            child: SingleChildScrollView(
+          // Scrollable pages get pull-to-refresh for free.
+          if (widget.onRefresh != null) {
+            result = RefreshIndicator(
+              onRefresh: widget.onRefresh!,
+              notificationPredicate: (notification) =>
+                  notification.depth == 0 &&
+                  (notification is! OverscrollNotification ||
+                      notification.dragDetails != null),
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                physics: scrollPhysics,
+                child: padded,
+              ),
+            );
+          } else {
+            result = SingleChildScrollView(
               controller: _scrollController,
               physics: scrollPhysics,
               child: padded,
+            );
+          }
+        }
+
+        final hasScaffold = Scaffold.maybeOf(context) != null;
+        if (!hasScaffold) {
+          final label = (widget.pageIndex != null &&
+                  widget.pageIndex! >= 0 &&
+                  widget.pageIndex! < AdminNavController.items.length)
+              ? AdminNavController.items[widget.pageIndex!].label
+              : 'Admin console';
+          return Scaffold(
+            appBar: AppBar(
+              title: Text(label),
+              actions: [
+                if (widget.onRefresh != null)
+                  IconButton(
+                    icon: const Icon(Icons.refresh_rounded),
+                    tooltip: 'Refresh',
+                    onPressed: widget.onRefresh,
+                  ),
+              ],
             ),
+            body: result,
           );
         }
 
-        return SingleChildScrollView(
-          controller: _scrollController,
-          physics: scrollPhysics,
-          child: padded,
-        );
+        return result;
       },
     );
   }

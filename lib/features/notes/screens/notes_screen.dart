@@ -8,6 +8,7 @@ import 'package:m_admin/common/widgets/loaders/circular_loading.dart';
 import 'package:m_admin/features/notes/controllers/notes_controller.dart';
 import 'package:m_admin/features/notes/models/admin_note_model.dart';
 import 'package:m_admin/features/notes/screens/note_pdf_preview_screen.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/routes/routes.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
@@ -23,6 +24,7 @@ class NotesScreen extends StatelessWidget {
     final isNarrow = MediaQuery.of(context).size.width < 600;
 
     return AdminScaffold(
+      pageIndex: AdminNavPage.notes,
       onRefresh: ctrl.loadNotes,
       physics: const ClampingScrollPhysics(),
       body: Column(
@@ -236,154 +238,31 @@ class NotesScreen extends StatelessWidget {
                 const SizedBox(height: AppSizes.sm),
 
                 // ── 2. Subjects Dropdown, Rate/Sort Dropdown, and Reset Icon Button ──
-                Row(
-                  children: [
-                    // Subjects dropdown
-                    Expanded(
-                      child: Obx(() {
-                        final subjects = ctrl.subjects;
-                        return Container(
-                          height: 32,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          decoration: BoxDecoration(
-                            color: dark ? AppColors.darkSurface : AppColors.lightGrey,
-                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                            border: Border.all(
-                              color: ctrl.selectedSubjectId.value != null
-                                  ? AppColors.primary
-                                  : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
-                            ),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<int?>(
-                              value: ctrl.selectedSubjectId.value,
-                              isDense: true,
-                              isExpanded: true,
-                              icon: const Icon(Icons.arrow_drop_down, size: 18),
-                              hint: const Text('All Subjects', style: TextStyle(fontSize: 11.5)),
-                              items: [
-                                const DropdownMenuItem<int?>(
-                                  value: null,
-                                  child: Text('All Subjects', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
-                                ),
-                                ...subjects.map((s) => DropdownMenuItem<int?>(
-                                      value: s['id'] as int?,
-                                      child: Text(
-                                        s['name']?.toString() ?? '',
-                                        style: const TextStyle(fontSize: 11.5),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    )),
-                              ],
-                              onChanged: ctrl.setSubjectFilter,
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                    const SizedBox(width: 8),
-
-                    // Rate / Sort dropdown
-                    Expanded(
-                      child: Obx(() {
-                        final isCustomSort = ctrl.sortOption.value != 'default';
-                        return Container(
-                          height: 32,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          decoration: BoxDecoration(
-                            color: dark ? AppColors.darkSurface : AppColors.lightGrey,
-                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                            border: Border.all(
-                              color: isCustomSort
-                                  ? (ctrl.sortOption.value == 'urgency' ? AppColors.error : AppColors.primary)
-                                  : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
-                              width: isCustomSort ? 1.2 : 1.0,
-                            ),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: ctrl.sortOption.value,
-                              isDense: true,
-                              isExpanded: true,
-                              icon: const Icon(Icons.arrow_drop_down, size: 18),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'default',
-                                  child: Text('Rate: Default Order', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'highest_rating',
-                                  child: Text('Rate: Highest Rated ★', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'lowest_rating',
-                                  child: Text('Rate: Lowest Rated', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'most_rated',
-                                  child: Text('Rate: Most Reviews', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'urgency',
-                                  child: Text(
-                                    'Rate: ⚠️ Needs Review',
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.error,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                              onChanged: (val) {
-                                if (val != null) ctrl.setSortOption(val);
-                              },
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-
-                    // Reset button: icon only in the same row!
-                    Obx(() {
-                      final hasFilter = ctrl.selectedGrade.value != null ||
-                          ctrl.selectedSubjectId.value != null ||
-                          ctrl.premiumFilter.value != null ||
-                          ctrl.ratingFilter.value != null ||
-                          ctrl.sortOption.value != 'default' ||
-                          ctrl.searchQuery.value.isNotEmpty;
-                      if (!hasFilter) return const SizedBox.shrink();
-
-                      return Padding(
-                        padding: const EdgeInsets.only(left: 6),
-                        child: SizedBox(
-                          width: 32,
-                          height: 32,
-                          child: IconButton(
-                            tooltip: 'Reset all filters',
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                            onPressed: ctrl.clearFilters,
-                            icon: const Icon(Icons.refresh_rounded, size: 18),
-                            style: IconButton.styleFrom(
-                              backgroundColor: dark
-                                  ? AppColors.darkSurface
-                                  : AppColors.grey.withValues(alpha: 0.15),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                                side: BorderSide(
-                                  color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
+                if (isNarrow) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Obx(() => _buildSubjectDropdown(ctrl, dark)),
+                      ),
+                      Obx(() => _buildResetButton(ctrl, dark)),
+                    ],
+                  ),
+                  const SizedBox(height: AppSizes.sm),
+                  Obx(() => _buildSortDropdown(ctrl, dark)),
+                ] else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Obx(() => _buildSubjectDropdown(ctrl, dark)),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Obx(() => _buildSortDropdown(ctrl, dark)),
+                      ),
+                      Obx(() => _buildResetButton(ctrl, dark)),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -481,6 +360,143 @@ class NotesScreen extends StatelessWidget {
             );
           }),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSubjectDropdown(NotesController ctrl, bool dark) {
+    final subjects = ctrl.subjects;
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: dark ? AppColors.darkSurface : AppColors.lightGrey,
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+        border: Border.all(
+          color: ctrl.selectedSubjectId.value != null
+              ? AppColors.primary
+              : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int?>(
+          value: ctrl.selectedSubjectId.value,
+          isDense: true,
+          isExpanded: true,
+          icon: const Icon(Icons.arrow_drop_down, size: 18),
+          hint: const Text('All Subjects', style: TextStyle(fontSize: 11.5)),
+          items: [
+            const DropdownMenuItem<int?>(
+              value: null,
+              child: Text('All Subjects', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
+            ),
+            ...subjects.map((s) => DropdownMenuItem<int?>(
+                  value: s['id'] as int?,
+                  child: Text(
+                    s['name']?.toString() ?? '',
+                    style: const TextStyle(fontSize: 11.5),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )),
+          ],
+          onChanged: ctrl.setSubjectFilter,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSortDropdown(NotesController ctrl, bool dark) {
+    final isCustomSort = ctrl.sortOption.value != 'default';
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: dark ? AppColors.darkSurface : AppColors.lightGrey,
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+        border: Border.all(
+          color: isCustomSort
+              ? (ctrl.sortOption.value == 'urgency' ? AppColors.error : AppColors.primary)
+              : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+          width: isCustomSort ? 1.2 : 1.0,
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: ctrl.sortOption.value,
+          isDense: true,
+          isExpanded: true,
+          icon: const Icon(Icons.arrow_drop_down, size: 18),
+          items: const [
+            DropdownMenuItem(
+              value: 'default',
+              child: Text('Rate: Default Order', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
+            ),
+            DropdownMenuItem(
+              value: 'highest_rating',
+              child: Text('Rate: Highest Rated ★', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
+            ),
+            DropdownMenuItem(
+              value: 'lowest_rating',
+              child: Text('Rate: Lowest Rated', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
+            ),
+            DropdownMenuItem(
+              value: 'most_rated',
+              child: Text('Rate: Most Reviews', style: TextStyle(fontSize: 11.5), overflow: TextOverflow.ellipsis),
+            ),
+            DropdownMenuItem(
+              value: 'urgency',
+              child: Text(
+                'Rate: ⚠️ Needs Review',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.error,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+          onChanged: (val) {
+            if (val != null) ctrl.setSortOption(val);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResetButton(NotesController ctrl, bool dark) {
+    final hasFilter = ctrl.selectedGrade.value != null ||
+        ctrl.selectedSubjectId.value != null ||
+        ctrl.premiumFilter.value != null ||
+        ctrl.ratingFilter.value != null ||
+        ctrl.sortOption.value != 'default' ||
+        ctrl.searchQuery.value.isNotEmpty;
+    if (!hasFilter) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: SizedBox(
+        width: 32,
+        height: 32,
+        child: IconButton(
+          tooltip: 'Reset all filters',
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          onPressed: ctrl.clearFilters,
+          icon: const Icon(Icons.refresh_rounded, size: 18),
+          style: IconButton.styleFrom(
+            backgroundColor: dark
+                ? AppColors.darkSurface
+                : AppColors.grey.withValues(alpha: 0.15),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+              side: BorderSide(
+                color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

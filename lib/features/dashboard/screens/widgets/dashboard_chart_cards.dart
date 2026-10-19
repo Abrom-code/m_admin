@@ -5,6 +5,7 @@ import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/common/widgets/charts/donut_chart_painter.dart';
 import 'package:m_admin/data/repositories/dashboard_repository.dart';
 import 'package:m_admin/features/dashboard/controllers/dashboard_controller.dart';
+import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/routes/routes.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
@@ -414,7 +415,7 @@ class SubjectTestCountCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               InkWell(
-                onTap: () => Get.toNamed(AdminRoutes.content),
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.content),
                 child: const Text(
                   'Manage in Content ➔',
                   style: TextStyle(
@@ -527,7 +528,7 @@ class SubjectTestCountCard extends StatelessWidget {
     final color = hasZero ? AppColors.error : AppColors.primary;
 
     return InkWell(
-      onTap: () => Get.toNamed(AdminRoutes.content),
+      onTap: () => AdminNavController.instance.changePage(AdminNavPage.content),
       borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
