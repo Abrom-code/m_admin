@@ -73,7 +73,9 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
 
     final defaultPriceForPlan =
         AdminSubscriptionPlan.byKey(_selectedPlanKey)?.defaultPrice ?? 200;
-    final resolvedAmount = initialAmount ?? defaultPriceForPlan;
+    final resolvedAmount = (initialAmount != null && initialAmount > 0)
+        ? initialAmount
+        : (defaultPriceForPlan > 0 ? defaultPriceForPlan : 200);
     _amountController =
         TextEditingController(text: resolvedAmount.toStringAsFixed(0));
 
@@ -89,9 +91,11 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
 
   bool get _isCustom => _selectedPlanKey == 'custom';
 
-  num get _currentAmount =>
-      num.tryParse(_amountController.text.trim()) ??
-      (AdminSubscriptionPlan.byKey(_selectedPlanKey)?.defaultPrice ?? 200);
+  num get _currentAmount {
+    final parsed = num.tryParse(_amountController.text.trim());
+    if (parsed != null && parsed > 0) return parsed;
+    return AdminSubscriptionPlan.byKey(_selectedPlanKey)?.defaultPrice ?? 200;
+  }
 
   DateTime _calculateFinalExpiry() {
     if (_isCustom) {

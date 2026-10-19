@@ -64,7 +64,7 @@ class _AddRevenueDialogState extends State<AddRevenueDialog> {
     'Manual Transfer',
   ];
 
-  static const _quickAmounts = [500, 1000, 2500, 5000, 10000];
+  static const _quickAmounts = [200, 500, 1000, 2500, 5000, 10000];
 
   static String _methodChipLabel(String m) {
     switch (m.toLowerCase()) {
@@ -85,7 +85,7 @@ class _AddRevenueDialogState extends State<AddRevenueDialog> {
     super.initState();
     final edit = widget.recordToEdit;
     _amountCtrl = TextEditingController(
-      text: edit != null ? edit.amount.toStringAsFixed(0) : '',
+      text: edit != null ? edit.amount.toStringAsFixed(0) : '200',
     );
     _titleCtrl = TextEditingController(text: edit?.title ?? '');
     _notesCtrl = TextEditingController(text: edit?.notes ?? '');
@@ -362,7 +362,7 @@ class _AddRevenueDialogState extends State<AddRevenueDialog> {
                                   'Quick:',
                                   style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
                                 ),
-                                ..._quickAmounts.take(3).map((amt) {
+                                ..._quickAmounts.take(4).map((amt) {
                                   return InkWell(
                                     borderRadius: BorderRadius.circular(4),
                                     onTap: () {

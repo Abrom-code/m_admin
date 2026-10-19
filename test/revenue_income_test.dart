@@ -152,6 +152,12 @@ void main() {
       expect(find.text('Record Revenue / Income'), findsOneWidget);
       expect(find.text('Amount (ETB) *'), findsOneWidget);
 
+      // Verify default editable value is 200
+      final amountField = find.byWidgetPredicate(
+        (w) => w is TextFormField && w.controller?.text == '200',
+      );
+      expect(amountField, findsOneWidget);
+
       // Select quick amount 2500
       await tester.tap(find.text('2500'));
       await tester.pumpAndSettle();
