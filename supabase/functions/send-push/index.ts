@@ -523,7 +523,7 @@ function buildPaymentNotificationCopy(status: string): { title: string; notifBod
     case "approved":
       return {
         title: "Payment Approved! 🎉",
-        notifBody: "Your premium access is now active. Enjoy full access to all tests!",
+        notifBody: "Premium activated please refresh the app",
       };
     case "pending":
       return {
