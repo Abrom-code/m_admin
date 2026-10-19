@@ -55,7 +55,11 @@ class UsersController extends GetxController {
     super.onClose();
   }
 
-  Future<void> loadAll() async {
+  bool _hasInitialLoaded = false;
+
+  Future<void> loadAll({bool force = false}) async {
+    if (_hasInitialLoaded && !force && rows.isNotEmpty) return;
+    _hasInitialLoaded = true;
     await Future.wait([load(), refreshCounts(), loadStreams()]);
   }
 

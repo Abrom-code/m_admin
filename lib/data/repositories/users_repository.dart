@@ -296,16 +296,17 @@ class UsersRepository {
           .from('users')
           .select('stream')
           .not('stream', 'is', null)
-          .not('stream', 'eq', '');
+          .not('stream', 'eq', '')
+          .limit(50);
 
-      final set = <String>{};
+      final set = <String>{'Natural', 'Social'};
       for (final r in rows) {
         final v = r['stream']?.toString();
         if (v != null && v.isNotEmpty) set.add(v);
       }
       return set.toList()..sort();
-    } catch (e) {
-      throw AppExceptionHandler.handle(e);
+    } catch (_) {
+      return ['Natural', 'Social'];
     }
   }
 

@@ -203,14 +203,14 @@ class _AdminBottomNavBar extends StatelessWidget {
     return Obx(() {
       final currentIdx = nav.selectedIndex.value;
       const bottomNavPages = [
-        AdminNavPage.dashboard,
         AdminNavPage.payments,
         AdminNavPage.notifications,
+        AdminNavPage.dashboard,
+        AdminNavPage.users,
         AdminNavPage.challenges,
-        AdminNavPage.sessions,
       ];
       final matchedIdx = bottomNavPages.indexOf(currentIdx);
-      final selectedDest = matchedIdx >= 0 ? matchedIdx : 0;
+      final selectedDest = matchedIdx >= 0 ? matchedIdx : 2;
 
       return Container(
         decoration: BoxDecoration(
@@ -234,11 +234,6 @@ class _AdminBottomNavBar extends StatelessWidget {
             nav.changePage(bottomNavPages[index]);
           },
           destinations: [
-            const NavigationDestination(
-              icon: Icon(Iconsax.chart_2_copy, size: 20),
-              selectedIcon: Icon(Iconsax.chart_2, size: 20, color: AppColors.primary),
-              label: 'Dashboard',
-            ),
             NavigationDestination(
               icon: _NavBadge(
                 count: nav.pendingPaymentCount.value,
@@ -266,14 +261,19 @@ class _AdminBottomNavBar extends StatelessWidget {
               label: 'Alerts',
             ),
             const NavigationDestination(
+              icon: Icon(Iconsax.chart_2_copy, size: 20),
+              selectedIcon: Icon(Iconsax.chart_2, size: 20, color: AppColors.primary),
+              label: 'Dashboard',
+            ),
+            const NavigationDestination(
+              icon: Icon(Iconsax.people_copy, size: 20),
+              selectedIcon: Icon(Iconsax.people, size: 20, color: AppColors.primary),
+              label: 'Users',
+            ),
+            const NavigationDestination(
               icon: Icon(Iconsax.cup_copy, size: 20),
               selectedIcon: Icon(Iconsax.cup, size: 20, color: AppColors.primary),
               label: 'Challenges',
-            ),
-            const NavigationDestination(
-              icon: Icon(Iconsax.mobile_copy, size: 20),
-              selectedIcon: Icon(Iconsax.mobile, size: 20, color: AppColors.primary),
-              label: 'Sessions',
             ),
           ],
         ),
