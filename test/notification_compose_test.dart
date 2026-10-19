@@ -33,6 +33,7 @@ class _FakeNotificationsController extends GetxController
     required String body,
     required String type,
     required String audience,
+    DateTime? scheduledAt,
   }) async {
     return true;
   }
@@ -187,6 +188,25 @@ void main() {
       expect(messageTextField.minLines, equals(8));
       expect(messageTextField.maxLines, equals(16));
       expect(messageTextField.decoration?.prefixIcon, isNull);
+    });
+
+    testWidgets('displays Schedule button in action buttons row', (tester) async {
+      final fakeController = _FakeNotificationsController();
+
+      tester.view.physicalSize = const Size(600, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: NotificationComposeScreen(controller: fakeController),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Schedule'), findsOneWidget);
+      expect(find.text('Send Notification'), findsOneWidget);
+      expect(find.text('Clear'), findsOneWidget);
     });
   });
 }

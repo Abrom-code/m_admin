@@ -50,6 +50,15 @@ class AdminNotificationModel {
 
   bool get isNewContent => type == 'new_content';
 
+  DateTime? get scheduledAt {
+    final raw = payload['scheduled_at'];
+    if (raw == null) return null;
+    return EthiopianTimeHelper.parseToEastAfricaTime(raw);
+  }
+
+  bool get isScheduled =>
+      scheduledAt != null && scheduledAt!.isAfter(DateTime.now());
+
   String get audienceLabel {
     if (userId != null) return 'User';
     if (targetStream != null && targetStream!.isNotEmpty) {

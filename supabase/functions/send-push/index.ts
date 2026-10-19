@@ -778,6 +778,22 @@ async function handleAnnouncement(body: AnnouncementBody) {
     ...customData,
   };
 
+  // Defer FCM push if notification is scheduled for a future timestamp
+  const scheduledAtRaw = (body as any).scheduled_at || (body.payload as any)?.scheduled_at;
+  const isFutureScheduled = scheduledAtRaw
+    ? (!isNaN(Date.parse(scheduledAtRaw)) && new Date(scheduledAtRaw).getTime() > Date.now())
+    : false;
+
+  if (isFutureScheduled) {
+    console.log(`handleAnnouncement: Notification scheduled for future (${scheduledAtRaw}), deferred FCM push.`);
+    return {
+      ok: true,
+      notification_id: insertedId,
+      scheduled: true,
+      scheduled_at: scheduledAtRaw,
+    };
+  }
+
   let fcmResult: Record<string, unknown> = { total: 0, sent: 0, failed: 0 };
   try {
     if (audienceType === "user" && token) {

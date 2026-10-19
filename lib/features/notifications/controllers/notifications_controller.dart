@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/notifications_repository.dart';
 import 'package:m_admin/features/notifications/models/admin_notification_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 class NotificationsController extends GetxController {
@@ -107,6 +108,7 @@ class NotificationsController extends GetxController {
     required String body,
     required String type,
     required String audience,
+    DateTime? scheduledAt,
   }) async {
     if (isSending.value) return false; // guard against double-tap
     try {
@@ -120,8 +122,16 @@ class NotificationsController extends GetxController {
         type: type,
         audience: audience,
         saveToDb: !isChallengeType,
+        scheduledAt: scheduledAt,
       );
-      SnackbarHelper.success('Sent', 'Notification delivered.');
+      if (scheduledAt != null) {
+        SnackbarHelper.success(
+          'Scheduled',
+          'Notification scheduled for ${EthiopianTimeHelper.formatDateTimeWithEth(scheduledAt)}.',
+        );
+      } else {
+        SnackbarHelper.success('Sent', 'Notification delivered.');
+      }
       await load(); // refresh the list so the new row appears
       await loadStats(); // refresh stats
       return true;

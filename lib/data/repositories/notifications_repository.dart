@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:m_admin/features/notifications/models/admin_notification_model.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/utils/constants/app_env.dart';
 import 'package:m_admin/utils/exceptions/app_failure_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
@@ -74,6 +75,7 @@ class NotificationsRepository {
     required String audience,
     Map<String, dynamic> payload = const {},
     bool saveToDb = true,
+    DateTime? scheduledAt,
   }) async {
     try {
       // The edge function inserts the notification row into the DB AND sends
@@ -107,6 +109,14 @@ class NotificationsRepository {
         edgeAudience = 'all';
       }
 
+      final effectivePayload = <String, dynamic>{
+        ...payload,
+        if (scheduledAt != null)
+          'scheduled_at': scheduledAt.toUtc().toIso8601String(),
+        if (scheduledAt != null)
+          'scheduled_at_eat': EthiopianTimeHelper.formatDateTimeWithEth(scheduledAt),
+      };
+
       final response = await http
           .post(
             Uri.parse('${AppEnv.adminFunctionsBaseUrl}/send-push'),
@@ -124,7 +134,9 @@ class NotificationsRepository {
               'target_stream': ?edgeTargetStream,
               'target_status': ?edgeTargetStatus,
               'user_id': ?edgeUserId,
-              'payload': payload,
+              if (scheduledAt != null)
+                'scheduled_at': scheduledAt.toUtc().toIso8601String(),
+              'payload': effectivePayload,
               'skip_db': !saveToDb,
             }),
           )

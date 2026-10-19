@@ -8,8 +8,10 @@ import 'package:m_admin/features/challenges/models/challenge_model.dart';
 import 'package:m_admin/features/notifications/controllers/notifications_controller.dart';
 import 'package:m_admin/features/notifications/services/admin_notification_link_parser.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
+import 'package:intl/intl.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 import 'package:m_admin/utils/validators/validators.dart';
@@ -38,6 +40,7 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen> {
   List<AdminUserModel> _userResults = [];
   AdminUserModel? _selectedUser;
   bool _isSearching = false;
+  DateTime? _scheduledAt;
 
   static const _types = {
     'announcement': 'Announcement',
@@ -143,6 +146,31 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen> {
     return _audienceOptions[_audience] ?? _audience;
   }
 
+  Future<void> _pickScheduleDateTime() async {
+    final now = DateTime.now();
+    final initial = _scheduledAt ?? now.add(const Duration(hours: 1));
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(now) ? now : initial,
+      firstDate: now.subtract(const Duration(days: 1)),
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return;
+
+    final picked = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (picked.isBefore(now)) {
+      SnackbarHelper.warning('Invalid Time', 'Scheduled time must be in the future.');
+      return;
+    }
+    setState(() => _scheduledAt = picked);
+  }
+
   Future<void> _submit() async {
     if (widget.controller.isSending.value) return;
     if (_audience == 'user' && _selectedUser == null) {
@@ -151,18 +179,31 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen> {
     }
     if (!_formKey.currentState!.validate()) return;
 
+    if (_scheduledAt != null && _scheduledAt!.isBefore(DateTime.now())) {
+      SnackbarHelper.warning('Invalid Time', 'Scheduled time must be in the future.');
+      return;
+    }
+
     final ok = await widget.controller.send(
       title: _titleCtrl.text.trim(),
       body: _bodyCtrl.text.trim(),
       type: _type,
       audience: _effectiveAudience,
+      scheduledAt: _scheduledAt,
     );
 
     if (ok && mounted) {
-      SnackbarHelper.success(
-        'Notification Sent',
-        'Notification successfully sent to $_audienceLabel',
-      );
+      if (_scheduledAt != null) {
+        SnackbarHelper.success(
+          'Notification Scheduled',
+          'Notification scheduled for ${EthiopianTimeHelper.formatDateTimeWithEth(_scheduledAt!)} to $_audienceLabel',
+        );
+      } else {
+        SnackbarHelper.success(
+          'Notification Sent',
+          'Notification successfully sent to $_audienceLabel',
+        );
+      }
       if (Navigator.of(context).canPop()) {
         Navigator.of(context).pop(true);
       } else {
@@ -174,6 +215,7 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen> {
           _audience = 'all';
           _selectedUser = null;
           _userResults = [];
+          _scheduledAt = null;
         });
       }
     }
@@ -438,6 +480,57 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen> {
                     ],
                   ),
                 ),
+                if (_scheduledAt != null) ...[
+                  const SizedBox(height: AppSizes.spaceBtwItems),
+                  Container(
+                    padding: const EdgeInsets.all(AppSizes.sm + 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Iconsax.calendar_1_copy, size: 20, color: AppColors.primary),
+                        const SizedBox(width: AppSizes.sm),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Scheduled: ${DateFormat('EEE, MMM dd, yyyy • HH:mm').format(_scheduledAt!)} (EAT UTC+3)',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Ethiopian: ${EthiopianTimeHelper.formatDateTimeWithEth(_scheduledAt!)}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Change Schedule Time',
+                          icon: const Icon(Iconsax.edit_copy, size: 16, color: AppColors.primary),
+                          onPressed: _pickScheduleDateTime,
+                        ),
+                        IconButton(
+                          tooltip: 'Clear Schedule',
+                          icon: const Icon(Icons.close_rounded, size: 16),
+                          onPressed: () => setState(() => _scheduledAt = null),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: AppSizes.spaceBtwSections),
                 Obx(
                   () => Wrap(
@@ -458,12 +551,39 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen> {
                                   _audience = 'all';
                                   _selectedUser = null;
                                   _userResults = [];
+                                  _scheduledAt = null;
                                 });
                               },
                         style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(110, 44),
+                          minimumSize: const Size(90, 44),
                         ),
                         child: const Text('Clear'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: widget.controller.isSending.value
+                            ? null
+                            : _pickScheduleDateTime,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(120, 44),
+                          side: BorderSide(
+                            color: _scheduledAt != null
+                                ? AppColors.primary
+                                : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
+                            width: _scheduledAt != null ? 1.5 : 1.0,
+                          ),
+                        ),
+                        icon: Icon(
+                          Iconsax.calendar_1_copy,
+                          size: 16,
+                          color: _scheduledAt != null ? AppColors.primary : null,
+                        ),
+                        label: Text(
+                          _scheduledAt != null ? 'Change Schedule' : 'Schedule',
+                          style: TextStyle(
+                            color: _scheduledAt != null ? AppColors.primary : null,
+                            fontWeight: _scheduledAt != null ? FontWeight.bold : FontWeight.w500,
+                          ),
+                        ),
                       ),
                       ElevatedButton.icon(
                         onPressed: widget.controller.isSending.value
@@ -471,7 +591,9 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen> {
                             : _submit,
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size(140, 44),
-                          backgroundColor: AppColors.primary,
+                          backgroundColor: _scheduledAt != null
+                              ? const Color(0xFF2563EB)
+                              : AppColors.primary,
                         ),
                         icon: widget.controller.isSending.value
                             ? const SizedBox(
@@ -482,11 +604,16 @@ class _NotificationComposeScreenState extends State<NotificationComposeScreen> {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Icon(Iconsax.send_1_copy, size: 18),
+                            : Icon(
+                                _scheduledAt != null
+                                    ? Iconsax.calendar_tick_copy
+                                    : Iconsax.send_1_copy,
+                                size: 18,
+                              ),
                         label: Text(
                           widget.controller.isSending.value
-                              ? 'Sending...'
-                              : 'Send Notification',
+                              ? (_scheduledAt != null ? 'Scheduling...' : 'Sending...')
+                              : (_scheduledAt != null ? 'Schedule Notification' : 'Send Notification'),
                         ),
                       ),
                     ],

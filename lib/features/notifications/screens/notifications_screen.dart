@@ -9,6 +9,7 @@ import 'package:m_admin/features/notifications/models/admin_notification_model.d
 import 'package:m_admin/features/notifications/screens/notification_compose_screen.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 
 class NotificationsScreen extends StatelessWidget {
@@ -577,6 +578,32 @@ class _NotificationCard extends StatelessWidget {
                 ],
               ],
             ),
+            if (notification.scheduledAt != null) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Iconsax.calendar_1_copy, size: 12, color: AppColors.primary),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Scheduled: ${EthiopianTimeHelper.formatDateTimeWithEth(notification.scheduledAt!)}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
