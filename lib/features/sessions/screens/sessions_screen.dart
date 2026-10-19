@@ -202,7 +202,12 @@ class SessionsController extends GetxController {
   final actingUids = <String>{}.obs;
   final searchQuery = ''.obs;
   final searchController = TextEditingController();
-  final selectedFilter = SessionFilter.all.obs;
+  final selectedFilter = SessionFilter.blockedAuth.obs;
+  final hasLoadedOtherSessions = false.obs;
+  final isLoadingOtherSessions = false.obs;
+
+  Map<String, List<Map<String, dynamic>>> _cachedBlockedByUser = {};
+  List<SessionRow> _cachedBlockedRows = [];
 
   final page = 0.obs;
   static const pageSize = 25;
@@ -217,7 +222,7 @@ class SessionsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    load();
+    loadBlockedAuth();
     _subscribeRealtime();
   }
 
@@ -368,16 +373,137 @@ class SessionsController extends GetxController {
     }
   }
 
-  Future<void> load({bool showIndicator = true}) async {
+  Future<void> loadBlockedAuth({bool showIndicator = true}) async {
     if (_isFetching) return;
     _isFetching = true;
     try {
       if (showIndicator) isLoading.value = true;
       errorMessage.value = null;
 
-      // Execute queries concurrently in parallel with strict limits to minimize bandwidth and egress
+      final blockedHistoryRaw = await _sb
+          .from('device_history')
+          .select('user_id, device_id, device_model, os_version, note, created_at')
+          .eq('action', 'BLOCKED_ATTEMPT')
+          .order('created_at', ascending: false)
+          .limit(250)
+          .catchError((e) {
+            debugPrint('[SessionsController] Error fetching device_history: $e');
+            return <dynamic>[];
+          });
+
+      final blockedHistory = List<Map<String, dynamic>>.from(blockedHistoryRaw as List);
+      final Map<String, List<Map<String, dynamic>>> blockedByUser = {};
+      for (final item in blockedHistory) {
+        final uid = item['user_id']?.toString().trim().toLowerCase();
+        if (uid != null && uid.isNotEmpty) {
+          blockedByUser.putIfAbsent(uid, () => []).add(item);
+        }
+      }
+      _cachedBlockedByUser = blockedByUser;
+
+      final uids = blockedByUser.keys.toList();
+      final Map<String, Map<String, dynamic>> usersMap = {};
+      final Map<String, Map<String, dynamic>> sessionsMap = {};
+      final Map<String, int> resetCountByUser = {};
+      final Map<String, DateTime> lastResetByUser = {};
+
+      if (uids.isNotEmpty) {
+        final safeUids = uids.take(100).toList();
+        final subResults = await Future.wait<dynamic>([
+          _sb
+              .from('users')
+              .select('id, first_name, last_name, full_name, email')
+              .inFilter('id', safeUids)
+              .catchError((_) => <dynamic>[]),
+          _sb
+              .from('user_sessions')
+              .select('user_id, device_id, device_model, os_version, last_active_at, updated_at')
+              .inFilter('user_id', safeUids)
+              .catchError((_) => <dynamic>[]),
+          _sb
+              .from('device_history')
+              .select('user_id, created_at')
+              .eq('action', 'ADMIN_RESET')
+              .inFilter('user_id', safeUids)
+              .order('created_at', ascending: false)
+              .catchError((_) => <dynamic>[]),
+        ]);
+
+        for (final u in (subResults[0] as List)) {
+          final uid = u['id']?.toString().trim().toLowerCase();
+          if (uid != null) usersMap[uid] = Map<String, dynamic>.from(u);
+        }
+        for (final s in (subResults[1] as List)) {
+          final uid = (s['user_id'] ?? s['firebase_uid'])?.toString().trim().toLowerCase();
+          if (uid != null) sessionsMap[uid] = Map<String, dynamic>.from(s);
+        }
+        for (final r in (subResults[2] as List)) {
+          final uid = r['user_id']?.toString().trim().toLowerCase();
+          if (uid != null) {
+            resetCountByUser[uid] = (resetCountByUser[uid] ?? 0) + 1;
+            if (!lastResetByUser.containsKey(uid) && r['created_at'] != null) {
+              lastResetByUser[uid] =
+                  EthiopianTimeHelper.parseToEastAfricaTime(r['created_at']) ?? DateTime.now();
+            }
+          }
+        }
+      }
+
+      final List<SessionRow> list = [];
+      for (final uid in blockedByUser.keys) {
+        final attempts = blockedByUser[uid]!;
+        final latest = attempts.first;
+        final u = usersMap[uid] ?? {};
+        final sess = sessionsMap[uid] ?? {};
+
+        final fName = u['first_name']?.toString() ?? '';
+        final lName = u['last_name']?.toString() ?? '';
+        final fullName = u['full_name']?.toString() ?? '';
+        final resolvedName = fullName.isNotEmpty
+            ? fullName
+            : ('$fName $lName'.trim().isNotEmpty ? '$fName $lName'.trim() : null);
+
+        list.add(SessionRow(
+          userId: uid,
+          userName: resolvedName,
+          userEmail: u['email']?.toString(),
+          deviceId: sess['device_id']?.toString() ?? '',
+          deviceModel: sess['device_model']?.toString(),
+          osVersion: sess['os_version']?.toString(),
+          lastActiveAt: EthiopianTimeHelper.parseToEastAfricaTime(sess['last_active_at'] ?? latest['created_at']),
+          updatedAt: EthiopianTimeHelper.parseToEastAfricaTime(sess['updated_at'] ?? latest['created_at']),
+          blockedCount: attempts.length,
+          lastBlockedAt: EthiopianTimeHelper.parseToEastAfricaTime(latest['created_at']),
+          lastBlockedDeviceModel: latest['device_model']?.toString(),
+          lastBlockedNote: latest['note']?.toString(),
+          resetCount: resetCountByUser[uid] ?? 0,
+          lastResetAt: lastResetByUser[uid],
+        ));
+      }
+
+      _cachedBlockedRows = list;
+      allRows.value = list;
+      _applyFilterAndSearch();
+    } catch (e) {
+      errorMessage.value = AppExceptionHandler.handle(e).message;
+    } finally {
+      isLoading.value = false;
+      _isFetching = false;
+    }
+  }
+
+  Future<void> loadOtherSessions({
+    SessionFilter? targetFilter,
+    bool showIndicator = true,
+  }) async {
+    if (_isFetching) return;
+    _isFetching = true;
+    try {
+      isLoadingOtherSessions.value = true;
+      if (showIndicator) isLoading.value = true;
+      errorMessage.value = null;
+
       final results = await Future.wait<dynamic>([
-        // 0. Active/Recent sessions (bounded to 500)
         _sb
             .from('user_sessions')
             .select('''
@@ -385,21 +511,11 @@ class SessionsController extends GetxController {
               users(first_name, last_name, full_name, email)
             ''')
             .order('updated_at', ascending: false)
-            .limit(500),
-
-        // 1. Recent blocked authentication attempts (bounded to 250)
-        _sb
-            .from('device_history')
-            .select('user_id, device_id, device_model, os_version, note, created_at')
-            .eq('action', 'BLOCKED_ATTEMPT')
-            .order('created_at', ascending: false)
-            .limit(250)
+            .limit(500)
             .catchError((e) {
-              debugPrint('[SessionsController] Error fetching device_history: $e');
+              debugPrint('[SessionsController] Error fetching user_sessions: $e');
               return <dynamic>[];
             }),
-
-        // 2. Recent admin resets (bounded to 300)
         _sb
             .from('device_history')
             .select('user_id, created_at')
@@ -413,10 +529,8 @@ class SessionsController extends GetxController {
       ]);
 
       final sessionData = results[0] as List;
-      final blockedHistory = List<Map<String, dynamic>>.from(results[1] as List);
-      final resetData = results[2] as List;
+      final resetData = results[1] as List;
 
-      // Group resets by user_id
       final Map<String, int> resetCountByUser = {};
       final Map<String, DateTime> lastResetByUser = {};
       for (final item in resetData) {
@@ -430,20 +544,11 @@ class SessionsController extends GetxController {
         }
       }
 
-      // Group blocked attempts by user_id
-      final Map<String, List<Map<String, dynamic>>> blockedByUser = {};
-      for (final item in blockedHistory) {
-        final uid = item['user_id']?.toString().trim().toLowerCase();
-        if (uid != null && uid.isNotEmpty) {
-          blockedByUser.putIfAbsent(uid, () => []).add(item);
-        }
-      }
-
       final list = sessionData.map((r) {
         final rowMap = Map<String, dynamic>.from(r);
         final rawUid = (rowMap['user_id'] ?? rowMap['firebase_uid'])?.toString() ?? '';
         final uid = rawUid.trim().toLowerCase();
-        final userBlocked = blockedByUser[uid] ?? [];
+        final userBlocked = _cachedBlockedByUser[uid] ?? [];
         return SessionRow.fromJson(
           rowMap,
           blockedAttempts: userBlocked,
@@ -452,68 +557,46 @@ class SessionsController extends GetxController {
         );
       }).toList();
 
-      // Include users with blocked attempts who might not be in active user_sessions
       final existingUids = list.map((r) => r.userId.trim().toLowerCase()).toSet();
-      final missingUids = blockedByUser.keys.where((uid) => !existingUids.contains(uid)).toList();
-      if (missingUids.isNotEmpty) {
-        try {
-          // Bounded chunk to avoid large payloads / URL overflows
-          final safeMissingUids = missingUids.take(50).toList();
-          final missingUsersData = await _sb
-              .from('users')
-              .select('id, first_name, last_name, full_name, email')
-              .inFilter('id', safeMissingUids);
-          final missingUsersMap = {
-            for (final u in (missingUsersData as List))
-              u['id'].toString().trim().toLowerCase(): Map<String, dynamic>.from(u)
-          };
-          for (final uid in safeMissingUids) {
-            final u = missingUsersMap[uid] ?? {};
-            final attempts = blockedByUser[uid]!;
-            final latest = attempts.first;
-            final fName = u['first_name']?.toString() ?? '';
-            final lName = u['last_name']?.toString() ?? '';
-            final fullName = u['full_name']?.toString() ?? '';
-            final resolvedName = fullName.isNotEmpty
-                ? fullName
-                : ('$fName $lName'.trim().isNotEmpty ? '$fName $lName'.trim() : null);
-
-            list.add(SessionRow(
-              userId: uid,
-              userName: resolvedName,
-              userEmail: u['email']?.toString(),
-              deviceId: '',
-              deviceModel: null,
-              osVersion: null,
-              lastActiveAt: EthiopianTimeHelper.parseToEastAfricaTime(latest['created_at']),
-              updatedAt: EthiopianTimeHelper.parseToEastAfricaTime(latest['created_at']),
-              blockedCount: attempts.length,
-              lastBlockedAt: EthiopianTimeHelper.parseToEastAfricaTime(latest['created_at']),
-              lastBlockedDeviceModel: latest['device_model']?.toString(),
-              lastBlockedNote: latest['note']?.toString(),
-              resetCount: resetCountByUser[uid] ?? 0,
-              lastResetAt: lastResetByUser[uid],
-            ));
-          }
-        } catch (e) {
-          debugPrint('[SessionsController] Error fetching missing users for blocked attempts: $e');
+      for (final blockedRow in _cachedBlockedRows) {
+        if (!existingUids.contains(blockedRow.userId.trim().toLowerCase())) {
+          list.add(blockedRow);
         }
       }
 
       allRows.value = list;
+      hasLoadedOtherSessions.value = true;
+
+      if (targetFilter != null) {
+        selectedFilter.value = targetFilter;
+      }
       _applyFilterAndSearch();
     } catch (e) {
       errorMessage.value = AppExceptionHandler.handle(e).message;
     } finally {
       isLoading.value = false;
+      isLoadingOtherSessions.value = false;
       _isFetching = false;
     }
   }
 
+  Future<void> load({bool showIndicator = true}) async {
+    if (!hasLoadedOtherSessions.value && selectedFilter.value == SessionFilter.blockedAuth) {
+      await loadBlockedAuth(showIndicator: showIndicator);
+    } else {
+      await loadOtherSessions(showIndicator: showIndicator);
+    }
+  }
+
   void setFilter(SessionFilter filter) {
+    if (filter != SessionFilter.blockedAuth && !hasLoadedOtherSessions.value) {
+      loadOtherSessions(targetFilter: filter);
+      return;
+    }
+
     if (selectedFilter.value == filter) {
-      if (filter != SessionFilter.all) {
-        selectedFilter.value = SessionFilter.all;
+      if (filter != SessionFilter.blockedAuth) {
+        selectedFilter.value = SessionFilter.blockedAuth;
       }
     } else {
       selectedFilter.value = filter;
@@ -631,6 +714,9 @@ class SessionsController extends GetxController {
       final idxAll = allRows.indexWhere((r) => r.userId == session.userId);
       if (idxAll != -1) allRows[idxAll] = updated;
 
+      final idxBlocked = _cachedBlockedRows.indexWhere((r) => r.userId == session.userId);
+      if (idxBlocked != -1) _cachedBlockedRows[idxBlocked] = updated;
+
       _applyFilterAndSearch();
       SnackbarHelper.success('Device Reset', 'Device lock removed. User can pair a new phone on next login.');
     } catch (e) {
@@ -653,6 +739,7 @@ class SessionsController extends GetxController {
           .eq('user_id', session.userId);
 
       allRows.removeWhere((r) => r.userId == session.userId);
+      _cachedBlockedRows.removeWhere((r) => r.userId == session.userId);
       _applyFilterAndSearch();
       SnackbarHelper.success('Session deleted', 'User session removed successfully.');
     } catch (e) {
@@ -704,41 +791,13 @@ class _SessionMetricRibbon extends StatelessWidget {
 
     return Obx(() {
       final currentFilter = controller.selectedFilter.value;
+      final otherLoaded = controller.hasLoadedOtherSessions.value;
+      final loadingOther = controller.isLoadingOtherSessions.value;
 
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _SessionMetricPill(
-              label: 'Total Sessions',
-              value: '${controller.totalSessions}',
-              icon: Iconsax.devices_copy,
-              color: AppColors.primary,
-              dark: dark,
-              isSelected: currentFilter == SessionFilter.all,
-              onTap: () => controller.setFilter(SessionFilter.all),
-            ),
-            const SizedBox(width: 8),
-            _SessionMetricPill(
-              label: 'Connected (1 Device)',
-              value: '${controller.lockedCount}',
-              icon: Iconsax.shield_tick_copy,
-              color: AppColors.success,
-              dark: dark,
-              isSelected: currentFilter == SessionFilter.locked,
-              onTap: () => controller.setFilter(SessionFilter.locked),
-            ),
-            const SizedBox(width: 8),
-            _SessionMetricPill(
-              label: 'Ready to Pair',
-              value: '${controller.unlockedCount}',
-              icon: Icons.lock_open_rounded,
-              color: AppColors.warning,
-              dark: dark,
-              isSelected: currentFilter == SessionFilter.readyToPair,
-              onTap: () => controller.setFilter(SessionFilter.readyToPair),
-            ),
-            const SizedBox(width: 8),
             _SessionMetricPill(
               label: 'Blocked Auth',
               value: '${controller.blockedAuthCount}',
@@ -747,6 +806,51 @@ class _SessionMetricRibbon extends StatelessWidget {
               dark: dark,
               isSelected: currentFilter == SessionFilter.blockedAuth,
               onTap: () => controller.setFilter(SessionFilter.blockedAuth),
+            ),
+            const SizedBox(width: 8),
+            _SessionMetricPill(
+              label: 'Connected (1 Device)',
+              value: otherLoaded
+                  ? '${controller.lockedCount}'
+                  : (loadingOther && currentFilter == SessionFilter.locked
+                      ? '...'
+                      : '—'),
+              icon: Iconsax.shield_tick_copy,
+              color: AppColors.success,
+              dark: dark,
+              isLoading: loadingOther && currentFilter == SessionFilter.locked,
+              isSelected: currentFilter == SessionFilter.locked,
+              onTap: () => controller.setFilter(SessionFilter.locked),
+            ),
+            const SizedBox(width: 8),
+            _SessionMetricPill(
+              label: 'Ready to Pair',
+              value: otherLoaded
+                  ? '${controller.unlockedCount}'
+                  : (loadingOther && currentFilter == SessionFilter.readyToPair
+                      ? '...'
+                      : '—'),
+              icon: Icons.lock_open_rounded,
+              color: AppColors.warning,
+              dark: dark,
+              isLoading: loadingOther && currentFilter == SessionFilter.readyToPair,
+              isSelected: currentFilter == SessionFilter.readyToPair,
+              onTap: () => controller.setFilter(SessionFilter.readyToPair),
+            ),
+            const SizedBox(width: 8),
+            _SessionMetricPill(
+              label: 'All Sessions',
+              value: otherLoaded
+                  ? '${controller.totalSessions}'
+                  : (loadingOther && currentFilter == SessionFilter.all
+                      ? '...'
+                      : '—'),
+              icon: Iconsax.devices_copy,
+              color: AppColors.primary,
+              dark: dark,
+              isLoading: loadingOther && currentFilter == SessionFilter.all,
+              isSelected: currentFilter == SessionFilter.all,
+              onTap: () => controller.setFilter(SessionFilter.all),
             ),
           ],
         ),
@@ -763,6 +867,7 @@ class _SessionMetricPill extends StatelessWidget {
     required this.color,
     required this.dark,
     this.isSelected = false,
+    this.isLoading = false,
     this.onTap,
   });
 
@@ -772,6 +877,7 @@ class _SessionMetricPill extends StatelessWidget {
   final Color color;
   final bool dark;
   final bool isSelected;
+  final bool isLoading;
   final VoidCallback? onTap;
 
   @override
@@ -836,14 +942,25 @@ class _SessionMetricPill extends StatelessWidget {
                   color: isSelected ? color : color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.white : color,
-                  ),
-                ),
+                child: isLoading
+                    ? SizedBox(
+                        width: 11,
+                        height: 11,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.8,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            isSelected ? Colors.white : color,
+                          ),
+                        ),
+                      )
+                    : Text(
+                        value,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected ? Colors.white : color,
+                        ),
+                      ),
               ),
             ],
           ),
@@ -994,12 +1111,12 @@ class _SessionTable extends StatelessWidget {
       () => AdminDataTable<SessionRow>(
         minWidth: 940,
         rows: controller.pagedRows,
-        isLoading: controller.isLoading.value,
+        isLoading: controller.isLoading.value || controller.isLoadingOtherSessions.value,
         error: controller.errorMessage.value,
         onRetry: controller.load,
         onRefresh: controller.load,
         emptyTitle: switch (controller.selectedFilter.value) {
-          SessionFilter.blockedAuth => 'No currently blocked attempts',
+          SessionFilter.blockedAuth => 'No Blocked Authentication Attempts',
           SessionFilter.readyToPair => 'No devices ready to pair',
           SessionFilter.locked => 'No connected devices',
           SessionFilter.all => controller.searchQuery.value.isNotEmpty
@@ -1007,7 +1124,9 @@ class _SessionTable extends StatelessWidget {
               : 'No active device sessions found',
         },
         emptyMessage: switch (controller.selectedFilter.value) {
-          SessionFilter.blockedAuth => 'All unauthorized login attempts have been resolved or reset.',
+          SessionFilter.blockedAuth => controller.hasLoadedOtherSessions.value
+              ? 'All unauthorized login attempts have been resolved or reset.'
+              : 'No unauthorized login attempts found. Click Connected, Ready to Pair, or All Sessions to load other records.',
           SessionFilter.readyToPair => 'All current accounts have an active device or are currently blocked.',
           SessionFilter.locked => 'No current accounts have an active connected device.',
           SessionFilter.all => controller.searchQuery.value.isNotEmpty
