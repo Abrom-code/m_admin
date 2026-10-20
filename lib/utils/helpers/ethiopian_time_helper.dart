@@ -111,12 +111,31 @@ class EthiopianTimeHelper {
     return DateFormat('d MMM, HH:mm').format(eat);
   }
 
+  /// Current time in East Africa (UTC+3)
+  static DateTime nowInEastAfrica() {
+    return DateTime.now().toUtc().add(eastAfricaOffset);
+  }
+
+  /// Converts a DateTime chosen in East Africa Time (e.g. from date/time pickers)
+  /// into a proper UTC DateTime for Supabase/PostgreSQL storage.
+  static DateTime eatToUtc(DateTime eatDateTime) {
+    return DateTime.utc(
+      eatDateTime.year,
+      eatDateTime.month,
+      eatDateTime.day,
+      eatDateTime.hour,
+      eatDateTime.minute,
+      eatDateTime.second,
+      eatDateTime.millisecond,
+    ).subtract(eastAfricaOffset);
+  }
+
   /// Formats both standard time and Ethiopian time side-by-side.
   /// e.g. "4:00 PM (10:00 AM ET)"
   static String formatCombinedTime(DateTime dateTime) {
     final eat = toEastAfricaTime(dateTime);
-    final gregTime = formatGregorianTime(eat);
-    final ethTime = formatEthiopianTime(eat);
+    final gregTime = DateFormat('h:mm a').format(eat);
+    final ethTime = formatEthiopianTime(dateTime);
     return '$gregTime ($ethTime ET)';
   }
 
@@ -127,13 +146,13 @@ class EthiopianTimeHelper {
     bool? includeYear,
   }) {
     final eat = toEastAfricaTime(dateTime);
-    final nowEat = toEastAfricaTime(DateTime.now());
+    final nowEat = nowInEastAfrica();
     final isCurrentYear = eat.year == nowEat.year;
     final showYear = includeYear ?? !isCurrentYear;
     final datePattern = showYear ? 'MMM dd, yyyy' : 'MMM dd';
     final dateStr = DateFormat(datePattern).format(eat);
-    final gregTime = formatGregorianTime(eat);
-    final ethTime = formatEthiopianTime(eat);
+    final gregTime = DateFormat('h:mm a').format(eat);
+    final ethTime = formatEthiopianTime(dateTime);
 
     return '$dateStr • $gregTime ($ethTime ET)';
   }

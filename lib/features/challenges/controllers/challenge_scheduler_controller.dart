@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/challenge_repository.dart';
 import 'package:m_admin/features/challenges/models/challenge_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 class ChallengeSchedulerController extends GetxController {
@@ -63,8 +64,8 @@ class ChallengeSchedulerController extends GetxController {
         selectedSubjectId.value = ch.subjectId;
         selectedAudience.value = ch.audience;
         durationMinutesCtrl.text = (ch.durationSeconds ~/ 60).toString();
-        startsAt.value = ch.startsAt;
-        endsAt.value = ch.endsAt;
+        startsAt.value = ch.startsAt != null ? EthiopianTimeHelper.toEastAfricaTime(ch.startsAt!) : null;
+        endsAt.value = ch.endsAt != null ? EthiopianTimeHelper.toEastAfricaTime(ch.endsAt!) : null;
         currentStatus.value = ch.status;
         selectedReviewPolicy.value = ch.reviewPolicy;
       } else if (preselectedSetId != null) {
@@ -99,14 +100,14 @@ class ChallengeSchedulerController extends GetxController {
   // ── Presets ──────────────────────────────────────────────────────────────
 
   void applyLiveNowPreset() {
-    final now = DateTime.now();
+    final now = EthiopianTimeHelper.nowInEastAfrica();
     startsAt.value = now;
     endsAt.value = now.add(const Duration(hours: 12)); // default 12 hour live window
     SnackbarHelper.info('Preset applied', 'Round set to go live immediately for 12 hours.');
   }
 
   void applyTomorrowPreset() {
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final tomorrow = EthiopianTimeHelper.nowInEastAfrica().add(const Duration(days: 1));
     startsAt.value = DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 8, 0);
     endsAt.value = DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 20, 0);
     SnackbarHelper.info('Preset applied', 'Scheduled for tomorrow 08:00 to 20:00.');
@@ -132,8 +133,8 @@ class ChallengeSchedulerController extends GetxController {
         'title': titleCtrl.text.trim(),
         'audience': selectedAudience.value,
         'duration_seconds': durationMins * 60,
-        if (startsAt.value != null) 'starts_at': startsAt.value!.toIso8601String(),
-        if (endsAt.value != null) 'ends_at': endsAt.value!.toIso8601String(),
+        if (startsAt.value != null) 'starts_at': EthiopianTimeHelper.eatToUtc(startsAt.value!).toIso8601String(),
+        if (endsAt.value != null) 'ends_at': EthiopianTimeHelper.eatToUtc(endsAt.value!).toIso8601String(),
         'status': 'draft',
         'review_policy': selectedReviewPolicy.value,
       });
@@ -175,8 +176,8 @@ class ChallengeSchedulerController extends GetxController {
         'title': titleCtrl.text.trim(),
         'audience': selectedAudience.value,
         'duration_seconds': durationMins * 60,
-        'starts_at': startsAt.value!.toIso8601String(),
-        'ends_at': endsAt.value!.toIso8601String(),
+        'starts_at': EthiopianTimeHelper.eatToUtc(startsAt.value!).toIso8601String(),
+        'ends_at': EthiopianTimeHelper.eatToUtc(endsAt.value!).toIso8601String(),
         'status': 'draft',
         'review_policy': selectedReviewPolicy.value,
       });

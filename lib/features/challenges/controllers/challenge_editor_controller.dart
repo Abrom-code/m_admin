@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/challenge_repository.dart';
 import 'package:m_admin/features/challenges/models/challenge_question_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 class ChallengeEditorController extends GetxController {
@@ -42,8 +43,8 @@ class ChallengeEditorController extends GetxController {
     currentChallengeId.value = challengeId;
     selectedSubjectId.value = initialSubjectId;
 
-    // Default dates: starts now + 1h, ends now + 13h (local time)
-    final now = DateTime.now();
+    // Default dates: starts now + 1h, ends now + 13h (East Africa Time)
+    final now = EthiopianTimeHelper.nowInEastAfrica();
     startsAt.value = now.add(const Duration(hours: 1));
     endsAt.value = now.add(const Duration(hours: 13));
 
@@ -73,8 +74,8 @@ class ChallengeEditorController extends GetxController {
         status.value = c.status;
         isPremium.value = c.isPremium;
         reviewPolicy.value = c.reviewPolicy;
-        startsAt.value = c.startsAt;
-        endsAt.value = c.endsAt;
+        startsAt.value = c.startsAt != null ? EthiopianTimeHelper.toEastAfricaTime(c.startsAt!) : null;
+        endsAt.value = c.endsAt != null ? EthiopianTimeHelper.toEastAfricaTime(c.endsAt!) : null;
 
         questions.value = await _repo.fetchQuestionsForChallenge(c.id, setId: c.setId);
       }
@@ -131,7 +132,7 @@ class ChallengeEditorController extends GetxController {
       // Determine target status
       String targetStatus = 'draft';
       if (isPublish) {
-        final now = DateTime.now();
+        final now = EthiopianTimeHelper.nowInEastAfrica();
         final starts = startsAt.value ?? now;
         final ends = endsAt.value ?? now.add(const Duration(hours: 12));
         if (now.isAfter(starts) && now.isBefore(ends)) {
@@ -156,8 +157,8 @@ class ChallengeEditorController extends GetxController {
         'status': targetStatus,
         'is_premium': isPremium.value,
         'review_policy': reviewPolicy.value,
-        if (startsAt.value != null) 'starts_at': startsAt.value!.toUtc().toIso8601String(),
-        if (endsAt.value != null) 'ends_at': endsAt.value!.toUtc().toIso8601String(),
+        if (startsAt.value != null) 'starts_at': EthiopianTimeHelper.eatToUtc(startsAt.value!).toIso8601String(),
+        if (endsAt.value != null) 'ends_at': EthiopianTimeHelper.eatToUtc(endsAt.value!).toIso8601String(),
       };
 
       final savedChallenge = await _repo.upsertChallenge(payload);
