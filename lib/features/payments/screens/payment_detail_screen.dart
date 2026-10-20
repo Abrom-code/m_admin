@@ -9,6 +9,7 @@ import 'package:m_admin/features/payments/controllers/payments_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/payments/screens/widgets/approve_payment_dialog.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
+import 'package:m_admin/features/payments/screens/widgets/payment_verify_checker.dart';
 import 'package:m_admin/features/payments/screens/widgets/receipt_viewer.dart';
 import 'package:m_admin/features/payments/screens/widgets/reject_dialog.dart';
 import 'package:m_admin/utils/constants/colors.dart';
@@ -42,8 +43,22 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     super.initState();
     _review = widget.review;
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _focusNode.requestFocus(),
+      (_) {
+        _focusNode.requestFocus();
+        _ensureFullDetailLoaded();
+      },
     );
+  }
+
+  Future<void> _ensureFullDetailLoaded() async {
+    if (!_review.hasScreenshot || _review.userId.isEmpty) {
+      try {
+        final full = await _repo.fetchDetail(_review.id);
+        if (mounted) {
+          setState(() => _review = full);
+        }
+      } catch (_) {}
+    }
   }
 
   @override
@@ -60,37 +75,50 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
       onKeyEvent: _handleKey,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final twoPane = constraints.maxWidth >= 760;
+          final isDesktop = constraints.maxWidth >= 900;
+          final receiptHeight = isDesktop
+              ? 580.0
+              : (constraints.maxWidth < 600 ? 380.0 : 460.0);
 
-          final left = ReceiptViewer(
+          final receipt = ReceiptViewer(
             review: _review,
             resolveUrl: () => _repo.signedReceiptUrl(
               _review.receiptPath,
               fallbackUrl: _review.receiptUrl,
             ),
+            height: receiptHeight,
           );
 
-          final right = SingleChildScrollView(
+          final detailPane = _ModernDetailPane(
+            review: _review,
+            onApproveWithAmount: _approve,
+          );
+
+          return SingleChildScrollView(
             padding: const EdgeInsets.all(AppSizes.md),
-            child: _ModernDetailPane(review: _review),
-          );
-
-          if (!twoPane) {
-            return Column(
-              children: [
-                SizedBox(height: 320, child: left),
-                Expanded(child: right),
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(flex: 5, child: left),
-              const VerticalDivider(width: 1),
-              Expanded(flex: 4, child: right),
-            ],
+            child: isDesktop
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: receipt,
+                      ),
+                      const SizedBox(width: AppSizes.md),
+                      Expanded(
+                        flex: 5,
+                        child: detailPane,
+                      ),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      receipt,
+                      const SizedBox(height: AppSizes.md),
+                      detailPane,
+                    ],
+                  ),
           );
         },
       ),
@@ -179,10 +207,14 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
     setState(() => _review = next);
   }
 
-  Future<void> _approve() async {
+  Future<void> _approve([num? prefilledAmount]) async {
     if (_controller.isActing(_review.id)) return;
 
-    final result = await ApprovePaymentDialog.show(context, review: _review);
+    final result = await ApprovePaymentDialog.show(
+      context,
+      review: _review,
+      prefilledAmount: prefilledAmount,
+    );
     if (result == null) return;
 
     final ok = await _controller.approve(
@@ -260,9 +292,13 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
 // ── Right Detail Pane ──────────────────────────────────────────────────────
 
 class _ModernDetailPane extends StatelessWidget {
-  const _ModernDetailPane({required this.review});
+  const _ModernDetailPane({
+    required this.review,
+    this.onApproveWithAmount,
+  });
 
   final PaymentReview review;
+  final void Function(num amount)? onApproveWithAmount;
 
   @override
   Widget build(BuildContext context) {
@@ -345,6 +381,11 @@ class _ModernDetailPane extends StatelessWidget {
                       ),
                     ),
                 ],
+              ),
+              // Instant inline Verify.ET checker for CBE, Telebirr, and Abyssinia
+              PaymentVerifyChecker(
+                review: review,
+                onApproveWithAmount: onApproveWithAmount,
               ),
               const Divider(height: 20),
               _DetailRow(

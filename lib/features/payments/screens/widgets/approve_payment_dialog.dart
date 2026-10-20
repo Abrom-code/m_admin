@@ -30,18 +30,24 @@ class ApprovePaymentDialog extends StatefulWidget {
   const ApprovePaymentDialog({
     super.key,
     required this.review,
+    this.prefilledAmount,
   });
 
   final PaymentReview review;
+  final num? prefilledAmount;
 
   static Future<ApprovePaymentResult?> show(
     BuildContext context, {
     required PaymentReview review,
+    num? prefilledAmount,
   }) {
     return showDialog<ApprovePaymentResult>(
       context: context,
       barrierDismissible: true,
-      builder: (_) => ApprovePaymentDialog(review: review),
+      builder: (_) => ApprovePaymentDialog(
+        review: review,
+        prefilledAmount: prefilledAmount,
+      ),
     );
   }
 
@@ -60,7 +66,7 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
     super.initState();
 
     final initialPlanKey = widget.review.planKey;
-    final initialAmount = widget.review.amount;
+    final initialAmount = widget.prefilledAmount ?? widget.review.amount;
 
     // Match plan from review planKey or match from receipt amount
     if (initialPlanKey != null && AdminSubscriptionPlan.byKey(initialPlanKey) != null) {

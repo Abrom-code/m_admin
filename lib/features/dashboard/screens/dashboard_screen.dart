@@ -620,24 +620,7 @@ class _RecentReceiptsQueue extends StatelessWidget {
                     final row = rows[i];
                     return InkWell(
                       onTap: () {
-                        final review = PaymentReview(
-                          id: row.id.toString(),
-                          userId: '',
-                          userName: row.displayName,
-                          userEmail: row.userEmail,
-                          userStream: '',
-                          subscriptionStatus:
-                              row.status == 'approved' ? 'active' : 'inactive',
-                          receiptPath: '',
-                          receiptUrl: '',
-                          verificationUrl: '',
-                          paymentMethod: row.paymentMethod,
-                          amount: row.amount,
-                          currency: 'ETB',
-                          status: row.status,
-                          createdAt: row.createdAt,
-                        );
-                        Get.to(() => PaymentDetailScreen(review: review));
+                        Get.to(() => PaymentDetailScreen(review: row.toPaymentReview()));
                       },
                       borderRadius:
                           BorderRadius.circular(AppSizes.borderRadiusSm),

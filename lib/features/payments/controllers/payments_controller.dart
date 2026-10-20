@@ -15,10 +15,13 @@ import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Status tabs, in display order.
-const List<String> kPaymentTabs = ['pending', 'approved', 'rejected', 'all'];
+const List<String> kPaymentTabs = ['pending', 'approved', 'rejected', 'all', 'verification'];
 
 class PaymentsController extends GetxController {
-  static PaymentsController get instance => Get.find();
+  static PaymentsController get instance =>
+      Get.isRegistered<PaymentsController>()
+          ? Get.find<PaymentsController>()
+          : Get.put(PaymentsController(), permanent: true);
 
   final _repo = AdminPaymentRepository();
   final _session = Get.find<AdminSessionService>();
@@ -135,6 +138,11 @@ class PaymentsController extends GetxController {
   // ── Loading ──────────────────────────────────────────────────────
 
   Future<void> loadQueue() async {
+    if (activeTab.value == 'verification') {
+      isLoading.value = false;
+      return;
+    }
+
     try {
       isLoading.value = true;
       errorMessage.value = null;
@@ -159,12 +167,13 @@ class PaymentsController extends GetxController {
 
   Future<void> refreshCounts() async {
     try {
+      const statusTabs = ['pending', 'approved', 'rejected', 'all'];
       final results = await Future.wait(
-        kPaymentTabs.map((tab) => _repo.countByStatus(tab)),
+        statusTabs.map((tab) => _repo.countByStatus(tab)),
       );
 
       counts.value = {
-        for (var i = 0; i < kPaymentTabs.length; i++) kPaymentTabs[i]: results[i],
+        for (var i = 0; i < statusTabs.length; i++) statusTabs[i]: results[i],
       };
 
       final pending = counts['pending'] ?? 0;

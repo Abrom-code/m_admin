@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
@@ -58,6 +59,14 @@ class RecentReceiptRow {
     required this.paymentMethod,
     required this.amount,
     required this.createdAt,
+    this.receiptPath = '',
+    this.receiptUrl = '',
+    this.verificationUrl = '',
+    this.userId = '',
+    this.userStream = '',
+    this.subscriptionStatus = '',
+    this.planKey,
+    this.planDurationMonths,
   });
 
   final int id;
@@ -67,9 +76,40 @@ class RecentReceiptRow {
   final String paymentMethod;
   final double amount;
   final DateTime? createdAt;
+  final String receiptPath;
+  final String receiptUrl;
+  final String verificationUrl;
+  final String userId;
+  final String userStream;
+  final String subscriptionStatus;
+  final String? planKey;
+  final int? planDurationMonths;
 
   /// Returns [createdAt] in East African Time (UTC+3).
   DateTime? get createdAtEat => createdAt;
+
+  PaymentReview toPaymentReview() {
+    return PaymentReview(
+      id: id.toString(),
+      userId: userId,
+      userName: displayName,
+      userEmail: userEmail,
+      userStream: userStream,
+      subscriptionStatus: subscriptionStatus.isNotEmpty
+          ? subscriptionStatus
+          : (status == 'approved' ? 'active' : 'inactive'),
+      receiptPath: receiptPath,
+      receiptUrl: receiptUrl,
+      verificationUrl: verificationUrl,
+      paymentMethod: paymentMethod,
+      amount: amount,
+      currency: 'ETB',
+      status: status,
+      createdAt: createdAt,
+      planKey: planKey,
+      planDurationMonths: planDurationMonths,
+    );
+  }
 
   factory RecentReceiptRow.fromJson(Map<String, dynamic> json) {
     // users is a left join — it is null when the account was deleted.
@@ -92,6 +132,14 @@ class RecentReceiptRow {
       createdAt: json['created_at'] == null
           ? null
           : EthiopianTimeHelper.parseToEastAfricaTime(json['created_at']),
+      receiptPath: json['receipt_path']?.toString() ?? '',
+      receiptUrl: json['receipt_url']?.toString() ?? '',
+      verificationUrl: json['verification_url']?.toString() ?? '',
+      userId: json['user_id']?.toString() ?? u['id']?.toString() ?? '',
+      userStream: u['stream']?.toString() ?? '',
+      subscriptionStatus: u['subscription_status']?.toString() ?? '',
+      planKey: json['plan_key']?.toString(),
+      planDurationMonths: _toInt(json['plan_duration_months']),
     );
   }
 }
@@ -213,8 +261,9 @@ class DashboardRepository {
           _sb
               .from('payment_receipts')
               .select(
-                'id, status, payment_method, amount, created_at, '
-                'users(first_name, last_name, email)',
+                'id, user_id, status, payment_method, amount, created_at, '
+                'receipt_path, receipt_url, verification_url, plan_key, plan_duration_months, '
+                'users(id, first_name, last_name, email, stream, subscription_status)',
               )
               .order('created_at', ascending: false)
               .limit(6),
@@ -277,8 +326,9 @@ class DashboardRepository {
       _sb
           .from('payment_receipts')
           .select(
-            'id, status, payment_method, amount, created_at, '
-            'users(first_name, last_name, email)',
+            'id, user_id, status, payment_method, amount, created_at, '
+            'receipt_path, receipt_url, verification_url, plan_key, plan_duration_months, '
+            'users(id, first_name, last_name, email, stream, subscription_status)',
           )
           .order('created_at', ascending: false)
           .limit(6), // 5: recent

@@ -10,6 +10,7 @@ import 'package:m_admin/features/payments/controllers/payments_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/payments/screens/payment_detail_screen.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
+import 'package:m_admin/features/payments/screens/widgets/verify_et_view.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
@@ -26,21 +27,29 @@ class PaymentsScreen extends StatelessWidget {
       pageIndex: AdminNavPage.payments,
       onRefresh: controller.refreshAll,
       scrollable: false,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ── 1. Content-Driven Metric Summary Strip ─────────────
-          _PaymentMetricRibbon(controller: controller),
-          const SizedBox(height: AppSizes.spaceBtwItems),
+      body: Obx(() {
+        final isVerification = controller.activeTab.value == 'verification';
 
-          // ── 2. Filter & Search Controls ─────────────────────────
-          _ModernFilterBar(controller: controller),
-          const SizedBox(height: AppSizes.spaceBtwItems),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── 1. Content-Driven Metric Summary Strip ─────────────
+            _PaymentMetricRibbon(controller: controller),
+            const SizedBox(height: AppSizes.spaceBtwItems),
 
-          // ── 3. Data Table ───────────────────────────────────────
-          Expanded(child: _ModernTable(controller: controller)),
-        ],
-      ),
+            if (isVerification)
+              const Expanded(child: VerifyEtView())
+            else ...[
+              // ── 2. Filter & Search Controls ─────────────────────────
+              _ModernFilterBar(controller: controller),
+              const SizedBox(height: AppSizes.spaceBtwItems),
+
+              // ── 3. Data Table ───────────────────────────────────────
+              Expanded(child: _ModernTable(controller: controller)),
+            ],
+          ],
+        );
+      }),
     );
   }
 }
@@ -94,6 +103,14 @@ class _PaymentMetricRibbon extends StatelessWidget {
               dotColor: AppColors.primary,
               isSelected: active == 'all',
               onTap: () => controller.changeTab('all'),
+            ),
+            const SizedBox(width: 8),
+            _CompactRibbonCard(
+              label: '⚡ Verify.ET',
+              value: 'Auto',
+              dotColor: const Color(0xFF6366F1),
+              isSelected: active == 'verification',
+              onTap: () => controller.changeTab('verification'),
             ),
           ],
         ),

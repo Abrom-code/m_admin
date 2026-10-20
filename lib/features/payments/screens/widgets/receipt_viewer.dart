@@ -10,6 +10,7 @@ class ReceiptViewer extends StatefulWidget {
     super.key,
     required this.review,
     required this.resolveUrl,
+    this.height = 540,
   });
 
   final PaymentReview review;
@@ -18,16 +19,15 @@ class ReceiptViewer extends StatefulWidget {
   /// falling back to the stored public URL.
   final Future<String> Function() resolveUrl;
 
+  final double height;
+
   @override
   State<ReceiptViewer> createState() => _ReceiptViewerState();
 }
 
 class _ReceiptViewerState extends State<ReceiptViewer> {
-  final _transform = TransformationController();
-
   late Future<String> _urlFuture;
   int _quarterTurns = 0;
-  String? _loadedUrl;
 
   @override
   void initState() {
@@ -35,10 +35,7 @@ class _ReceiptViewerState extends State<ReceiptViewer> {
     if (!widget.review.hasScreenshot) {
       _urlFuture = Future.value('');
     } else {
-      _urlFuture = widget.resolveUrl().then((url) {
-        _loadedUrl = url;
-        return url;
-      });
+      _urlFuture = widget.resolveUrl();
     }
   }
 
@@ -51,20 +48,10 @@ class _ReceiptViewerState extends State<ReceiptViewer> {
       if (!widget.review.hasScreenshot) {
         _urlFuture = Future.value('');
       } else {
-        _urlFuture = widget.resolveUrl().then((url) {
-          _loadedUrl = url;
-          return url;
-        });
+        _urlFuture = widget.resolveUrl();
       }
       _quarterTurns = 0;
-      _transform.value = Matrix4.identity();
     }
-  }
-
-  @override
-  void dispose() {
-    _transform.dispose();
-    super.dispose();
   }
 
   void _openFullScreen(String url) {
@@ -80,191 +67,134 @@ class _ReceiptViewerState extends State<ReceiptViewer> {
     final dark = AppHelperFunctions.isDark(context);
 
     if (!widget.review.hasScreenshot) {
-      return const _ScreenshotPurgedPlaceholder();
+      return Container(
+        height: 240,
+        decoration: BoxDecoration(
+          color: dark ? AppColors.darkCard : AppColors.white,
+          borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+          border: Border.all(color: dark ? AppColors.darkBorder : AppColors.borderPrimary),
+        ),
+        child: const _ScreenshotPurgedPlaceholder(),
+      );
     }
 
     return Container(
-      color: dark ? AppColors.black : AppColors.softGrey,
-      child: Column(
-        children: [
-          Expanded(
-            child: FutureBuilder<String>(
-              future: _urlFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      height: widget.height,
+      decoration: BoxDecoration(
+        color: dark ? AppColors.black : const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(color: dark ? AppColors.darkBorder : AppColors.borderPrimary),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: FutureBuilder<String>(
+        future: _urlFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-                if (snapshot.hasError || !snapshot.hasData) {
-                  return _Unavailable(
-                    message: 'Could not load this receipt.',
-                    url: widget.review.receiptUrl,
-                  );
-                }
+          if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+            return _Unavailable(
+              message: 'Could not load this receipt image.',
+              url: widget.review.receiptUrl,
+            );
+          }
 
-                final url = snapshot.data!;
+          final url = snapshot.data!;
 
-                return Stack(
-                  children: [
-                    // Interactive Viewer Pane
-                    Positioned.fill(
-                      child: GestureDetector(
-                        onDoubleTap: () => _openFullScreen(url),
-                        child: InteractiveViewer(
-                          transformationController: _transform,
-                          minScale: 0.5,
-                          maxScale: 6,
-                          child: Center(
-                            child: RotatedBox(
-                              quarterTurns: _quarterTurns,
-                              child: InkWell(
-                                onTap: () => _openFullScreen(url),
-                                child: Image.network(
-                                  url,
-                                  fit: BoxFit.contain,
-                                  loadingBuilder: (context, child, progress) =>
-                                      progress == null
-                                          ? child
-                                          : const Center(
-                                              child:
-                                                  CircularProgressIndicator(),
-                                            ),
-                                  errorBuilder: (context, _, _) => _Unavailable(
-                                    message:
-                                        'This file could not be displayed. Receipts are '
-                                        'always stored with a .jpg name even when the '
-                                        'student uploaded a PNG or a PDF, so the '
-                                        'original may not be an image at all.',
-                                    url: widget.review.receiptUrl,
+          return Stack(
+            children: [
+              // Receipt Image Container (tap or double tap to view full screen)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () => _openFullScreen(url),
+                  onDoubleTap: () => _openFullScreen(url),
+                  child: Center(
+                    child: RotatedBox(
+                      quarterTurns: _quarterTurns,
+                      child: Image.network(
+                        url,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, progress) =>
+                            progress == null
+                                ? child
+                                : const Center(
+                                    child: CircularProgressIndicator(),
                                   ),
-                                ),
-                              ),
-                            ),
-                          ),
+                        errorBuilder: (context, _, _) => _Unavailable(
+                          message:
+                              'This file could not be displayed as an image. Click to open directly.',
+                          url: widget.review.receiptUrl,
                         ),
                       ),
                     ),
-
-                    // Tap to zoom hint overlay
-                    Positioned(
-                      top: 10,
-                      left: 10,
-                      child: InkWell(
-                        onTap: () => _openFullScreen(url),
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.fullscreen_rounded,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                'Click for Full Screen',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-          _Toolbar(
-            onRotate: () =>
-                setState(() => _quarterTurns = (_quarterTurns + 1) % 4),
-            onReset: () => setState(() {
-              _quarterTurns = 0;
-              _transform.value = Matrix4.identity();
-            }),
-            onFullScreen: _loadedUrl != null
-                ? () => _openFullScreen(_loadedUrl!)
-                : null,
-            onOpenOriginal: (_loadedUrl != null && _loadedUrl!.isNotEmpty)
-                ? () => AppHelperFunctions.openUrl(_loadedUrl!)
-                : (widget.review.receiptUrl.startsWith('http')
-                    ? () => AppHelperFunctions.openUrl(widget.review.receiptUrl)
-                    : null),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Toolbar extends StatelessWidget {
-  const _Toolbar({
-    required this.onRotate,
-    required this.onReset,
-    required this.onFullScreen,
-    required this.onOpenOriginal,
-  });
-
-  final VoidCallback onRotate;
-  final VoidCallback onReset;
-  final VoidCallback? onFullScreen;
-  final VoidCallback? onOpenOriginal;
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = AppHelperFunctions.isDark(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSizes.sm,
-        vertical: AppSizes.xs,
-      ),
-      color: dark ? AppColors.darkSurface : AppColors.white,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            IconButton(
-              tooltip: 'Rotate 90°',
-              onPressed: onRotate,
-              icon: const Icon(Icons.rotate_90_degrees_cw_rounded),
-              iconSize: AppSizes.iconSm + 2,
-            ),
-            IconButton(
-              tooltip: 'Reset view',
-              onPressed: onReset,
-              icon: const Icon(Icons.center_focus_strong_rounded),
-              iconSize: AppSizes.iconSm + 2,
-            ),
-            if (onFullScreen != null)
-              IconButton(
-                tooltip: 'Full screen with zoom',
-                onPressed: onFullScreen,
-                icon: const Icon(Icons.fullscreen_rounded),
-                iconSize: AppSizes.iconSm + 4,
+                  ),
+                ),
               ),
-            const SizedBox(width: AppSizes.sm),
-            TextButton.icon(
-              onPressed: onOpenOriginal,
-              icon: const Icon(Icons.open_in_new_rounded, size: AppSizes.iconSm),
-              label: const Text('Open original'),
-            ),
-          ],
-        ),
+
+              // Tap to zoom hint overlay (Top-Left)
+              Positioned(
+                top: 10,
+                left: 10,
+                child: InkWell(
+                  onTap: () => _openFullScreen(url),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.fullscreen_rounded,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Full Screen',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Floating Rotate Button (Top-Right)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: IconButton(
+                    tooltip: 'Rotate 90°',
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(),
+                    icon: const Icon(Icons.rotate_90_degrees_cw_rounded, size: 16, color: Colors.white),
+                    onPressed: () => setState(() => _quarterTurns = (_quarterTurns + 1) % 4),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -338,28 +268,28 @@ class _ScreenshotPurgedPlaceholder extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.cloud_done_outlined,
-                size: 42,
+                size: 36,
                 color: AppColors.success,
               ),
             ),
             const SizedBox(height: AppSizes.md),
             Text(
-              'Screenshot Cleared to Save Storage',
+              'No Screenshot Available',
               style: TextStyle(
-                fontSize: 14.5,
+                fontSize: 14,
                 fontWeight: FontWeight.bold,
                 color: dark ? AppColors.white : AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 380),
+              constraints: const BoxConstraints(maxWidth: 320),
               child: const Text(
-                'This payment has been reviewed and verified. The screenshot file was purged from storage to reclaim space, while the complete accounting and audit record is preserved.',
+                'This payment has no attached screenshot or was submitted directly via transaction reference.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 12,
-                  height: 1.5,
+                  fontSize: 11.5,
+                  height: 1.4,
                   color: AppColors.textSecondary,
                 ),
               ),
