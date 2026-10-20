@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:m_admin/data/repositories/admin_auth_repository.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
+import 'package:m_admin/data/services/verify_et_service.dart';
 import 'package:m_admin/features/auth/controllers/admin_login_controller.dart';
 import 'package:m_admin/features/payments/controllers/payments_controller.dart';
 import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
@@ -27,5 +28,6 @@ class AdminGeneralBinding extends Bindings {
     // Registering it here (not inside PaymentsScreen.build) ensures
     // onInit() runs exactly once, on startup.
     Get.put(PaymentsController(), permanent: true);
+    Get.put(VerifyEtService(), permanent: true);
   }
 }
