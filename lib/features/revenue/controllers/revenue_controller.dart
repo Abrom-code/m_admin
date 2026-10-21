@@ -176,6 +176,8 @@ class RevenueController extends GetxController {
 
     costRecords.insert(0, record);
     costRecords.sort((a, b) => b.date.compareTo(a.date));
+    costRecords.refresh();
+    revenueSeries.refresh();
     await costsRepo.saveCosts(costRecords);
   }
 
@@ -184,12 +186,16 @@ class RevenueController extends GetxController {
     if (idx != -1) {
       costRecords[idx] = updated;
       costRecords.sort((a, b) => b.date.compareTo(a.date));
+      costRecords.refresh();
+      revenueSeries.refresh();
       await costsRepo.saveCosts(costRecords);
     }
   }
 
   Future<void> deleteCostRecord(String id) async {
     costRecords.removeWhere((c) => c.id == id);
+    costRecords.refresh();
+    revenueSeries.refresh();
     await costsRepo.saveCosts(costRecords);
   }
 
@@ -224,9 +230,10 @@ class RevenueController extends GetxController {
       createdAt: DateTime.now(),
     );
 
-    costRecords.refresh();
     incomeRecords.insert(0, record);
     incomeRecords.sort((a, b) => b.date.compareTo(a.date));
+    incomeRecords.refresh();
+    revenueSeries.refresh();
     await costsRepo.saveIncome(incomeRecords);
   }
 
@@ -235,12 +242,16 @@ class RevenueController extends GetxController {
     if (idx != -1) {
       incomeRecords[idx] = updated;
       incomeRecords.sort((a, b) => b.date.compareTo(a.date));
+      incomeRecords.refresh();
+      revenueSeries.refresh();
       await costsRepo.saveIncome(incomeRecords);
     }
   }
 
   Future<void> deleteIncomeRecord(String id) async {
     incomeRecords.removeWhere((c) => c.id == id);
+    incomeRecords.refresh();
+    revenueSeries.refresh();
     await costsRepo.saveIncome(incomeRecords);
   }
 
@@ -334,13 +345,15 @@ class RevenueController extends GetxController {
   /// Returns total manual income incurred on a specific calendar day.
   double getIncomeForDay(DateTime day) {
     double total = 0.0;
+    final activeMethod = selectedMethodFilter.value?.toLowerCase().trim();
     for (final inc in incomeRecords) {
       if (inc.date.year == day.year &&
           inc.date.month == day.month &&
           inc.date.day == day.day) {
-        if (selectedMethodFilter.value == null ||
-            selectedMethodFilter.value!.isEmpty ||
-            inc.paymentMethod.toLowerCase().contains(selectedMethodFilter.value!.toLowerCase())) {
+        if (activeMethod == null ||
+            activeMethod.isEmpty ||
+            activeMethod == 'all' ||
+            inc.paymentMethod.toLowerCase().contains(activeMethod)) {
           total += inc.amount;
         }
       }
@@ -352,12 +365,14 @@ class RevenueController extends GetxController {
   double getTotalIncomeForRange(DateTime start, DateTime end) {
     final startDay = DateTime(start.year, start.month, start.day);
     final endDay = DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
+    final activeMethod = selectedMethodFilter.value?.toLowerCase().trim();
     double total = 0.0;
     for (final inc in incomeRecords) {
       if (!inc.date.isBefore(startDay) && !inc.date.isAfter(endDay)) {
-        if (selectedMethodFilter.value == null ||
-            selectedMethodFilter.value!.isEmpty ||
-            inc.paymentMethod.toLowerCase().contains(selectedMethodFilter.value!.toLowerCase())) {
+        if (activeMethod == null ||
+            activeMethod.isEmpty ||
+            activeMethod == 'all' ||
+            inc.paymentMethod.toLowerCase().contains(activeMethod)) {
           total += inc.amount;
         }
       }
@@ -384,7 +399,24 @@ class RevenueController extends GetxController {
   /// Series to render on chart based on [chartViewMode]:
   /// Includes daily manual income, and if 'net', values are decreased by daily costs.
   List<DailyPoint> get effectiveRevenueSeries {
-    return revenueSeries.map((p) {
+    List<DailyPoint> baseSeries = revenueSeries;
+    if (baseSeries.isEmpty) {
+      final range = getPrimaryDateRange();
+      var current = DateTime(range.start.year, range.start.month, range.start.day);
+      final endDay = DateTime(range.end.year, range.end.month, range.end.day);
+      final generated = <DailyPoint>[];
+      while (!current.isAfter(endDay)) {
+        generated.add(DailyPoint(
+          day: current,
+          value: 0.0,
+          methodBreakdown: const {},
+        ));
+        current = current.add(const Duration(days: 1));
+      }
+      baseSeries = generated;
+    }
+
+    return baseSeries.map((p) {
       final dayIncome = getIncomeForDay(p.day);
       final dayCost = getCostForDay(p.day);
       final gross = p.value + dayIncome;
@@ -395,8 +427,13 @@ class RevenueController extends GetxController {
         if (inc.date.year == p.day.year &&
             inc.date.month == p.day.month &&
             inc.date.day == p.day.day) {
-          final m = inc.paymentMethod.toLowerCase();
-          breakdown[m] = (breakdown[m] ?? 0.0) + inc.amount;
+          final rawMethod = inc.paymentMethod.toLowerCase();
+          final normMethod = rawMethod.contains('telebirr')
+              ? 'telebirr'
+              : (rawMethod.contains('cbe')
+                  ? 'cbe'
+                  : (rawMethod.contains('abyssinia') ? 'abyssinia' : 'other'));
+          breakdown[normMethod] = (breakdown[normMethod] ?? 0.0) + inc.amount;
         }
       }
 

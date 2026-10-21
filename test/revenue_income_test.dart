@@ -299,6 +299,149 @@ void main() {
       expect(find.text('Record Revenue / Income'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('Tapping on a revenue income item opens the detail modal popup', (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final controller = createTestController();
+      controller.isPriceHidden.value = false;
+
+      final now = DateTime.now();
+      await controller.addIncomeRecord(
+        title: 'Enterprise License Tier 3',
+        amount: 14500.0,
+        paymentMethod: 'telebirr',
+        date: now,
+        notes: 'Signed contract #2026-ET-09',
+      );
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: CostsManagementCard(controller: controller),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Switch to Manual Revenue tab
+      await tester.tap(find.textContaining('Manual Revenue').first);
+      await tester.pumpAndSettle();
+
+      // Tap on the income row
+      await tester.tap(find.text('Enterprise License Tier 3'));
+      await tester.pumpAndSettle();
+
+      // Verify modal dialog opens with complete details
+      expect(find.text('Manual Revenue Details'), findsOneWidget);
+      expect(find.text('Direct Payment / Manually Recorded Income'), findsOneWidget);
+      expect(find.textContaining('14,500.00'), findsWidgets);
+      expect(find.text('Enterprise License Tier 3'), findsWidgets);
+      expect(
+        find.descendant(of: find.byType(Dialog), matching: find.text('Signed contract #2026-ET-09')),
+        findsOneWidget,
+      );
+      expect(find.text('Edit Revenue'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
+
+      // Tap Close button
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Manual Revenue Details'), findsNothing);
+    });
+
+    testWidgets('Tapping on a cost item opens the expense detail modal popup', (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final controller = createTestController();
+      controller.isPriceHidden.value = false;
+
+      final now = DateTime.now();
+      await controller.addCostRecord(
+        title: 'Google Cloud Server Hosting',
+        amount: 3200.0,
+        category: 'operational',
+        date: now,
+        notes: 'Monthly compute invoice',
+      );
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: CostsManagementCard(controller: controller),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap on the cost row
+      await tester.tap(find.text('Google Cloud Server Hosting'));
+      await tester.pumpAndSettle();
+
+      // Verify modal dialog opens with complete details
+      expect(find.text('Expense / Cost Details'), findsOneWidget);
+      expect(find.text('Promotional & Operational Deduction'), findsOneWidget);
+      expect(find.textContaining('3,200.00'), findsWidgets);
+      expect(find.text('Google Cloud Server Hosting'), findsWidgets);
+      expect(
+        find.descendant(of: find.byType(Dialog), matching: find.text('Monthly compute invoice')),
+        findsOneWidget,
+      );
+      expect(find.text('Edit Cost'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
+
+      // Tap Close button
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Expense / Cost Details'), findsNothing);
+    });
+  });
+
+  group('Effective Revenue Series Manual Income Integration', () {
+    test('effectiveRevenueSeries synthesizes days and reflects manual income when revenueSeries is empty', () async {
+      final controller = createTestController();
+      controller.rangeDays.value = 7;
+
+      final now = DateTime.now();
+      await controller.addIncomeRecord(
+        title: 'Telebirr Manual Transfer',
+        amount: 4000.0,
+        paymentMethod: 'telebirr',
+        date: now,
+      );
+
+      final series = controller.effectiveRevenueSeries;
+      expect(series.isNotEmpty, true);
+      expect(series.last.value, 4000.0);
+      expect(series.last.methodBreakdown['telebirr'], 4000.0);
+
+      // Filter by CBE -> Telebirr income is excluded
+      controller.selectedMethodFilter.value = 'cbe';
+      final cbeSeries = controller.effectiveRevenueSeries;
+      expect(cbeSeries.last.value, 0.0);
+
+      // Filter by Telebirr -> Telebirr income is included
+      controller.selectedMethodFilter.value = 'telebirr';
+      final teleSeries = controller.effectiveRevenueSeries;
+      expect(teleSeries.last.value, 4000.0);
+    });
   });
 }
+
 

@@ -74,7 +74,7 @@ class _ReceiptViewerState extends State<ReceiptViewer> {
           borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
           border: Border.all(color: dark ? AppColors.darkBorder : AppColors.borderPrimary),
         ),
-        child: const _ScreenshotPurgedPlaceholder(),
+        child: _ScreenshotPurgedPlaceholder(isReviewed: widget.review.isReviewed),
       );
     }
 
@@ -248,7 +248,9 @@ class _Unavailable extends StatelessWidget {
 }
 
 class _ScreenshotPurgedPlaceholder extends StatelessWidget {
-  const _ScreenshotPurgedPlaceholder();
+  const _ScreenshotPurgedPlaceholder({this.isReviewed = false});
+
+  final bool isReviewed;
 
   @override
   Widget build(BuildContext context) {
@@ -274,7 +276,9 @@ class _ScreenshotPurgedPlaceholder extends StatelessWidget {
             ),
             const SizedBox(height: AppSizes.md),
             Text(
-              'No Screenshot Available',
+              isReviewed
+                  ? 'Screenshot Cleared to Save Storage'
+                  : 'No Screenshot Available',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
@@ -284,10 +288,12 @@ class _ScreenshotPurgedPlaceholder extends StatelessWidget {
             const SizedBox(height: 6),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 320),
-              child: const Text(
-                'This payment has no attached screenshot or was submitted directly via transaction reference.',
+              child: Text(
+                isReviewed
+                    ? 'This payment has been reviewed and verified. The screenshot file was purged to conserve storage quota.'
+                    : 'This payment has no attached screenshot or was submitted directly via transaction reference.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 11.5,
                   height: 1.4,
                   color: AppColors.textSecondary,

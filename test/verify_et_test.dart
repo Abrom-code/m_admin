@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
@@ -93,7 +94,7 @@ void main() {
     });
 
     test('VerifyEtController pre-fills bank and reference from PaymentReview', () {
-      final review = PaymentReview(
+      const review = PaymentReview(
         id: 'rev-1',
         userId: 'user-1',
         userName: 'Abebe Test',
@@ -131,6 +132,43 @@ void main() {
       // Non-supported methods should return null (no checker shown)
       expect(PaymentVerifyChecker.resolveSupportedBank('cash'), isNull);
       expect(PaymentVerifyChecker.resolveSupportedBank('other'), isNull);
+    });
+
+    testWidgets('PaymentVerifyChecker header renders on narrow screen (320px) without overflow on LIVE badge and Scan button', (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      const review = PaymentReview(
+        id: 'rev-narrow',
+        userId: 'user-narrow',
+        userName: 'Tigist Getnet',
+        userEmail: 'tigist@test.com',
+        userStream: 'natural',
+        subscriptionStatus: 'inactive',
+        receiptPath: 'receipts/test.jpg',
+        receiptUrl: 'https://example.com/receipt.jpg',
+        verificationUrl: 'https://example.com/receipt.jpg',
+        paymentMethod: 'cbe',
+        status: 'pending',
+        amount: 200,
+        currency: 'ETB',
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: PaymentVerifyChecker(review: review),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('LIVE'), findsOneWidget);
+      expect(find.text('Scan'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

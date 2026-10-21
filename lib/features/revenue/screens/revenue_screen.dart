@@ -716,8 +716,10 @@ class _RevenueScreenState extends State<RevenueScreen> {
                       }
 
                       final hasAnyActivity = rawSeries.any((p) => p.value > 0) ||
+                          series.any((p) => p.value != 0) ||
+                          controller.periodIncomeRecords.isNotEmpty ||
                           (isNetView && controller.periodCostRecords.isNotEmpty);
-                      if (rawSeries.isEmpty || !hasAnyActivity) {
+                      if (series.isEmpty || !hasAnyActivity) {
                         return SizedBox(
                           height: 220,
                           child: Center(
@@ -750,12 +752,14 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
                       final allTimeNet = controller.allTimeNetRevenue;
 
-                      final peak = rawSeries.isNotEmpty
-                          ? rawSeries.map((p) => p.value).reduce(math.max)
-                          : 0.0;
-                      final daysCount = rawSeries.length > 1
-                          ? rawSeries.length
-                          : days;
+                      final peak = series.isNotEmpty
+                          ? series.map((p) => p.value).reduce(math.max)
+                          : (rawSeries.isNotEmpty
+                              ? rawSeries.map((p) => p.value).reduce(math.max)
+                              : 0.0);
+                      final daysCount = series.length > 1
+                          ? series.length
+                          : (rawSeries.length > 1 ? rawSeries.length : days);
                       final avg = isNetView
                           ? (netRevenue / (daysCount > 0 ? daysCount : 1))
                           : (totalGross / (daysCount > 0 ? daysCount : 1));
@@ -776,6 +780,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                             ? rawSeries[_selectedIndex!]
                             : selPoint;
                         final dayCost = controller.getCostForDay(selPoint.day);
+                        final dayIncome = controller.getIncomeForDay(selPoint.day);
                         final isDeficit = isNetView && selPoint.value < 0;
 
                         final String formattedAmount;
@@ -786,7 +791,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                               ? (isDeficit
                                   ? 'Deficit: -ETB ${NumberFormat('#,##0.00').format(selPoint.value.abs())}'
                                   : 'Net: ETB ${NumberFormat('#,##0.00').format(selPoint.value)}')
-                              : 'ETB ${NumberFormat('#,##0.00').format(rawPoint.value)}';
+                              : 'ETB ${NumberFormat('#,##0.00').format(selPoint.value)}';
                           formattedAmount = activeMethod != null
                               ? '$base (${PaymentMethodInfo.labelOf(activeMethod)})'
                               : base;
@@ -797,7 +802,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
                         final hasBreakdown =
                             activeMethod == null &&
-                            rawPoint.methodBreakdown.isNotEmpty;
+                            selPoint.methodBreakdown.isNotEmpty;
 
                         final Color tooltipAccentColor = isDeficit
                             ? const Color(0xFFEF4444)
@@ -879,55 +884,57 @@ class _RevenueScreenState extends State<RevenueScreen> {
                                   ),
                                 ),
                               ),
-                              if (dayCost > 0 && !controller.isPriceHidden.value) ...[
+                              if ((dayCost > 0 || dayIncome > 0) && !controller.isPriceHidden.value) ...[
                                 const SizedBox(height: 4),
                                 Divider(
                                   height: 1,
                                   color: dark ? Colors.white12 : Colors.black12,
                                 ),
                                 const SizedBox(height: 4),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Text(
-                                      'Gross: ',
-                                      style: TextStyle(
-                                        fontSize: 9.5,
-                                        color: AppColors.textSecondary,
-                                        fontWeight: FontWeight.w500,
+                                if (dayIncome > 0)
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text(
+                                        'Added: ',
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          color: AppColors.success,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
-                                    ),
-                                    Text(
-                                      'ETB ${NumberFormat('#,##0').format(rawPoint.value)}',
-                                      style: TextStyle(
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: dark ? Colors.white70 : AppColors.textPrimary,
+                                      Text(
+                                        '+ETB ${NumberFormat('#,##0').format(dayIncome)}',
+                                        style: const TextStyle(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.success,
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Text(
-                                      'Cost: ',
-                                      style: TextStyle(
-                                        fontSize: 9.5,
-                                        color: Color(0xFFEF4444),
-                                        fontWeight: FontWeight.w500,
+                                    ],
+                                  ),
+                                if (dayCost > 0)
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text(
+                                        'Cost: ',
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          color: Color(0xFFEF4444),
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
-                                    ),
-                                    Text(
-                                      '-ETB ${NumberFormat('#,##0').format(dayCost)}',
-                                      style: const TextStyle(
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFFEF4444),
+                                      Text(
+                                        '-ETB ${NumberFormat('#,##0').format(dayCost)}',
+                                        style: const TextStyle(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFFEF4444),
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                ),
+                                    ],
+                                  ),
                               ],
                               if (hasBreakdown &&
                                   !controller.isPriceHidden.value) ...[
@@ -938,7 +945,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 for (final entry
-                                    in rawPoint.methodBreakdown.entries)
+                                    in selPoint.methodBreakdown.entries)
                                   if (entry.value > 0)
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
@@ -1097,6 +1104,22 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
                           // ── Date Axis Labels ─────────────────────────────
                           _XAxisLabels(series: series),
+
+                          // ── Selected Day Price & Details Banner ──────────
+                          if (_selectedIndex != null &&
+                              _selectedIndex! < series.length) ...[
+                            const SizedBox(height: AppSizes.sm),
+                            _SelectedDayBanner(
+                              point: series[_selectedIndex!],
+                              activeMethod: activeMethod,
+                              isNetView: isNetView,
+                              chartColor: chartColor,
+                              dayCost: controller.getCostForDay(series[_selectedIndex!].day),
+                              dayIncome: controller.getIncomeForDay(series[_selectedIndex!].day),
+                              isPriceHidden: controller.isPriceHidden.value,
+                              onClose: () => setState(() => _selectedIndex = null),
+                            ),
+                          ],
                         ],
                       );
                     }),
@@ -2207,6 +2230,278 @@ class _XAxisLabels extends StatelessWidget {
               .toList(),
         );
       },
+    );
+  }
+}
+
+// ── Selected Day Banner Widget ──────────────────────────────────────────────
+
+class _SelectedDayBanner extends StatelessWidget {
+  const _SelectedDayBanner({
+    required this.point,
+    required this.activeMethod,
+    required this.isNetView,
+    required this.chartColor,
+    required this.dayCost,
+    required this.dayIncome,
+    required this.isPriceHidden,
+    required this.onClose,
+  });
+
+  final DailyPoint point;
+  final String? activeMethod;
+  final bool isNetView;
+  final Color chartColor;
+  final double dayCost;
+  final double dayIncome;
+  final bool isPriceHidden;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final isDeficit = isNetView && point.value < 0;
+    final method = activeMethod;
+
+    final formattedDate = DateFormat('EEEE, MMM d, yyyy').format(point.day);
+    final String methodLabel = method != null
+        ? PaymentMethodInfo.labelOf(method)
+        : 'All Payment Methods';
+
+    final String amountText;
+    if (isPriceHidden) {
+      amountText = 'ETB ••••••';
+    } else {
+      if (isNetView) {
+        amountText = isDeficit
+            ? '-ETB ${NumberFormat('#,##0.00').format(point.value.abs())}'
+            : 'ETB ${NumberFormat('#,##0.00').format(point.value)}';
+      } else {
+        amountText = 'ETB ${NumberFormat('#,##0.00').format(point.value)}';
+      }
+    }
+
+    final Color badgeColor = method != null
+        ? chartColor
+        : (isDeficit
+            ? const Color(0xFFEF4444)
+            : (isNetView && dayCost > 0 ? AppColors.success : chartColor));
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: dark
+            ? AppColors.darkSurface.withValues(alpha: 0.9)
+            : AppColors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: badgeColor.withValues(alpha: 0.45),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: dark ? 0.3 : 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  Iconsax.calendar_1_copy,
+                  size: 15,
+                  color: badgeColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      formattedDate,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: dark ? Colors.white : AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      method != null
+                          ? '$methodLabel Revenue on this day'
+                          : (isNetView ? 'Net Daily Revenue (Profit)' : 'Total Daily Revenue (All Methods)'),
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    amountText,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: isDeficit
+                          ? const Color(0xFFEF4444)
+                          : (isNetView && point.value > 0
+                              ? AppColors.success
+                              : chartColor),
+                    ),
+                  ),
+                  if (method != null)
+                    Container(
+                      margin: const EdgeInsets.only(top: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: chartColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        methodLabel,
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: chartColor,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, size: 16),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                tooltip: 'Clear Selection',
+                color: AppColors.textSecondary,
+                onPressed: onClose,
+              ),
+            ],
+          ),
+
+          // Additional breakdown chips if All methods or if costs/income exist
+          if (!isPriceHidden &&
+              (point.methodBreakdown.isNotEmpty || dayIncome > 0 || dayCost > 0)) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (method == null)
+                  for (final entry in point.methodBreakdown.entries)
+                    if (entry.value > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: dark
+                              ? AppColors.darkCard
+                              : AppColors.grey.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(
+                            color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${PaymentMethodInfo.labelOf(entry.key)}: ',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            Text(
+                              'ETB ${NumberFormat('#,##0').format(entry.value)}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: dark ? Colors.white : AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                if (dayIncome > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(
+                        color: AppColors.success.withValues(alpha: 0.3),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Iconsax.wallet_add_copy, size: 11, color: AppColors.success),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Added: +ETB ${NumberFormat('#,##0').format(dayIncome)}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (dayCost > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Iconsax.wallet_minus_copy, size: 11, color: Color(0xFFEF4444)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Cost: -ETB ${NumberFormat('#,##0').format(dayCost)}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFEF4444),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

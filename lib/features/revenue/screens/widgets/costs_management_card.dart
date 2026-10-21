@@ -25,6 +25,569 @@ class CostsManagementCard extends StatefulWidget {
 class _CostsManagementCardState extends State<CostsManagementCard> {
   String _activeTab = 'costs'; // 'costs' or 'income'
 
+  Future<void> _showCostDetailModal(BuildContext context, RevenueCostRecord cost) async {
+    final dark = AppHelperFunctions.isDark(context);
+    final isPriceHidden = widget.controller.isPriceHidden.value;
+    final catColor = RevenueCostRecord.getCategoryColor(cost.category);
+    final catIcon = RevenueCostRecord.getCategoryIcon(cost.category);
+    final catLabel = RevenueCostRecord.getCategoryLabel(cost.category);
+    final amountStr = isPriceHidden
+        ? 'ETB ••••••'
+        : '- ETB ${NumberFormat('#,##0.00').format(cost.amount)}';
+
+    await showDialog<void>(
+      context: context,
+      builder: (modalCtx) {
+        return Dialog(
+          backgroundColor: dark ? AppColors.darkSurface : AppColors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Iconsax.wallet_minus_copy,
+                          size: 18,
+                          color: Color(0xFFEF4444),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Expense / Cost Details',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: dark ? Colors.white : AppColors.textPrimary,
+                              ),
+                            ),
+                            const Text(
+                              'Promotional & Operational Deduction',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        color: AppColors.textSecondary,
+                        onPressed: () => Navigator.of(modalCtx).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Amount Card
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Deduction Amount',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFEF4444),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                amountStr,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFFEF4444),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: catColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: catColor.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(catIcon, size: 13, color: catColor),
+                              const SizedBox(width: 5),
+                              Text(
+                                catLabel,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: catColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Details List
+                  _buildModalDetailRow('Title / Purpose', cost.title, Iconsax.text_copy, dark),
+                  _buildModalDetailRow('Transaction Date', DateFormat('EEEE, MMMM d, yyyy').format(cost.date), Iconsax.calendar_1_copy, dark),
+                  _buildModalDetailRow('Category', catLabel, Iconsax.category_copy, dark),
+                  _buildModalDetailRow('Recorded At', DateFormat('MMM d, yyyy • h:mm a').format(cost.createdAt), Iconsax.clock_copy, dark),
+
+                  // Notes Box
+                  if (cost.notes?.isNotEmpty == true) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: dark ? AppColors.darkCard : AppColors.lightGrey.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Iconsax.note_2_copy, size: 13, color: AppColors.textSecondary),
+                              SizedBox(width: 6),
+                              Text(
+                                'Notes & Remarks',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            cost.notes!,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: dark ? Colors.white70 : AppColors.textPrimary,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+
+                  // Bottom Action Buttons
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                          side: const BorderSide(color: AppColors.error),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Iconsax.trash_copy, size: 14),
+                        label: const Text('Delete'),
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Delete Cost?'),
+                              content: Text('Delete "${cost.title}" (-ETB ${cost.amount.toStringAsFixed(0)}) and restore revenue?'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  child: const Text('Delete'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            await widget.controller.deleteCostRecord(cost.id);
+                            if (modalCtx.mounted) Navigator.of(modalCtx).pop();
+                          }
+                        },
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(modalCtx).pop(),
+                            child: const Text('Close'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Iconsax.edit_2_copy, size: 14),
+                            label: const Text('Edit Cost'),
+                            onPressed: () {
+                              Navigator.of(modalCtx).pop();
+                              AddCostDialog.show(context, widget.controller, recordToEdit: cost);
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showIncomeDetailModal(BuildContext context, RevenueIncomeRecord income) async {
+    final dark = AppHelperFunctions.isDark(context);
+    final isPriceHidden = widget.controller.isPriceHidden.value;
+    final methodColor = RevenueIncomeRecord.getMethodColor(income.paymentMethod);
+    final methodIcon = RevenueIncomeRecord.getMethodIcon(income.paymentMethod);
+    final methodLabel = RevenueIncomeRecord.getMethodLabel(income.paymentMethod);
+    final amountStr = isPriceHidden
+        ? 'ETB ••••••'
+        : '+ ETB ${NumberFormat('#,##0.00').format(income.amount)}';
+
+    await showDialog<void>(
+      context: context,
+      builder: (modalCtx) {
+        return Dialog(
+          backgroundColor: dark ? AppColors.darkSurface : AppColors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Iconsax.wallet_add_copy,
+                          size: 18,
+                          color: AppColors.success,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Manual Revenue Details',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: dark ? Colors.white : AppColors.textPrimary,
+                              ),
+                            ),
+                            const Text(
+                              'Direct Payment / Manually Recorded Income',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        color: AppColors.textSecondary,
+                        onPressed: () => Navigator.of(modalCtx).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Amount Card
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.success.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Added Revenue',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.success,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                amountStr,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppColors.success,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: methodColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: methodColor.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(methodIcon, size: 13, color: methodColor),
+                              const SizedBox(width: 5),
+                              Text(
+                                methodLabel,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: methodColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Details List
+                  _buildModalDetailRow('Source / Title', income.title, Iconsax.text_copy, dark),
+                  _buildModalDetailRow('Payment Date', DateFormat('EEEE, MMMM d, yyyy').format(income.date), Iconsax.calendar_1_copy, dark),
+                  _buildModalDetailRow('Payment Method', methodLabel, Iconsax.card_copy, dark),
+                  _buildModalDetailRow('Recorded At', DateFormat('MMM d, yyyy • h:mm a').format(income.createdAt), Iconsax.clock_copy, dark),
+
+                  // Notes Box
+                  if (income.notes?.isNotEmpty == true) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: dark ? AppColors.darkCard : AppColors.lightGrey.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Iconsax.note_2_copy, size: 13, color: AppColors.textSecondary),
+                              SizedBox(width: 6),
+                              Text(
+                                'Notes & Remarks',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            income.notes!,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: dark ? Colors.white70 : AppColors.textPrimary,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+
+                  // Bottom Action Buttons
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                          side: const BorderSide(color: AppColors.error),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Iconsax.trash_copy, size: 14),
+                        label: const Text('Delete'),
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Delete Revenue?'),
+                              content: Text('Delete "${income.title}" (+ETB ${income.amount.toStringAsFixed(0)})?'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  child: const Text('Delete'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            await widget.controller.deleteIncomeRecord(income.id);
+                            if (modalCtx.mounted) Navigator.of(modalCtx).pop();
+                          }
+                        },
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(modalCtx).pop(),
+                            child: const Text('Close'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Iconsax.edit_2_copy, size: 14),
+                            label: const Text('Edit Revenue'),
+                            onPressed: () {
+                              Navigator.of(modalCtx).pop();
+                              AddRevenueDialog.show(context, widget.controller, recordToEdit: income);
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildModalDetailRow(String label, String value, IconData icon, bool dark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 15, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: dark ? Colors.white : AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final dark = AppHelperFunctions.isDark(context);
@@ -397,158 +960,165 @@ class _CostsManagementCardState extends State<CostsManagementCard> {
                         ? 'ETB ••••••'
                         : '- ETB ${NumberFormat('#,##0.00').format(cost.amount)}';
 
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: dark ? AppColors.darkSurface : AppColors.white,
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
                         borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                        border: Border.all(
-                          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                          width: 0.8,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: catColor.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6),
+                        onTap: () => _showCostDetailModal(context, cost),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: dark ? AppColors.darkSurface : AppColors.white,
+                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                            border: Border.all(
+                              color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                              width: 0.8,
                             ),
-                            child: Icon(catIcon, size: 16, color: catColor),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        cost.title,
-                                        style: TextStyle(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: dark ? Colors.white : AppColors.textPrimary,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: catColor.withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        catLabel,
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: catColor,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: catColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
                                 ),
-                                const SizedBox(height: 2),
-                                Row(
+                                child: Icon(catIcon, size: 16, color: catColor),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      DateFormat('MMM d, yyyy').format(cost.date),
-                                      style: const TextStyle(
-                                        fontSize: 10.5,
-                                        color: AppColors.textSecondary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    if (cost.notes?.isNotEmpty == true) ...[
-                                      const Text(' • ', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
-                                      Flexible(
-                                        child: Text(
-                                          cost.notes!,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 10.5,
-                                            fontStyle: FontStyle.italic,
-                                            color: dark ? Colors.white60 : AppColors.textSecondary,
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            cost.title,
+                                            style: TextStyle(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: dark ? Colors.white : AppColors.textPrimary,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            costStr,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFFEF4444),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          PopupMenuButton<String>(
-                            icon: const Icon(Icons.more_vert_rounded, size: 16, color: AppColors.textSecondary),
-                            tooltip: 'Options',
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onSelected: (val) async {
-                              if (val == 'edit') {
-                                AddCostDialog.show(context, widget.controller, recordToEdit: cost);
-                              } else if (val == 'delete') {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Delete Cost?'),
-                                    content: Text('Delete "${cost.title}" (-ETB ${cost.amount.toStringAsFixed(0)}) and restore revenue?'),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-                                        onPressed: () => Navigator.of(ctx).pop(true),
-                                        child: const Text('Delete'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirm == true) {
-                                  await widget.controller.deleteCostRecord(cost.id);
-                                }
-                              }
-                            },
-                            itemBuilder: (_) => [
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: Row(
-                                  children: [
-                                    Icon(Iconsax.edit_2_copy, size: 14),
-                                    SizedBox(width: 8),
-                                    Text('Edit', style: TextStyle(fontSize: 12)),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                          decoration: BoxDecoration(
+                                            color: catColor.withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            catLabel,
+                                            style: TextStyle(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: catColor,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          DateFormat('MMM d, yyyy').format(cost.date),
+                                          style: const TextStyle(
+                                            fontSize: 10.5,
+                                            color: AppColors.textSecondary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        if (cost.notes?.isNotEmpty == true) ...[
+                                          const Text(' • ', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+                                          Flexible(
+                                            child: Text(
+                                              cost.notes!,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 10.5,
+                                                fontStyle: FontStyle.italic,
+                                                color: dark ? Colors.white60 : AppColors.textSecondary,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
                                   ],
                                 ),
                               ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Row(
-                                  children: [
-                                    Icon(Iconsax.trash_copy, size: 14, color: AppColors.error),
-                                    SizedBox(width: 8),
-                                    Text('Delete', style: TextStyle(fontSize: 12, color: AppColors.error)),
-                                  ],
+                              const SizedBox(width: 8),
+                              Text(
+                                costStr,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFEF4444),
                                 ),
+                              ),
+                              const SizedBox(width: 4),
+                              PopupMenuButton<String>(
+                                icon: const Icon(Icons.more_vert_rounded, size: 16, color: AppColors.textSecondary),
+                                tooltip: 'Options',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onSelected: (val) async {
+                                  if (val == 'edit') {
+                                    AddCostDialog.show(context, widget.controller, recordToEdit: cost);
+                                  } else if (val == 'delete') {
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text('Delete Cost?'),
+                                        content: Text('Delete "${cost.title}" (-ETB ${cost.amount.toStringAsFixed(0)}) and restore revenue?'),
+                                        actions: [
+                                          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                                            onPressed: () => Navigator.of(ctx).pop(true),
+                                            child: const Text('Delete'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirm == true) {
+                                      await widget.controller.deleteCostRecord(cost.id);
+                                    }
+                                  }
+                                },
+                                itemBuilder: (_) => [
+                                  const PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        Icon(Iconsax.edit_2_copy, size: 14),
+                                        SizedBox(width: 8),
+                                        Text('Edit', style: TextStyle(fontSize: 12)),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Iconsax.trash_copy, size: 14, color: AppColors.error),
+                                        SizedBox(width: 8),
+                                        Text('Delete', style: TextStyle(fontSize: 12, color: AppColors.error)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
+                        ),
                       ),
                     );
                   },
@@ -627,158 +1197,165 @@ class _CostsManagementCardState extends State<CostsManagementCard> {
                         ? 'ETB ••••••'
                         : '+ ETB ${NumberFormat('#,##0.00').format(income.amount)}';
 
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: dark ? AppColors.darkSurface : AppColors.white,
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
                         borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
-                        border: Border.all(
-                          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-                          width: 0.8,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: methodColor.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6),
+                        onTap: () => _showIncomeDetailModal(context, income),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: dark ? AppColors.darkSurface : AppColors.white,
+                            borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                            border: Border.all(
+                              color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
+                              width: 0.8,
                             ),
-                            child: Icon(methodIcon, size: 16, color: methodColor),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        income.title,
-                                        style: TextStyle(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: dark ? Colors.white : AppColors.textPrimary,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: methodColor.withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        methodLabel,
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: methodColor,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: methodColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
                                 ),
-                                const SizedBox(height: 2),
-                                Row(
+                                child: Icon(methodIcon, size: 16, color: methodColor),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      DateFormat('MMM d, yyyy').format(income.date),
-                                      style: const TextStyle(
-                                        fontSize: 10.5,
-                                        color: AppColors.textSecondary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    if (income.notes?.isNotEmpty == true) ...[
-                                      const Text(' • ', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
-                                      Flexible(
-                                        child: Text(
-                                          income.notes!,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 10.5,
-                                            fontStyle: FontStyle.italic,
-                                            color: dark ? Colors.white60 : AppColors.textSecondary,
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            income.title,
+                                            style: TextStyle(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: dark ? Colors.white : AppColors.textPrimary,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            incomeStr,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.success,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          PopupMenuButton<String>(
-                            icon: const Icon(Icons.more_vert_rounded, size: 16, color: AppColors.textSecondary),
-                            tooltip: 'Options',
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onSelected: (val) async {
-                              if (val == 'edit') {
-                                AddRevenueDialog.show(context, widget.controller, recordToEdit: income);
-                              } else if (val == 'delete') {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Delete Revenue?'),
-                                    content: Text('Delete "${income.title}" (+ETB ${income.amount.toStringAsFixed(0)})?'),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-                                        onPressed: () => Navigator.of(ctx).pop(true),
-                                        child: const Text('Delete'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirm == true) {
-                                  await widget.controller.deleteIncomeRecord(income.id);
-                                }
-                              }
-                            },
-                            itemBuilder: (_) => [
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: Row(
-                                  children: [
-                                    Icon(Iconsax.edit_2_copy, size: 14),
-                                    SizedBox(width: 8),
-                                    Text('Edit', style: TextStyle(fontSize: 12)),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                          decoration: BoxDecoration(
+                                            color: methodColor.withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            methodLabel,
+                                            style: TextStyle(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: methodColor,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          DateFormat('MMM d, yyyy').format(income.date),
+                                          style: const TextStyle(
+                                            fontSize: 10.5,
+                                            color: AppColors.textSecondary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        if (income.notes?.isNotEmpty == true) ...[
+                                          const Text(' • ', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+                                          Flexible(
+                                            child: Text(
+                                              income.notes!,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 10.5,
+                                                fontStyle: FontStyle.italic,
+                                                color: dark ? Colors.white60 : AppColors.textSecondary,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
                                   ],
                                 ),
                               ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Row(
-                                  children: [
-                                    Icon(Iconsax.trash_copy, size: 14, color: AppColors.error),
-                                    SizedBox(width: 8),
-                                    Text('Delete', style: TextStyle(fontSize: 12, color: AppColors.error)),
-                                  ],
+                              const SizedBox(width: 8),
+                              Text(
+                                incomeStr,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.success,
                                 ),
+                              ),
+                              const SizedBox(width: 4),
+                              PopupMenuButton<String>(
+                                icon: const Icon(Icons.more_vert_rounded, size: 16, color: AppColors.textSecondary),
+                                tooltip: 'Options',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onSelected: (val) async {
+                                  if (val == 'edit') {
+                                    AddRevenueDialog.show(context, widget.controller, recordToEdit: income);
+                                  } else if (val == 'delete') {
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text('Delete Revenue?'),
+                                        content: Text('Delete "${income.title}" (+ETB ${income.amount.toStringAsFixed(0)})?'),
+                                        actions: [
+                                          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                                            onPressed: () => Navigator.of(ctx).pop(true),
+                                            child: const Text('Delete'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirm == true) {
+                                      await widget.controller.deleteIncomeRecord(income.id);
+                                    }
+                                  }
+                                },
+                                itemBuilder: (_) => [
+                                  const PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        Icon(Iconsax.edit_2_copy, size: 14),
+                                        SizedBox(width: 8),
+                                        Text('Edit', style: TextStyle(fontSize: 12)),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Iconsax.trash_copy, size: 14, color: AppColors.error),
+                                        SizedBox(width: 8),
+                                        Text('Delete', style: TextStyle(fontSize: 12, color: AppColors.error)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
+                        ),
                       ),
                     );
                   },
