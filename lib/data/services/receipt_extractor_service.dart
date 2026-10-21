@@ -62,6 +62,16 @@ class ReceiptExtractionResult {
       (transactionId != null && transactionId!.trim().isNotEmpty) ||
       (receiptUrl != null && receiptUrl!.trim().isNotEmpty);
 
+  /// The extracted token from the receipt link (e.g. "-hfHCxHMBDDeLLF7MLsuaD" or "fHCxyExampleRcpt1").
+  String? get receiptToken {
+    if (receiptUrl == null) return null;
+    final uri = Uri.tryParse(receiptUrl!);
+    if (uri != null && uri.pathSegments.isNotEmpty) {
+      return uri.pathSegments.last;
+    }
+    return null;
+  }
+
   ReceiptExtractionResult copyWith({
     String? transactionId,
     String? receiptUrl,
@@ -106,7 +116,8 @@ class ReceiptTextParser {
 
   /// Parses raw OCR or SMS text to extract Transaction ID, Date, Amount, Sender, and Receiver.
   static ReceiptExtractionResult parse(String rawText, {String? bankHint}) {
-    final clean = rawText.trim();
+    // Pre-process: stitch wrapped URL lines commonly split across newlines in mobile SMS receipts
+    final clean = _stitchWrappedUrls(rawText.trim());
     if (clean.isEmpty) {
       return const ReceiptExtractionResult();
     }
@@ -220,8 +231,8 @@ class ReceiptTextParser {
       // ── CBE & BOA EXTRACTION ──
       // 1. CBE Receipt URL / Token (from SMS notifications or web receipts)
       // Example: https://mreciept.cbe.com.et/v2/-hfHCxHMBDDeLLF7MLsuaD
-      // In mobile SMS screenshots, the URL frequently wraps across lines:
-      // "https://mreciept.cbe.com.et\n/v2\n/-hfHCxHMBDDeLLF7MLsuaD"
+      // In mobile SMS screenshots, the URL frequently wraps across lines.
+      // Layer A: Standard CBE receipt URL format
       final cbeUrlRegex = RegExp(
         r'(?:https?:\/\/)?((?:[a-zA-Z0-9_\-]+\.)?cbe\.com\.et)[\s\r\n/]*(?:(v\d+)[\s\r\n/]+)?([-A-Za-z0-9_]{10,40})',
         caseSensitive: false,
@@ -233,6 +244,49 @@ class ReceiptTextParser {
         final token = cbeUrlMatch.group(3)!;
         receiptUrl = 'https://$domain/$version/$token';
         txId = receiptUrl;
+      }
+
+      // Layer B: Relaxed domain (OCR spacing, OCR misreading i as 1/l, or red pen covering .et)
+      if (receiptUrl == null) {
+        final relaxedDomainRegex = RegExp(
+          r'(?:https?:\/\/)?\s*m\s*rec[ie1l]{2,4}pt\s*[\.\s_]*cbe\s*[\.\s_]*com(?:\s*[\.\s_]*et)?[\s\r\n/]*(?:v\s*(\d+)[\s\r\n/]+)?([-A-Za-z0-9_]{10,40})',
+          caseSensitive: false,
+        );
+        final m = relaxedDomainRegex.firstMatch(clean);
+        if (m != null) {
+          final v = m.group(1) != null ? 'v${m.group(1)}' : 'v2';
+          final token = m.group(2)!;
+          receiptUrl = 'https://mreciept.cbe.com.et/$v/$token';
+          txId = receiptUrl;
+        }
+      }
+
+      // Layer C: /v2/<token> anywhere in CBE context (even if domain was completely cut off by red pen)
+      if (receiptUrl == null) {
+        final v2TokenRegex = RegExp(
+          r'(?:\/|\b)v(\d+)[\s\r\n/]+([-A-Za-z0-9_]{10,40})\b',
+          caseSensitive: false,
+        );
+        final m = v2TokenRegex.firstMatch(clean);
+        if (m != null) {
+          final v = 'v${m.group(1)}';
+          final token = m.group(2)!;
+          receiptUrl = 'https://mreciept.cbe.com.et/$v/$token';
+          txId = receiptUrl;
+        }
+      }
+
+      // Layer D: Any standalone URL in the text containing cbe or reciept/receipt
+      if (receiptUrl == null) {
+        final genericCbeUrl = RegExp(
+          r'(https?:\/\/[^\s]+(?:cbe|mreciept|mreceipt)[^\s]*)',
+          caseSensitive: false,
+        );
+        final m = genericCbeUrl.firstMatch(clean);
+        if (m != null) {
+          receiptUrl = m.group(1);
+          txId = receiptUrl;
+        }
       }
 
       // Pattern A: CBE Funds Transfer format: FT + 10-14 alphanumeric (e.g. FT26291KVDWY)
@@ -390,6 +444,57 @@ class ReceiptTextParser {
 
     // 3. Try standard Dart DateTime.tryParse
     return DateTime.tryParse(s.replaceAll('/', '-'));
+  }
+
+  /// Stitches together URL lines that have been wrapped across newlines by mobile SMS clients.
+  static String _stitchWrappedUrls(String text) {
+    final lines = text.split(RegExp(r'\r?\n')).map((l) => l.trim()).toList();
+    final reconstructed = <String>[];
+    int i = 0;
+    while (i < lines.length) {
+      final line = lines[i];
+      if (line.isEmpty) {
+        reconstructed.add(line);
+        i++;
+        continue;
+      }
+
+      final isUrlStart = line.toLowerCase().contains('http://') ||
+          line.toLowerCase().contains('https://') ||
+          line.toLowerCase().contains('mreciept') ||
+          line.toLowerCase().contains('mreceipt') ||
+          line.toLowerCase().contains('cbe.com.et') ||
+          line.toLowerCase().contains('forms.gle');
+
+      if (isUrlStart) {
+        final urlParts = [line];
+        while (i + 1 < lines.length) {
+          final nxt = lines[i + 1];
+          // Check if next line is a continuation (starts with /, or is v2, or is a link token)
+          final isContinuation = nxt.startsWith('/') ||
+              RegExp(r'^(?:v\d+|[-A-Za-z0-9_]{10,40})$', caseSensitive: false).hasMatch(nxt);
+          final isStopKeyword = nxt.toLowerCase().startsWith('for feedback') ||
+              nxt.toLowerCase().startsWith('dear ') ||
+              nxt.toLowerCase().startsWith('thanks ') ||
+              nxt.toLowerCase().startsWith('sender ');
+
+          if (isContinuation && !isStopKeyword) {
+            urlParts.add(nxt);
+            i++;
+          } else {
+            break;
+          }
+        }
+
+        // Cleanly join parts ensuring proper single slash delimiters
+        final joined = urlParts.map((p) => p.trim()).join('');
+        reconstructed.add(joined);
+      } else {
+        reconstructed.add(line);
+      }
+      i++;
+    }
+    return reconstructed.join('\n');
   }
 }
 

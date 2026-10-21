@@ -140,6 +140,45 @@ https://mreceipt.cbe.com.et/v2/xyz9876543210
       expect(res.senderName, equals('Abebe Bikila'));
       expect(res.receiverAccount, equals('10002'));
       expect(res.receiverName, equals('Acme Trading'));
+      expect(res.receiptToken, equals('xyz9876543210'));
+    });
+
+    test('extracts CBE SMS receipt with distorted/wrapped domain and spaces around dots', () {
+      const distortedCbe = '''
+CBE
+Dear Tigist Getnet Sharew
+You have successfully transferred ETB200.00 from account 1********7871 to account 1********1237 (Abrham Teramed Nega).
+Thanks for Banking with CBE.
+https://mreciept . cbe . com . et
+/v2
+/-hfHCxHMBDDeLLF7MLsuaD
+''';
+
+      final res = ReceiptTextParser.parse(distortedCbe);
+
+      expect(res.bank, equals('cbe'));
+      expect(res.receiptUrl, contains('mreciept.cbe.com.et/v2/-hfHCxHMBDDeLLF7MLsuaD'));
+      expect(res.receiptToken, equals('-hfHCxHMBDDeLLF7MLsuaD'));
+      expect(res.transactionId, equals(res.receiptUrl));
+      expect(res.hasTransactionId, isTrue);
+    });
+
+    test('extracts CBE SMS receipt when domain is partially obscured and only /v2/token remains', () {
+      const partiallyObscured = '''
+Dear Tigist Getnet Sharew You have successfully transferred ETB200.00 to account 10002 (Abrham).
+Thanks for Banking with CBE.
+/v2/-hfHCxHMBDDeLLF7MLsuaD
+for feedback:
+https://forms.gle/test
+''';
+
+      final res = ReceiptTextParser.parse(partiallyObscured);
+
+      expect(res.bank, equals('cbe'));
+      expect(res.receiptUrl, equals('https://mreciept.cbe.com.et/v2/-hfHCxHMBDDeLLF7MLsuaD'));
+      expect(res.receiptToken, equals('-hfHCxHMBDDeLLF7MLsuaD'));
+      expect(res.transactionId, equals('https://mreciept.cbe.com.et/v2/-hfHCxHMBDDeLLF7MLsuaD'));
+      expect(res.hasTransactionId, isTrue);
     });
   });
 }

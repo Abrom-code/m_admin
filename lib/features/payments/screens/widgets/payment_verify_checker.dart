@@ -113,11 +113,13 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
           _isExtracting = false;
           _extractedInfo = res;
           if (res != null && res.hasTransactionId) {
-            _refCtrl.text = res.transactionId!;
+            final targetRef = res.transactionId ?? res.receiptUrl!;
+            _refCtrl.text = targetRef;
             if (manual) {
+              final isLink = targetRef.startsWith('http');
               SnackbarHelper.success(
-                'Transaction ID Extracted',
-                'Found ${res.transactionId!} from receipt image.',
+                isLink ? 'Receipt Link Extracted' : 'Transaction ID Extracted',
+                'Found $targetRef from receipt image.',
               );
             }
           } else if (manual) {
@@ -219,8 +221,8 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
       case 'cbe':
         bankName = 'CBE';
         bankIcon = '🏦';
-        refLabel = 'CBE Receipt ID / Reference';
-        refHint = 'e.g. fHCxyExampleRcpt1';
+        refLabel = 'CBE Transaction ID / Receipt Link';
+        refHint = 'e.g. FT26... or https://mreciept.cbe.com.et/...';
         break;
       case 'telebirr':
         bankName = 'Telebirr';
@@ -440,6 +442,124 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
               );
             },
           ),
+
+          // Reference Option Switcher (When a CBE Receipt Link is available)
+          if (_extractedInfo != null && _extractedInfo!.receiptUrl != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.2)),
+              ),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.tune_rounded, size: 12, color: Color(0xFF6366F1)),
+                      SizedBox(width: 4),
+                      Text(
+                        'Quick Option:',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF6366F1),
+                        ),
+                      ),
+                    ],
+                  ),
+                  InkWell(
+                    onTap: () => setState(() => _refCtrl.text = _extractedInfo!.receiptUrl!),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _refCtrl.text == _extractedInfo!.receiptUrl
+                            ? const Color(0xFF6366F1)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: _refCtrl.text == _extractedInfo!.receiptUrl
+                              ? const Color(0xFF6366F1)
+                              : AppColors.borderPrimary,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.link_rounded,
+                            size: 11,
+                            color: _refCtrl.text == _extractedInfo!.receiptUrl
+                                ? Colors.white
+                                : AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Use Full Link',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: _refCtrl.text == _extractedInfo!.receiptUrl
+                                  ? Colors.white
+                                  : AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_extractedInfo!.receiptToken != null)
+                    InkWell(
+                      onTap: () => setState(() => _refCtrl.text = _extractedInfo!.receiptToken!),
+                      borderRadius: BorderRadius.circular(4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: _refCtrl.text == _extractedInfo!.receiptToken
+                              ? const Color(0xFF6366F1)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: _refCtrl.text == _extractedInfo!.receiptToken
+                                ? const Color(0xFF6366F1)
+                                : AppColors.borderPrimary,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.tag_rounded,
+                              size: 11,
+                              color: _refCtrl.text == _extractedInfo!.receiptToken
+                                  ? Colors.white
+                                  : AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              'Use Token (${_extractedInfo!.receiptToken!.length > 10 ? '${_extractedInfo!.receiptToken!.substring(0, 8)}...' : _extractedInfo!.receiptToken})',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: _refCtrl.text == _extractedInfo!.receiptToken
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
 
           // Scanning in-progress pill
           if (_isExtracting) ...[
