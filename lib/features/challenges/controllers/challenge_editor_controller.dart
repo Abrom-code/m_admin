@@ -144,6 +144,15 @@ class ChallengeEditorController extends GetxController {
         targetStatus = status.value.isEmpty ? 'draft' : status.value;
       }
 
+      // Auto-convert to premium if saving as completed/closed, or if end time has passed (for published challenges)
+      final statusLower = targetStatus.toLowerCase();
+      if (statusLower == 'closed' || statusLower == 'completed' || statusLower == 'archived') {
+        isPremium.value = true;
+      } else if (statusLower != 'draft' && endsAt.value != null && EthiopianTimeHelper.nowInEastAfrica().isAfter(endsAt.value!)) {
+        targetStatus = 'closed';
+        isPremium.value = true;
+      }
+
       // Upsert challenge record
       final payload = <String, dynamic>{
         if (currentChallengeId.value != null && currentChallengeId.value!.isNotEmpty)
@@ -165,6 +174,7 @@ class ChallengeEditorController extends GetxController {
       currentChallengeId.value = savedChallenge.id;
       currentSetId.value = savedChallenge.setId;
       status.value = savedChallenge.status;
+      isPremium.value = savedChallenge.isPremium;
 
       if (isPublish) {
         SnackbarHelper.success(

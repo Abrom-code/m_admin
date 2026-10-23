@@ -56,6 +56,20 @@ class ChallengeRepository {
     await _sb.from('challenge_questions').delete().eq('id', questionId);
   }
 
+  Future<void> _syncExpiredChallenges() async {
+    try {
+      final nowUtc = DateTime.now().toUtc().toIso8601String();
+      await _sb
+          .from('leaderboard_challenges')
+          .update({
+            'status': 'closed',
+            'is_premium': true,
+          })
+          .inFilter('status', ['live', 'scheduled'])
+          .lte('ends_at', nowUtc);
+    } catch (_) {}
+  }
+
   // ── Challenges (Rounds) ───────────────────────────────────────────────────
 
   Future<List<LeaderboardChallengeModel>> fetchChallenges({
@@ -65,6 +79,9 @@ class ChallengeRepository {
     int page = 0,
     int pageSize = 25,
   }) async {
+    // Auto-sync any expired challenges to closed + premium in the database
+    _syncExpiredChallenges();
+
     var query = _sb
         .from('leaderboard_challenges')
         .select(
@@ -101,13 +118,39 @@ class ChallengeRepository {
         )
         .eq('id', challengeId)
         .single();
-    return LeaderboardChallengeModel.fromJson(row);
+    final model = LeaderboardChallengeModel.fromJson(row);
+
+    // If challenge completed/expired but still free or unclosed in DB, sync it
+    if (model.isClosed && (row['status'] != 'closed' || row['is_premium'] != true)) {
+      try {
+        await _sb.from('leaderboard_challenges').update({
+          'status': 'closed',
+          'is_premium': true,
+        }).eq('id', challengeId);
+      } catch (_) {}
+    }
+
+    return model;
   }
 
   Future<LeaderboardChallengeModel> upsertChallenge(Map<String, dynamic> data) async {
     final payload = Map<String, dynamic>.from(data);
     payload.remove('question_set_id');
     payload.remove('created_by');
+
+    // Auto-convert to premium if saving as completed/closed or if end time has passed
+    final targetStatus = payload['status']?.toString().toLowerCase();
+    if (targetStatus == 'closed' || targetStatus == 'completed' || targetStatus == 'archived') {
+      payload['is_premium'] = true;
+    } else if (targetStatus != 'draft' && payload['ends_at'] != null) {
+      final endsAtDate = DateTime.tryParse(payload['ends_at'].toString());
+      if (endsAtDate != null && DateTime.now().toUtc().isAfter(endsAtDate.toUtc())) {
+        payload['is_premium'] = true;
+        if (targetStatus == 'live' || targetStatus == 'scheduled') {
+          payload['status'] = 'closed';
+        }
+      }
+    }
 
     final subjectId = (payload['subject_id'] as num?)?.toInt() ?? 0;
     final title = payload['title']?.toString() ?? 'Challenge';
@@ -234,6 +277,10 @@ class ChallengeRepository {
 
   Future<void> updateChallengeStatus(String challengeId, String newStatus) async {
     final payload = <String, dynamic>{'status': newStatus};
+    final sLower = newStatus.toLowerCase();
+    if (sLower == 'closed' || sLower == 'completed' || sLower == 'archived') {
+      payload['is_premium'] = true;
+    }
     if (newStatus == 'live') {
       final now = DateTime.now().toUtc();
       try {
@@ -265,6 +312,7 @@ class ChallengeRepository {
     await _sb.from('leaderboard_challenges').update({
       'status': 'closed',
       'ends_at': now.toIso8601String(),
+      'is_premium': true, // Auto convert to premium when challenge completes
     }).eq('id', challengeId);
   }
 

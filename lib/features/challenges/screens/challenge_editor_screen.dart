@@ -504,27 +504,35 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                               ],
                               const SizedBox(height: 16),
                               Obx(
-                                () => Material(
-                                  type: MaterialType.transparency,
-                                  child: SwitchListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    value: _ctrl.isPremium.value,
-                                    onChanged: (val) => _ctrl.isPremium.value = val,
-                                    title: const Text(
-                                      'Premium Challenge',
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                () {
+                                  final st = _ctrl.status.value.toLowerCase();
+                                  final isClosedOrCompleted = st == 'closed' || st == 'archived' || st == 'completed';
+                                  return Material(
+                                    type: MaterialType.transparency,
+                                    child: SwitchListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      value: isClosedOrCompleted ? true : _ctrl.isPremium.value,
+                                      onChanged: isClosedOrCompleted
+                                          ? null
+                                          : (val) => _ctrl.isPremium.value = val,
+                                      title: const Text(
+                                        'Premium Challenge',
+                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                      ),
+                                      subtitle: Text(
+                                        isClosedOrCompleted
+                                            ? 'Completed challenges are automatically locked to premium members.'
+                                            : 'When enabled, only subscribed students can participate. Free challenges automatically become premium upon completion.',
+                                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                      ),
+                                      secondary: Icon(
+                                        Iconsax.crown_copy,
+                                        color: (isClosedOrCompleted || _ctrl.isPremium.value) ? AppColors.warning : AppColors.textSecondary,
+                                        size: 20,
+                                      ),
                                     ),
-                                    subtitle: const Text(
-                                      'When enabled, only subscribed students can participate in this challenge round.',
-                                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                    ),
-                                    secondary: Icon(
-                                      Iconsax.crown_copy,
-                                      color: _ctrl.isPremium.value ? AppColors.warning : AppColors.textSecondary,
-                                      size: 20,
-                                    ),
-                                  ),
-                                ),
+                                  );
+                                },
                               ),
                               const SizedBox(height: 16),
                               _ReviewPolicySelectorBox(ctrl: _ctrl, isWide: isWide),
@@ -576,7 +584,12 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                     DropdownMenuItem(value: 'archived', child: Text('Archived')),
                                   ],
                                   onChanged: (val) {
-                                    if (val != null) _ctrl.status.value = val;
+                                    if (val != null) {
+                                      _ctrl.status.value = val;
+                                      if (val == 'closed' || val == 'archived' || val == 'completed') {
+                                        _ctrl.isPremium.value = true;
+                                      }
+                                    }
                                   },
                                 ),
                               ),

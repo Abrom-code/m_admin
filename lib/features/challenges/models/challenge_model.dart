@@ -133,10 +133,11 @@ class LeaderboardChallengeModel {
     return false;
   }
 
-  /// Time-aware: closed if status is closed/archived or end time has passed.
+  /// Time-aware: closed if status is closed/archived/completed or end time has passed (for published challenges).
   bool get isClosed {
-    if (status == 'closed' || status == 'archived') return true;
-    if (endsAt != null && DateTime.now().isAfter(endsAt!)) return true;
+    final s = status.toLowerCase();
+    if (s == 'closed' || s == 'archived' || s == 'completed') return true;
+    if (s != 'draft' && endsAt != null && DateTime.now().isAfter(endsAt!)) return true;
     return false;
   }
 
@@ -197,7 +198,18 @@ class LeaderboardChallengeModel {
     }
 
     final rawPrem = json['is_premium'];
-    final isPrem = rawPrem == true || rawPrem == 1 || rawPrem == 'true' || rawPrem == '1';
+    var isPrem = rawPrem == true || rawPrem == 1 || rawPrem == 'true' || rawPrem == '1';
+    final st = (json['status']?.toString() ?? 'draft').toLowerCase();
+    final parsedEndsAt = EthiopianTimeHelper.parseSupabaseUtc(json['ends_at']);
+
+    // Business logic: When a challenge is completed/closed, auto-convert to premium if it was free when live/scheduled
+    final isCompletedOrClosed = st == 'closed' ||
+        st == 'completed' ||
+        st == 'archived' ||
+        (st != 'draft' && parsedEndsAt != null && DateTime.now().isAfter(parsedEndsAt));
+    if (isCompletedOrClosed) {
+      isPrem = true;
+    }
 
     return LeaderboardChallengeModel(
       id: finalId,
@@ -208,7 +220,7 @@ class LeaderboardChallengeModel {
       audience: json['audience']?.toString() ?? 'both',
       title: json['title']?.toString() ?? '',
       startsAt: EthiopianTimeHelper.parseSupabaseUtc(json['starts_at']),
-      endsAt: EthiopianTimeHelper.parseSupabaseUtc(json['ends_at']),
+      endsAt: parsedEndsAt,
       durationSeconds: (json['duration_seconds'] as num?)?.toInt() ?? 3600,
       status: json['status']?.toString() ?? 'draft',
       createdBy: json['created_by']?.toString(),
@@ -239,6 +251,14 @@ class LeaderboardChallengeModel {
     bool? isPremium,
     String? reviewPolicy,
   }) {
+    final nextStatus = (status ?? this.status).toLowerCase();
+    final nextEndsAt = endsAt ?? this.endsAt;
+    final nextIsClosed = nextStatus == 'closed' ||
+        nextStatus == 'completed' ||
+        nextStatus == 'archived' ||
+        (nextStatus != 'draft' && nextEndsAt != null && DateTime.now().isAfter(nextEndsAt));
+    final resolvedIsPremium = isPremium ?? (nextIsClosed ? true : this.isPremium);
+
     return LeaderboardChallengeModel(
       id: id ?? this.id,
       setId: setId ?? this.setId,
@@ -255,7 +275,7 @@ class LeaderboardChallengeModel {
       createdAt: createdAt ?? this.createdAt,
       questionCount: questionCount ?? this.questionCount,
       attemptCount: attemptCount ?? this.attemptCount,
-      isPremium: isPremium ?? this.isPremium,
+      isPremium: resolvedIsPremium,
       reviewPolicy: reviewPolicy ?? this.reviewPolicy,
     );
   }
