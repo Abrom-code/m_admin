@@ -776,9 +776,6 @@ class _RevenueScreenState extends State<RevenueScreen> {
                       if (_selectedIndex != null &&
                           _selectedIndex! < series.length) {
                         final selPoint = series[_selectedIndex!];
-                        final rawPoint = _selectedIndex! < rawSeries.length
-                            ? rawSeries[_selectedIndex!]
-                            : selPoint;
                         final dayCost = controller.getCostForDay(selPoint.day);
                         final dayIncome = controller.getIncomeForDay(selPoint.day);
                         final isDeficit = isNetView && selPoint.value < 0;
