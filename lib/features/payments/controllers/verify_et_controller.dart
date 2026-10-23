@@ -34,6 +34,7 @@ class VerifyEtController extends GetxController {
 
   // ── Execution State ───────────────────────────────────────────────────────
   final isLoading = false.obs;
+  final pollingStatusMessage = ''.obs;
   final activeResult = Rxn<VerifyEtResult>();
   final errorMessage = RxnString();
 
@@ -104,6 +105,7 @@ class VerifyEtController extends GetxController {
     clearImage();
     activeResult.value = null;
     errorMessage.value = null;
+    pollingStatusMessage.value = '';
   }
 
   /// Pre-fills the verification form from a pending PaymentReview item.
@@ -133,6 +135,41 @@ class VerifyEtController extends GetxController {
     }
   }
 
+  /// Refreshes the verification status for a pending requestId
+  Future<void> refreshStatus(String requestId) async {
+    if (!_service.hasApiKey) return;
+    isLoading.value = true;
+    errorMessage.value = null;
+    pollingStatusMessage.value = 'Checking verification status...';
+
+    try {
+      final res = await _service.getVerificationStatus(requestId);
+      activeResult.value = res;
+
+      if (res.verified) {
+        SnackbarHelper.success(
+          'Verified!',
+          'Transaction confirmed by ${res.bank.toUpperCase()}: ${res.amount} ${res.currency}',
+        );
+      } else if (res.isPending) {
+        SnackbarHelper.info(
+          'Still Queued',
+          'Verification is still in progress on ${res.bank.toUpperCase()} network. Please try again shortly.',
+        );
+      } else {
+        SnackbarHelper.warning('Unverified', 'Status: ${res.status}');
+      }
+      loadHistory();
+    } catch (e) {
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      errorMessage.value = msg;
+      SnackbarHelper.error('Status Check Error', msg);
+    } finally {
+      isLoading.value = false;
+      pollingStatusMessage.value = '';
+    }
+  }
+
   /// Triggers verification via Verify.ET
   Future<void> submitVerification() async {
     if (!_service.hasApiKey) {
@@ -153,9 +190,14 @@ class VerifyEtController extends GetxController {
     isLoading.value = true;
     errorMessage.value = null;
     activeResult.value = null;
+    pollingStatusMessage.value = '';
 
     try {
       VerifyEtResult res;
+
+      void onTick(int attempt, int maxAttempts) {
+        pollingStatusMessage.value = 'Checking bank confirmation ($attempt/$maxAttempts)...';
+      }
 
       if (hasImage) {
         res = await _service.verifyReceiptImage(
@@ -166,6 +208,7 @@ class VerifyEtController extends GetxController {
           accountSuffix: accountSuffixCtrl.text.trim().isNotEmpty ? accountSuffixCtrl.text.trim() : null,
           phone: phoneCtrl.text.trim().isNotEmpty ? phoneCtrl.text.trim() : null,
           settlementAccount: settlementAccountCtrl.text.trim().isNotEmpty ? settlementAccountCtrl.text.trim() : null,
+          onPollTick: onTick,
         );
       } else {
         res = await _service.verifyTransaction(
@@ -174,6 +217,7 @@ class VerifyEtController extends GetxController {
           accountSuffix: accountSuffixCtrl.text.trim().isNotEmpty ? accountSuffixCtrl.text.trim() : null,
           phone: phoneCtrl.text.trim().isNotEmpty ? phoneCtrl.text.trim() : null,
           settlementAccount: settlementAccountCtrl.text.trim().isNotEmpty ? settlementAccountCtrl.text.trim() : null,
+          onPollTick: onTick,
         );
       }
 
@@ -181,8 +225,13 @@ class VerifyEtController extends GetxController {
 
       if (res.verified) {
         SnackbarHelper.success('Verified!', 'Transaction confirmed by ${res.bank.toUpperCase()}: ${res.amount} ${res.currency}');
+      } else if (res.isPending) {
+        SnackbarHelper.info(
+          'Verification Queued',
+          '${res.bank.toUpperCase()} verification is in progress. Use "Check Status" to refresh once processed.',
+        );
       } else {
-        SnackbarHelper.warning('Unverified', 'Status: ${res.status} (${res.processingStatus ?? 'pending'})');
+        SnackbarHelper.warning('Unverified', 'Status: ${res.status} (${res.processingStatus ?? 'unconfirmed'})');
       }
 
       // Reload verification history
@@ -193,6 +242,7 @@ class VerifyEtController extends GetxController {
       SnackbarHelper.error('Verification Error', msg);
     } finally {
       isLoading.value = false;
+      pollingStatusMessage.value = '';
     }
   }
 

@@ -126,6 +126,9 @@ class VerifyEtResult {
   final DateTime? timestamp;
   final String? requestId;
   final String? processingStatus;
+  final String? statusUrl;
+  final int? pollAfterMs;
+  final int? estimatedWaitMs;
   final ConfirmationHistory? confirmationHistory;
   final SettlementAccountMatch? settlementAccountMatch;
   final ImageProcessingInfo? imageProcessing;
@@ -145,14 +148,46 @@ class VerifyEtResult {
     this.timestamp,
     this.requestId,
     this.processingStatus,
+    this.statusUrl,
+    this.pollAfterMs,
+    this.estimatedWaitMs,
     this.confirmationHistory,
     this.settlementAccountMatch,
     this.imageProcessing,
     required this.rawJson,
   });
 
-  factory VerifyEtResult.fromJson(Map<String, dynamic> json, {String? requestId, ImageProcessingInfo? imageInfo}) {
+  bool get isPending =>
+      !verified &&
+      (status.toLowerCase() == 'pending' ||
+          processingStatus?.toLowerCase() == 'queued' ||
+          processingStatus?.toLowerCase() == 'processing');
+
+  bool get isSuccess => verified || status.toLowerCase() == 'success';
+
+  bool get isFailed =>
+      status.toLowerCase() == 'failed' ||
+      processingStatus?.toLowerCase() == 'failed';
+
+  factory VerifyEtResult.fromJson(
+    Map<String, dynamic> json, {
+    String? requestId,
+    ImageProcessingInfo? imageInfo,
+    String? statusUrl,
+    int? pollAfterMs,
+    int? estimatedWaitMs,
+  }) {
     final data = json;
+
+    final links = json['links'] is Map<String, dynamic> ? json['links'] as Map<String, dynamic> : null;
+    final resolvedStatusUrl = statusUrl ??
+        links?['statusUrl']?.toString() ??
+        json['statusUrl']?.toString();
+    final resolvedPollAfterMs = pollAfterMs ??
+        (links?['pollAfterMs'] as num?)?.toInt() ??
+        (json['pollAfterMs'] as num?)?.toInt();
+    final resolvedEstimatedWaitMs = estimatedWaitMs ??
+        (json['estimatedWaitMs'] as num?)?.toInt();
 
     return VerifyEtResult(
       bank: data['bank']?.toString() ?? 'cbe',
@@ -168,6 +203,9 @@ class VerifyEtResult {
       timestamp: EthiopianTimeHelper.parseSupabaseUtc(data['timestamp']),
       requestId: requestId ?? data['requestId']?.toString(),
       processingStatus: data['processingStatus']?.toString(),
+      statusUrl: resolvedStatusUrl,
+      pollAfterMs: resolvedPollAfterMs,
+      estimatedWaitMs: resolvedEstimatedWaitMs,
       confirmationHistory: data['confirmationHistory'] is Map<String, dynamic>
           ? ConfirmationHistory.fromJson(data['confirmationHistory'] as Map<String, dynamic>)
           : null,

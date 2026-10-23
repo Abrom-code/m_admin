@@ -47,6 +47,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
 
   bool _isLoading = false;
   bool _isExtracting = false;
+  String? _pollStatus;
   ReceiptExtractionResult? _extractedInfo;
   VerifyEtResult? _result;
   String? _errorMessage;
@@ -57,10 +58,26 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     _refCtrl = TextEditingController(text: widget.review.verificationUrl.trim());
     _suffixCtrl = TextEditingController();
 
+    // Auto-prefill suffix from saved settlement account if available
+    _prefillSuffixFromDefaultSettlement();
+
     // Auto-detect transaction ID from receipt image if input is empty
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _autoExtractIfApplicable();
     });
+  }
+
+  void _prefillSuffixFromDefaultSettlement() {
+    final defaultAcc = _service.defaultSettlementAccount.value.trim();
+    if (defaultAcc.isNotEmpty && _suffixCtrl.text.isEmpty) {
+      final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
+      final digits = defaultAcc.replaceAll(RegExp(r'\D'), '');
+      if (bank == 'cbe' && digits.length >= 8) {
+        _suffixCtrl.text = digits.substring(digits.length - 8);
+      } else if (bank == 'boa' && digits.length >= 5) {
+        _suffixCtrl.text = digits.substring(digits.length - 5);
+      }
+    }
   }
 
   @override
@@ -69,8 +86,10 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     if (oldWidget.review.id != widget.review.id) {
       _refCtrl.text = widget.review.verificationUrl.trim();
       _suffixCtrl.clear();
+      _prefillSuffixFromDefaultSettlement();
       _result = null;
       _errorMessage = null;
+      _pollStatus = null;
       _extractedInfo = null;
       _autoExtractIfApplicable();
     }
@@ -155,6 +174,36 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     super.dispose();
   }
 
+  Future<void> _refreshStatus() async {
+    final reqId = _result?.requestId;
+    if (reqId == null || reqId.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _pollStatus = 'Checking verification status...';
+    });
+
+    try {
+      final res = await _service.getVerificationStatus(reqId);
+      if (mounted) {
+        setState(() {
+          _result = res;
+          _isLoading = false;
+          _pollStatus = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+          _pollStatus = null;
+        });
+      }
+    }
+  }
+
   Future<void> _check() async {
     final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
     if (bank == null) return;
@@ -178,21 +227,29 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
       _isLoading = true;
       _errorMessage = null;
       _result = null;
+      _pollStatus = null;
     });
 
     try {
+      final suffixText = _suffixCtrl.text.trim();
       final res = await _service.verifyTransaction(
         bank: bank,
         reference: ref,
-        accountSuffix: bank == 'boa' && _suffixCtrl.text.trim().isNotEmpty
-            ? _suffixCtrl.text.trim()
-            : null,
+        accountSuffix: suffixText.isNotEmpty ? suffixText : null,
+        onPollTick: (attempt, max) {
+          if (mounted) {
+            setState(() {
+              _pollStatus = 'Checking bank confirmation ($attempt/$max)...';
+            });
+          }
+        },
       );
 
       if (mounted) {
         setState(() {
           _result = res;
           _isLoading = false;
+          _pollStatus = null;
         });
       }
     } catch (e) {
@@ -200,6 +257,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
         setState(() {
           _errorMessage = e.toString().replaceAll('Exception: ', '');
           _isLoading = false;
+          _pollStatus = null;
         });
       }
     }
@@ -359,6 +417,9 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
           LayoutBuilder(
             builder: (context, constraints) {
               final isCompact = constraints.maxWidth < 420;
+              final isCbe = bank == 'cbe';
+              final isBoa = bank == 'boa';
+              final needsSuffix = isBoa || isCbe;
 
               final inputField = TextField(
                 controller: _refCtrl,
@@ -373,15 +434,15 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
                 ),
               );
 
-              final suffixField = bank == 'boa'
+              final suffixField = needsSuffix
                   ? TextField(
                       controller: _suffixCtrl,
                       keyboardType: TextInputType.number,
-                      maxLength: 5,
+                      maxLength: isCbe ? 8 : 5,
                       style: const TextStyle(fontSize: 12.5),
                       decoration: InputDecoration(
-                        labelText: 'Suffix',
-                        hintText: '07441',
+                        labelText: isCbe ? 'Suffix (8-digits)' : 'Suffix (5-digits)',
+                        hintText: isCbe ? '03997441' : '07441',
                         counterText: '',
                         prefixIcon: const Icon(Iconsax.hashtag_copy, size: 14),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
@@ -431,10 +492,10 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
 
               return Row(
                 children: [
-                  Expanded(flex: 5, child: inputField),
+                  Expanded(flex: needsSuffix ? 4 : 5, child: inputField),
                   if (suffixField != null) ...[
                     const SizedBox(width: 6),
-                    Expanded(flex: 2, child: suffixField),
+                    Expanded(flex: isCbe ? 3 : 2, child: suffixField),
                   ],
                   const SizedBox(width: 8),
                   checkButton,
@@ -442,6 +503,14 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
               );
             },
           ),
+          if (bank == 'cbe')
+            const Padding(
+              padding: EdgeInsets.only(top: 4, left: 4),
+              child: Text(
+                'Suffix: Required for older CBE FT references (last 8 digits of account). Not needed for CBE Receipt IDs or links.',
+                style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+              ),
+            ),
 
           // Reference Option Switcher (When a CBE Receipt Link is available)
           if (_extractedInfo != null && _extractedInfo!.receiptUrl != null) ...[
@@ -585,6 +654,39 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
                         fontSize: 11,
                         color: Color(0xFF6366F1),
                         fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Polling status pill (for queued banks like Telebirr)
+          if (_pollStatus != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 1.8),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _pollStatus!,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -802,14 +904,20 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
           Row(
             children: [
               Icon(
-                isOk ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                isOk
+                    ? Icons.check_circle_rounded
+                    : (res.isPending ? Icons.hourglass_top_rounded : Icons.cancel_rounded),
                 size: 16,
                 color: statusColor,
               ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  isOk ? 'TRANSACTION CONFIRMED' : 'UNVERIFIED (${res.status.toUpperCase()})',
+                  isOk
+                      ? 'TRANSACTION CONFIRMED'
+                      : (res.isPending
+                          ? 'QUEUED IN BANK (PENDING)'
+                          : 'UNVERIFIED (${res.status.toUpperCase()})'),
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12,
@@ -830,6 +938,46 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
             ],
           ),
           const Divider(height: 16),
+
+          // Queued Telebirr / Bank Notification & Manual Status Refresh Button
+          if (res.isPending) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 14, color: AppColors.warning),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${res.bank.toUpperCase()} verification is in queue. If the bank takes longer to confirm, tap Check Status.',
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: AppColors.warning,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (res.requestId != null && res.requestId!.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    FilledButton.tonal(
+                      onPressed: _isLoading ? null : _refreshStatus,
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                      ),
+                      child: const Text('Check Status', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
 
           // Details List with strict overflow guards
           // 1. Transaction Date (From verified timestamp or receipt image)

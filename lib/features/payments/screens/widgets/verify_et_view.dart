@@ -275,48 +275,67 @@ class _VerifyEtViewState extends State<VerifyEtView> {
           }),
           const SizedBox(height: 10),
 
-          // Contextual Fields: Only for BoA legacy suffix or CBE Birr phone
+          // Contextual Fields: Suffix for CBE, BoA, Universal and phone for CBE Birr, Coopay
           Obx(() {
             final bank = _ctrl.selectedBank.value;
-            final needsSuffix = bank == 'boa';
-            final needsPhone = bank == 'cbebirr';
+            final isCbe = bank == 'cbe';
+            final isBoa = bank == 'boa';
+            final isUniversal = bank == 'universal';
+            final needsSuffix = isBoa || isCbe || isUniversal;
+            final needsPhone = bank == 'cbebirr' || isUniversal || bank == 'coopayebirr';
 
             if (!needsSuffix && !needsPhone) return const SizedBox.shrink();
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (needsSuffix)
-                    Expanded(
-                      child: TextField(
-                        controller: _ctrl.accountSuffixCtrl,
-                        keyboardType: TextInputType.number,
-                        maxLength: 5,
-                        style: const TextStyle(fontSize: 12.5),
-                        decoration: InputDecoration(
-                          labelText: 'Account Suffix (BoA optional)',
-                          hintText: 'e.g. 07441',
-                          counterText: '',
-                          prefixIcon: const Icon(Iconsax.hashtag_copy, size: 15),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  Row(
+                    children: [
+                      if (needsSuffix)
+                        Expanded(
+                          child: TextField(
+                            controller: _ctrl.accountSuffixCtrl,
+                            keyboardType: TextInputType.number,
+                            maxLength: (isCbe || isUniversal) ? 8 : 5,
+                            style: const TextStyle(fontSize: 12.5),
+                            decoration: InputDecoration(
+                              labelText: isCbe
+                                  ? 'Account Suffix (8 digits for FT)'
+                                  : (isBoa ? 'Account Suffix (5 digits for BoA)' : 'Account Suffix (optional)'),
+                              hintText: (isCbe || isUniversal) ? 'e.g. 03997441' : 'e.g. 07441',
+                              counterText: '',
+                              prefixIcon: const Icon(Iconsax.hashtag_copy, size: 15),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  if (needsPhone)
-                    Expanded(
-                      child: TextField(
-                        controller: _ctrl.phoneCtrl,
-                        keyboardType: TextInputType.phone,
-                        style: const TextStyle(fontSize: 12.5),
-                        decoration: InputDecoration(
-                          labelText: 'Phone Number (CBE Birr)',
-                          hintText: 'e.g. 0911234567',
-                          prefixIcon: const Icon(Iconsax.call_copy, size: 15),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      if (needsSuffix && needsPhone) const SizedBox(width: 8),
+                      if (needsPhone)
+                        Expanded(
+                          child: TextField(
+                            controller: _ctrl.phoneCtrl,
+                            keyboardType: TextInputType.phone,
+                            style: const TextStyle(fontSize: 12.5),
+                            decoration: InputDecoration(
+                              labelText: 'Phone Number (Wallet/Birr)',
+                              hintText: 'e.g. 0911234567',
+                              prefixIcon: const Icon(Iconsax.call_copy, size: 15),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
                         ),
+                    ],
+                  ),
+                  if (isCbe)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 3, left: 2),
+                      child: Text(
+                        'CBE FT references require the 8-digit suffix. CBE receipt IDs & links do not.',
+                        style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
                       ),
                     ),
                 ],
@@ -419,6 +438,11 @@ class _VerifyEtViewState extends State<VerifyEtView> {
           // Submit Action Button
           Obx(() {
             final loading = _ctrl.isLoading.value;
+            final pollMsg = _ctrl.pollingStatusMessage.value;
+            final labelText = pollMsg.isNotEmpty
+                ? pollMsg
+                : (loading ? 'Verifying with Bank...' : 'Verify Transaction');
+
             return SizedBox(
               width: double.infinity,
               height: 42,
@@ -429,7 +453,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                     ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Icon(Iconsax.tick_circle_copy, size: 17),
                 label: Text(
-                  loading ? 'Verifying with Bank...' : 'Verify Transaction',
+                  labelText,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
               ),
@@ -532,6 +556,46 @@ class _VerifyEtViewState extends State<VerifyEtView> {
             ],
           ),
           const Divider(height: 20),
+
+          // Queued Telebirr / Bank Notification & Manual Status Refresh Button
+          if (res.isPending) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 15, color: AppColors.warning),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${res.bank.toUpperCase()} verification is queued in the bank network.',
+                      style: const TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (res.requestId != null && res.requestId!.isNotEmpty)
+                    Obx(() {
+                      final isBusy = _ctrl.isLoading.value;
+                      return FilledButton.tonal(
+                        onPressed: isBusy ? null : () => _ctrl.refreshStatus(res.requestId!),
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                        ),
+                        child: Text(
+                          isBusy ? 'Checking...' : 'Check Status',
+                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold),
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
+          ],
 
           // Amount Row
           Row(

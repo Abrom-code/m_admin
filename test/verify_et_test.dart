@@ -75,7 +75,7 @@ void main() {
       expect(result.confirmationHistory!.confirmationCount, equals(1));
     });
 
-    test('VerifyEtResult handles unverified / queued payload', () {
+    test('VerifyEtResult handles unverified / queued payload with polling links', () {
       final json = {
         'bank': 'telebirr',
         'status': 'pending',
@@ -83,6 +83,11 @@ void main() {
         'amount': 0,
         'currency': 'ETB',
         'processingStatus': 'queued',
+        'requestId': 'req-telebirr-999',
+        'links': {
+          'statusUrl': '/api/verify/req-telebirr-999',
+          'pollAfterMs': 1500,
+        },
       };
 
       final result = VerifyEtResult.fromJson(json);
@@ -91,6 +96,37 @@ void main() {
       expect(result.bank, equals('telebirr'));
       expect(result.status, equals('pending'));
       expect(result.processingStatus, equals('queued'));
+      expect(result.requestId, equals('req-telebirr-999'));
+      expect(result.pollAfterMs, equals(1500));
+      expect(result.statusUrl, equals('/api/verify/req-telebirr-999'));
+      expect(result.isPending, isTrue);
+      expect(result.isSuccess, isFalse);
+    });
+
+    test('VerifyEtResult handles completed status response from GET /api/verify/:requestId', () {
+      final json = {
+        'bank': 'telebirr',
+        'status': 'success',
+        'verified': true,
+        'amount': 500,
+        'currency': 'ETB',
+        'senderName': 'Almaz Kebede',
+        'receiverAccount': '251911223344',
+        'referenceNumber': 'DET8FJGUJ4',
+        'processingStatus': 'completed',
+      };
+
+      final result = VerifyEtResult.fromJson(json, requestId: 'req-telebirr-999');
+
+      expect(result.verified, isTrue);
+      expect(result.bank, equals('telebirr'));
+      expect(result.status, equals('success'));
+      expect(result.processingStatus, equals('completed'));
+      expect(result.amount, equals(500.0));
+      expect(result.senderName, equals('Almaz Kebede'));
+      expect(result.referenceNumber, equals('DET8FJGUJ4'));
+      expect(result.isPending, isFalse);
+      expect(result.isSuccess, isTrue);
     });
 
     test('VerifyEtController pre-fills bank and reference from PaymentReview', () {
@@ -132,6 +168,39 @@ void main() {
       // Non-supported methods should return null (no checker shown)
       expect(PaymentVerifyChecker.resolveSupportedBank('cash'), isNull);
       expect(PaymentVerifyChecker.resolveSupportedBank('other'), isNull);
+    });
+
+    testWidgets('PaymentVerifyChecker renders 8-digit suffix field for CBE', (tester) async {
+      const review = PaymentReview(
+        id: 'rev-cbe-suffix',
+        userId: 'user-cbe',
+        userName: 'Chala Desta',
+        userEmail: 'chala@test.com',
+        userStream: 'natural',
+        subscriptionStatus: 'inactive',
+        receiptPath: 'receipts/cbe_ft.jpg',
+        receiptUrl: 'https://example.com/cbe_ft.jpg',
+        verificationUrl: 'FT24068V58H0',
+        paymentMethod: 'cbe',
+        status: 'pending',
+        amount: 500,
+        currency: 'ETB',
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: PaymentVerifyChecker(review: review),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Suffix input for CBE should be visible
+      expect(find.text('Suffix (8-digits)'), findsOneWidget);
+      expect(find.text('CBE Transaction ID / Receipt Link'), findsOneWidget);
     });
 
     testWidgets('PaymentVerifyChecker header renders on narrow screen (320px) without overflow on LIVE badge and Scan button', (tester) async {

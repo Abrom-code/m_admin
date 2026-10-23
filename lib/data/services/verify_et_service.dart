@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -71,7 +71,18 @@ class VerifyEtService extends GetxService {
     };
   }
 
+  /// Helper to extract numeric suffix digits from an account string
+  String? _deriveSuffix(String? account, int length) {
+    if (account == null) return null;
+    final digits = account.replaceAll(RegExp(r'\D'), '');
+    if (digits.length >= length) {
+      return digits.substring(digits.length - length);
+    }
+    return digits.isNotEmpty ? digits : null;
+  }
+
   /// Submits an instant bank receipt/transaction verification to Verify.ET.
+  /// Automatically polls GET /api/verify/:requestId if the bank queues verification (e.g. Telebirr).
   Future<VerifyEtResult> verifyTransaction({
     String? bank,
     required String reference,
@@ -79,6 +90,8 @@ class VerifyEtService extends GetxService {
     String? phone,
     String? settlementAccount,
     int waitMs = 5000,
+    bool autoPoll = true,
+    void Function(int attempt, int maxAttempts)? onPollTick,
   }) async {
     if (!hasApiKey) {
       throw Exception('Verify.ET API Key is missing. Please configure it in the settings below.');
@@ -101,11 +114,19 @@ class VerifyEtService extends GetxService {
     if (cleanBank == null || cleanBank.isEmpty || cleanBank == 'universal') {
       // Universal router: reference field auto-detects CBE receipt ID, links, or tokens
       payload['reference'] = trimmedRef;
-      if (accountSuffix != null && accountSuffix.trim().isNotEmpty) {
-        payload['accountSuffix'] = accountSuffix.trim();
+      payload['referenceNumber'] = trimmedRef;
+
+      final effSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
+          ? accountSuffix.trim()
+          : (trimmedRef.toUpperCase().startsWith('FT') ? _deriveSuffix(effectiveSettlement, 8) : null);
+
+      if (effSuffix != null && effSuffix.isNotEmpty) {
+        payload['accountSuffix'] = effSuffix;
+        payload['suffix'] = effSuffix;
       }
       if (phone != null && phone.trim().isNotEmpty) {
         payload['phone'] = phone.trim();
+        payload['phoneNumber'] = phone.trim();
       }
     } else {
       payload['bank'] = cleanBank;
@@ -113,15 +134,26 @@ class VerifyEtService extends GetxService {
       switch (cleanBank) {
         case 'cbe':
           payload['reference'] = trimmedRef;
-          if (accountSuffix != null && accountSuffix.trim().isNotEmpty) {
-            payload['accountSuffix'] = accountSuffix.trim();
+          payload['referenceNumber'] = trimmedRef;
+          // CBE older FT references require 8-digit suffix; receipt URLs / IDs do not.
+          final effSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
+              ? accountSuffix.trim()
+              : _deriveSuffix(effectiveSettlement, 8);
+          if (effSuffix != null && effSuffix.isNotEmpty) {
+            payload['accountSuffix'] = effSuffix;
+            payload['suffix'] = effSuffix;
           }
           break;
 
         case 'boa':
           payload['reference'] = trimmedRef;
-          if (accountSuffix != null && accountSuffix.trim().isNotEmpty) {
-            payload['accountSuffix'] = accountSuffix.trim();
+          payload['referenceNumber'] = trimmedRef;
+          final effSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
+              ? accountSuffix.trim()
+              : _deriveSuffix(effectiveSettlement, 5);
+          if (effSuffix != null && effSuffix.isNotEmpty) {
+            payload['accountSuffix'] = effSuffix;
+            payload['suffix'] = effSuffix;
           }
           break;
 
@@ -129,20 +161,25 @@ class VerifyEtService extends GetxService {
         case 'mpesa':
           payload['transactionNumber'] = trimmedRef;
           payload['reference'] = trimmedRef;
+          payload['referenceNumber'] = trimmedRef;
           break;
 
         case 'cbebirr':
           payload['receiptNumber'] = trimmedRef;
           payload['reference'] = trimmedRef;
+          payload['referenceNumber'] = trimmedRef;
           if (phone != null && phone.trim().isNotEmpty) {
             payload['phone'] = phone.trim();
+            payload['phoneNumber'] = phone.trim();
           }
           break;
 
         case 'coopayebirr':
           payload['reference'] = trimmedRef;
+          payload['referenceNumber'] = trimmedRef;
           if (phone != null && phone.trim().isNotEmpty) {
             payload['phone'] = phone.trim();
+            payload['phoneNumber'] = phone.trim();
           }
           break;
 
@@ -152,8 +189,10 @@ class VerifyEtService extends GetxService {
         case 'kaafiebirr':
         default:
           payload['reference'] = trimmedRef;
+          payload['referenceNumber'] = trimmedRef;
           if (phone != null && phone.trim().isNotEmpty) {
             payload['phone'] = phone.trim();
+            payload['phoneNumber'] = phone.trim();
           }
           break;
       }
@@ -165,10 +204,23 @@ class VerifyEtService extends GetxService {
       body: jsonEncode(payload),
     );
 
-    return _handleVerificationResponse(res);
+    final rawResult = _handleVerificationResponse(res);
+
+    // If result was queued (HTTP 202) and autoPoll is requested, poll until completion
+    if (autoPoll && rawResult.isPending && rawResult.requestId != null && rawResult.requestId!.isNotEmpty) {
+      return await _pollUntilComplete(
+        rawResult.requestId!,
+        initialResult: rawResult,
+        pollAfterMs: rawResult.pollAfterMs,
+        onPollTick: onPollTick,
+      );
+    }
+
+    return rawResult;
   }
 
   /// Uploads a receipt image (JPEG, PNG, WebP) to Verify.ET for automated QR & OCR verification.
+  /// Automatically polls GET /api/verify/:requestId if queued.
   Future<VerifyEtResult> verifyReceiptImage({
     required Uint8List imageBytes,
     required String fileName,
@@ -178,6 +230,8 @@ class VerifyEtService extends GetxService {
     String? phone,
     String? settlementAccount,
     int waitMs = 5000,
+    bool autoPoll = true,
+    void Function(int attempt, int maxAttempts)? onPollTick,
   }) async {
     if (!hasApiKey) {
       throw Exception('Verify.ET API Key is missing. Please configure it in the settings below.');
@@ -204,23 +258,160 @@ class VerifyEtService extends GetxService {
     if (effectiveSettlement != null) {
       req.fields['settlementAccount'] = effectiveSettlement;
     }
-    if (bank != null && bank.isNotEmpty && bank != 'universal') {
-      req.fields['bank'] = bank.toLowerCase().trim();
+
+    final cleanBank = bank != null && bank.isNotEmpty && bank != 'universal'
+        ? bank.toLowerCase().trim()
+        : null;
+
+    if (cleanBank != null) {
+      req.fields['bank'] = cleanBank;
     }
     if (reference != null && reference.trim().isNotEmpty) {
-      req.fields['reference'] = reference.trim();
+      final refTrim = reference.trim();
+      req.fields['reference'] = refTrim;
+      req.fields['referenceNumber'] = refTrim;
+      if (cleanBank == 'telebirr' || cleanBank == 'mpesa') {
+        req.fields['transactionNumber'] = refTrim;
+      } else if (cleanBank == 'cbebirr') {
+        req.fields['receiptNumber'] = refTrim;
+      }
     }
-    if (accountSuffix != null && accountSuffix.trim().isNotEmpty) {
-      req.fields['accountSuffix'] = accountSuffix.trim();
+
+    // Suffix resolution
+    final effSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
+        ? accountSuffix.trim()
+        : (cleanBank == 'cbe'
+            ? _deriveSuffix(effectiveSettlement, 8)
+            : (cleanBank == 'boa' ? _deriveSuffix(effectiveSettlement, 5) : null));
+
+    if (effSuffix != null && effSuffix.isNotEmpty) {
+      req.fields['accountSuffix'] = effSuffix;
+      req.fields['suffix'] = effSuffix;
     }
+
     if (phone != null && phone.trim().isNotEmpty) {
       req.fields['phone'] = phone.trim();
+      req.fields['phoneNumber'] = phone.trim();
     }
 
     final streamedRes = await req.send();
     final res = await http.Response.fromStream(streamedRes);
 
-    return _handleVerificationResponse(res);
+    final rawResult = _handleVerificationResponse(res);
+
+    if (autoPoll && rawResult.isPending && rawResult.requestId != null && rawResult.requestId!.isNotEmpty) {
+      return await _pollUntilComplete(
+        rawResult.requestId!,
+        initialResult: rawResult,
+        pollAfterMs: rawResult.pollAfterMs,
+        onPollTick: onPollTick,
+      );
+    }
+
+    return rawResult;
+  }
+
+  /// Fetches the latest verification status for a specific requestId from GET /api/verify/:requestId.
+  Future<VerifyEtResult> getVerificationStatus(String requestId) async {
+    if (!hasApiKey) {
+      throw Exception('Verify.ET API Key is missing. Please configure it in the settings below.');
+    }
+
+    final cleanId = requestId.trim();
+    final uri = Uri.parse('$defaultBaseUrl/api/verify/$cleanId');
+    final res = await http.get(uri, headers: {
+      'x-api-key': apiKey.value.trim(),
+      'Accept': 'application/json',
+    });
+
+    if (res.statusCode == 200) {
+      Map<String, dynamic> body;
+      try {
+        body = jsonDecode(res.body) as Map<String, dynamic>;
+      } catch (_) {
+        throw Exception('Failed to parse status response: ${res.body}');
+      }
+
+      final data = body['data'];
+      if (data is Map<String, dynamic>) {
+        return VerifyEtResult.fromJson(data, requestId: cleanId);
+      } else if (data is List && data.isNotEmpty && data.first is Map) {
+        return VerifyEtResult.fromJson(data.first as Map<String, dynamic>, requestId: cleanId);
+      } else if (body['verification'] is Map<String, dynamic>) {
+        return VerifyEtResult.fromJson(body['verification'] as Map<String, dynamic>, requestId: cleanId);
+      }
+      return VerifyEtResult.fromJson(body, requestId: cleanId);
+    } else if (res.statusCode == 202) {
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return _buildPendingResult(body, requestId: cleanId);
+    } else {
+      Map<String, dynamic>? body;
+      try {
+        body = jsonDecode(res.body) as Map<String, dynamic>;
+      } catch (_) {}
+      final errorMsg = body?['message']?.toString() ??
+          body?['error']?['message']?.toString() ??
+          'Failed to check status (HTTP ${res.statusCode})';
+      throw Exception(errorMsg);
+    }
+  }
+
+  /// Polls the status endpoint until the verification is completed or max attempts reached.
+  Future<VerifyEtResult> _pollUntilComplete(
+    String requestId, {
+    VerifyEtResult? initialResult,
+    int? pollAfterMs,
+    int maxAttempts = 6,
+    void Function(int attempt, int maxAttempts)? onPollTick,
+  }) async {
+    var latest = initialResult ?? await getVerificationStatus(requestId);
+    if (!latest.isPending) return latest;
+
+    final delayMs = pollAfterMs ?? latest.pollAfterMs ?? 1500;
+
+    for (int i = 1; i <= maxAttempts; i++) {
+      onPollTick?.call(i, maxAttempts);
+      await Future.delayed(Duration(milliseconds: delayMs));
+
+      try {
+        final current = await getVerificationStatus(requestId);
+        latest = current;
+        if (!current.isPending) {
+          return current;
+        }
+      } catch (e) {
+        // Transient network issue while polling; continue to next poll cycle
+        debugPrint('[VerifyEtService] Status poll attempt $i encountered: $e');
+      }
+    }
+
+    return latest;
+  }
+
+  /// Constructs a pending VerifyEtResult from a 202 Accepted response.
+  VerifyEtResult _buildPendingResult(Map<String, dynamic> body, {String? requestId}) {
+    final reqId = requestId ??
+        body['requestId']?.toString() ??
+        body['verification']?['requestId']?.toString();
+    final status = body['verification']?['status']?.toString() ?? 'pending';
+    final links = body['links'] is Map<String, dynamic> ? body['links'] as Map<String, dynamic> : null;
+    final pollAfterMs = (links?['pollAfterMs'] as num?)?.toInt() ?? 1500;
+    final statusUrl = links?['statusUrl']?.toString() ?? body['statusUrl']?.toString();
+    final estWaitMs = (body['estimatedWaitMs'] as num?)?.toInt() ?? 5000;
+
+    return VerifyEtResult(
+      bank: body['verification']?['bank']?.toString() ?? 'unknown',
+      status: status,
+      verified: false,
+      amount: 0.0,
+      currency: 'ETB',
+      requestId: reqId,
+      processingStatus: body['verification']?['processingStatus']?.toString() ?? 'queued',
+      statusUrl: statusUrl,
+      pollAfterMs: pollAfterMs,
+      estimatedWaitMs: estWaitMs,
+      rawJson: body,
+    );
   }
 
   /// Parses the API envelope from Verify.ET.
@@ -246,6 +437,12 @@ class VerifyEtService extends GetxService {
           requestId: requestId,
           imageInfo: imgInfo,
         );
+      } else if (dataList is Map<String, dynamic>) {
+        return VerifyEtResult.fromJson(
+          dataList,
+          requestId: requestId,
+          imageInfo: imgInfo,
+        );
       } else if (body['verification'] is Map) {
         return VerifyEtResult.fromJson(
           body['verification'] as Map<String, dynamic>,
@@ -257,18 +454,7 @@ class VerifyEtService extends GetxService {
     }
 
     if (res.statusCode == 202) {
-      final reqId = body['requestId']?.toString();
-      final status = body['verification']?['status']?.toString() ?? 'pending';
-      return VerifyEtResult(
-        bank: body['verification']?['bank']?.toString() ?? 'unknown',
-        status: status,
-        verified: false,
-        amount: 0.0,
-        currency: 'ETB',
-        requestId: reqId,
-        processingStatus: body['verification']?['processingStatus']?.toString() ?? 'queued',
-        rawJson: body,
-      );
+      return _buildPendingResult(body);
     }
 
     // Error handling
@@ -278,11 +464,16 @@ class VerifyEtService extends GetxService {
         'HTTP ${res.statusCode} Error';
 
     final errorCode = body['error']?['code']?.toString();
+    final lowerMsg = errorMsg.toLowerCase();
+
     if (res.statusCode == 401) {
-      throw Exception('Invalid Verify.ET API Key (401). Please check your key.');
+      throw Exception('Invalid Verify.ET API Key (401). Please check your key in settings.');
     } else if (res.statusCode == 402) {
       throw Exception('Insufficient credits on Verify.ET account: $errorMsg');
     } else if (res.statusCode == 422) {
+      if (lowerMsg.contains('suffix')) {
+        throw Exception('Account suffix required: For older CBE FT references, please provide the 8-digit suffix (the last 8 digits of the receiver account number).');
+      }
       throw Exception('Invalid bank fields or conflict: $errorMsg (${errorCode ?? ''})');
     } else if (res.statusCode == 429) {
       throw Exception('Rate limit exceeded or queue saturated. Please retry in 30 seconds.');
