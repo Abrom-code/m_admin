@@ -31,7 +31,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
     {'id': 'mpesa', 'label': 'M-Pesa', 'icon': '📲'},
     {'id': 'dashen', 'label': 'Dashen', 'icon': '🏛️'},
     {'id': 'awash', 'label': 'Awash', 'icon': '🌊'},
-    {'id': 'coopayebirr', 'label': 'Coopay', 'icon': '🤝'},
+    {'id': 'coopayebirr', 'label': 'Oromia / Coop', 'icon': '🤝'},
   ];
 
   @override
@@ -256,6 +256,12 @@ class _VerifyEtViewState extends State<VerifyEtView> {
             } else if (bank == 'boa') {
               label = 'Abyssinia Reference *';
               hint = 'e.g. FT26...';
+            } else if (bank == 'awash') {
+              label = 'Awash Receipt Link or Ref *';
+              hint = 'e.g. https://awashpay.awashbank.com:8225/... or Ref';
+            } else if (bank == 'coopayebirr') {
+              label = 'Oromia / Coopay Receipt Link or Ref *';
+              hint = 'e.g. https://receipt.ebirr.com/coopay/... or Ref';
             } else if (bank == 'cbebirr') {
               label = 'CBE Birr Receipt Number *';
               hint = 'e.g. 1009827361';

@@ -27,12 +27,19 @@ class PaymentVerifyChecker extends StatefulWidget {
   final PaymentReview review;
   final void Function(num verifiedAmount)? onApproveWithAmount;
 
-  /// Returns 'cbe', 'telebirr', or 'boa' if supported, or null otherwise.
+  /// Returns supported bank key or null otherwise.
   static String? resolveSupportedBank(String rawMethod) {
     final clean = rawMethod.toLowerCase().replaceAll('payment_', '').trim();
     if (clean.contains('telebirr')) return 'telebirr';
     if (clean.contains('cbe') || clean.contains('commercial_bank')) return 'cbe';
     if (clean.contains('abyssinia') || clean.contains('boa')) return 'boa';
+    if (clean.contains('awash')) return 'awash';
+    if (clean.contains('oromia') || clean.contains('coop') || clean.contains('cbo') || clean.contains('coopay')) {
+      return 'coopayebirr';
+    }
+    if (clean.contains('dashen')) return 'dashen';
+    if (clean.contains('cbebirr') || clean.contains('cbe_birr')) return 'cbebirr';
+    if (clean.contains('mpesa') || clean.contains('m-pesa')) return 'mpesa';
     return null;
   }
 
@@ -57,6 +64,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     super.initState();
     _refCtrl = TextEditingController(text: widget.review.verificationUrl.trim());
     _suffixCtrl = TextEditingController();
+    _refCtrl.addListener(_onRefChanged);
 
     // Auto-prefill suffix from saved settlement account if available
     _prefillSuffixFromDefaultSettlement();
@@ -65,6 +73,10 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _autoExtractIfApplicable();
     });
+  }
+
+  void _onRefChanged() {
+    if (mounted) setState(() {});
   }
 
   void _prefillSuffixFromDefaultSettlement() {
@@ -169,6 +181,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
 
   @override
   void dispose() {
+    _refCtrl.removeListener(_onRefChanged);
     _refCtrl.dispose();
     _suffixCtrl.dispose();
     super.dispose();
@@ -269,6 +282,17 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     if (bank == null) return const SizedBox.shrink();
 
     final dark = AppHelperFunctions.isDark(context);
+    final refText = _refCtrl.text.trim();
+    final isCbe = bank == 'cbe';
+    final isBoa = bank == 'boa';
+
+    final isCbeLinkOrModern = isCbe && (
+        refText.toLowerCase().startsWith('http') ||
+        refText.toLowerCase().contains('cbe.com.et') ||
+        refText.toLowerCase().contains('mreciept') ||
+        refText.toLowerCase().contains('mreceipt')
+    );
+    final isCbeFt = isCbe && refText.toUpperCase().startsWith('FT');
 
     String bankName;
     String bankIcon;
@@ -289,11 +313,48 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
         refHint = 'e.g. DET8FJGUJ4';
         break;
       case 'boa':
-      default:
         bankName = 'Abyssinia';
         bankIcon = '🦁';
         refLabel = 'Abyssinia Reference';
         refHint = 'e.g. FT26...';
+        break;
+      case 'awash':
+        bankName = 'Awash Bank';
+        bankIcon = '🌊';
+        refLabel = 'Awash Receipt Link or Ref';
+        refHint = 'e.g. https://awashpay.awashbank.com:8225/... or Ref';
+        break;
+      case 'coopayebirr':
+      case 'oromia':
+      case 'coop':
+        bankName = 'Oromia / Coop';
+        bankIcon = '🤝';
+        refLabel = 'Oromia / Coopay Receipt Link or Ref';
+        refHint = 'e.g. https://receipt.ebirr.com/coopay/... or Ref';
+        break;
+      case 'dashen':
+        bankName = 'Dashen';
+        bankIcon = '🏛️';
+        refLabel = 'Dashen Reference';
+        refHint = 'e.g. FT26...';
+        break;
+      case 'cbebirr':
+        bankName = 'CBE Birr';
+        bankIcon = '💳';
+        refLabel = 'CBE Birr Receipt Number';
+        refHint = 'e.g. 1009827361';
+        break;
+      case 'mpesa':
+        bankName = 'M-Pesa';
+        bankIcon = '📲';
+        refLabel = 'M-Pesa Transaction Code';
+        refHint = 'e.g. DET8FJGUJ4';
+        break;
+      default:
+        bankName = bank.toUpperCase();
+        bankIcon = '💳';
+        refLabel = '$bankName Reference';
+        refHint = 'Transaction reference or link';
         break;
     }
 
@@ -417,9 +478,10 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
           LayoutBuilder(
             builder: (context, constraints) {
               final isCompact = constraints.maxWidth < 420;
-              final isCbe = bank == 'cbe';
-              final isBoa = bank == 'boa';
-              final needsSuffix = isBoa || isCbe;
+
+              // Suffix is strictly needed for BoA (5 digits) or CBE when using an FT reference code.
+              // For CBE with links/QR codes or other banks (Awash, Oromia, Telebirr), suffix is NOT required.
+              final needsSuffix = isBoa || (isCbe && !isCbeLinkOrModern);
 
               final inputField = TextField(
                 controller: _refCtrl,
@@ -503,14 +565,79 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
               );
             },
           ),
-          if (bank == 'cbe')
+          if (isCbe) ...[
+            const SizedBox(height: 6),
+            if (isCbeLinkOrModern)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.check_circle_outline, size: 14, color: AppColors.success),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Receipt Link / QR Mode: Suffix NOT required. CBE links contain full instant proof.',
+                        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppColors.success),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (isCbeFt)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, size: 14, color: Color(0xFF6366F1)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _suffixCtrl.text.trim().isNotEmpty
+                            ? 'Legacy FT Reference: 8-digit suffix auto-filled from default settlement account.'
+                            : 'Legacy FT Reference: 8-digit suffix required (last 8 digits of receiver account).',
+                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF6366F1)),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.only(top: 4, left: 4),
+                child: Text(
+                  '💡 CBE Suffix Rule: Only needed for older FT references (FT26...). Never needed for modern CBE QR codes or receipt links.',
+                  style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                ),
+              ),
+          ] else if (bank == 'awash') ...[
+            const SizedBox(height: 6),
             const Padding(
-              padding: EdgeInsets.only(top: 4, left: 4),
+              padding: EdgeInsets.only(top: 2, left: 4),
               child: Text(
-                'Suffix: Required for older CBE FT references (last 8 digits of account). Not needed for CBE Receipt IDs or links.',
+                '💡 Awash Bank: Suffix not needed. Enter the AwashPay receipt link (https://awashpay.awashbank.com:8225/...) or transaction reference.',
                 style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
               ),
             ),
+          ] else if (bank == 'coopayebirr' || bank == 'oromia' || bank == 'coop') ...[
+            const SizedBox(height: 6),
+            const Padding(
+              padding: EdgeInsets.only(top: 2, left: 4),
+              child: Text(
+                '💡 Oromia / Coop: Suffix not needed. Enter the Coopay/eBirr receipt link (https://receipt.ebirr.com/coopay/...) or transaction reference.',
+                style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+              ),
+            ),
+          ],
 
           // Reference Option Switcher (When a CBE Receipt Link is available)
           if (_extractedInfo != null && _extractedInfo!.receiptUrl != null) ...[

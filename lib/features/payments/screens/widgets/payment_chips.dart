@@ -98,6 +98,12 @@ class PaymentMethodChip extends StatelessWidget {
     'cbe_birr': AppColors.info,
     'abyssinia': AppColors.amberAccent,
     'payment_abyssinia': AppColors.amberAccent,
+    'awash': Color(0xFFE65100),
+    'payment_awash': Color(0xFFE65100),
+    'oromia': Color(0xFF00897B),
+    'payment_oromia': Color(0xFF00897B),
+    'coop': Color(0xFF00897B),
+    'coopayebirr': Color(0xFF00897B),
     'mpesa': AppColors.success,
     'payment_mpesa': AppColors.success,
   };

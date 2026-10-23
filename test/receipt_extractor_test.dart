@@ -180,5 +180,42 @@ https://forms.gle/test
       expect(res.transactionId, equals('https://mreciept.cbe.com.et/v2/-hfHCxHMBDDeLLF7MLsuaD'));
       expect(res.hasTransactionId, isTrue);
     });
+
+    test('extracts Awash Bank receipt with AwashPay URL and details', () {
+      const awashSample = '''
+Awash Bank
+Successful Transfer
+ETB 750.00
+Txn ID: AW987654321
+Date: 23/10/2026 14:15:00
+To: MatricMate Education
+Receipt: https://awashpay.awashbank.com:8225/v/sampleAwashToken123
+''';
+
+      final res = ReceiptTextParser.parse(awashSample);
+
+      expect(res.bank, equals('awash'));
+      expect(res.receiptUrl, equals('https://awashpay.awashbank.com:8225/v/sampleAwashToken123'));
+      expect(res.amount, equals(750.0));
+      expect(res.hasTransactionId, isTrue);
+    });
+
+    test('extracts Oromia / Coopay-eBirr receipt with receipt.ebirr.com link', () {
+      const coopSample = '''
+Cooperative Bank of Oromia
+Lakkoofsa Kaffaltii: CP8829104
+Yeroo: 2026/10/23 10:20:00
+Gidduu Kaffaltii: -450.00 ETB
+Kan raawwateef: ABRHAM TERAMED
+https://receipt.ebirr.com/coopay/cboToken8829104
+''';
+
+      final res = ReceiptTextParser.parse(coopSample);
+
+      expect(res.bank, equals('coopayebirr'));
+      expect(res.receiptUrl, equals('https://receipt.ebirr.com/coopay/cboToken8829104'));
+      expect(res.amount, equals(450.0));
+      expect(res.hasTransactionId, isTrue);
+    });
   });
 }

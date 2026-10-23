@@ -136,9 +136,10 @@ class VerifyEtService extends GetxService {
           payload['reference'] = trimmedRef;
           payload['referenceNumber'] = trimmedRef;
           // CBE older FT references require 8-digit suffix; receipt URLs / IDs do not.
+          final isCbeFt = trimmedRef.toUpperCase().startsWith('FT');
           final effSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
               ? accountSuffix.trim()
-              : _deriveSuffix(effectiveSettlement, 8);
+              : (isCbeFt ? _deriveSuffix(effectiveSettlement, 8) : null);
           if (effSuffix != null && effSuffix.isNotEmpty) {
             payload['accountSuffix'] = effSuffix;
             payload['suffix'] = effSuffix;
@@ -175,6 +176,20 @@ class VerifyEtService extends GetxService {
           break;
 
         case 'coopayebirr':
+        case 'oromia':
+        case 'coop':
+        case 'cbo':
+          payload['bank'] = 'coopayebirr';
+          payload['reference'] = trimmedRef;
+          payload['referenceNumber'] = trimmedRef;
+          if (phone != null && phone.trim().isNotEmpty) {
+            payload['phone'] = phone.trim();
+            payload['phoneNumber'] = phone.trim();
+          }
+          break;
+
+        case 'awash':
+          payload['bank'] = 'awash';
           payload['reference'] = trimmedRef;
           payload['referenceNumber'] = trimmedRef;
           if (phone != null && phone.trim().isNotEmpty) {
@@ -184,7 +199,6 @@ class VerifyEtService extends GetxService {
           break;
 
         case 'dashen':
-        case 'awash':
         case 'siinqee':
         case 'kaafiebirr':
         default:

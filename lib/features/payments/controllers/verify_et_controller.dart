@@ -126,6 +126,8 @@ class VerifyEtController extends GetxController {
       selectedBank.value = 'dashen';
     } else if (m.contains('awash')) {
       selectedBank.value = 'awash';
+    } else if (m.contains('oromia') || m.contains('coop') || m.contains('cbo') || m.contains('coopay')) {
+      selectedBank.value = 'coopayebirr';
     } else {
       selectedBank.value = 'universal';
     }

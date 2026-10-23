@@ -27,8 +27,8 @@ void main() {
     });
 
     test('filterableMethods contains valid options', () {
-      expect(PaymentMethodInfo.filterableMethods.length, equals(4));
-      expect(PaymentMethodInfo.filterableMethods.map((m) => m.key), containsAll(['telebirr', 'cbe', 'abyssinia', 'mpesa']));
+      expect(PaymentMethodInfo.filterableMethods.length, equals(6));
+      expect(PaymentMethodInfo.filterableMethods.map((m) => m.key), containsAll(['telebirr', 'cbe', 'abyssinia', 'awash', 'oromia', 'mpesa']));
     });
   });
 }

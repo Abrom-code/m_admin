@@ -126,14 +126,34 @@ class ReceiptTextParser {
     final isTelebirrHint = normalizedHint.contains('telebirr');
     final isCbeHint = normalizedHint.contains('cbe') || normalizedHint.contains('commercial');
     final isBoaHint = normalizedHint.contains('abyssinia') || normalizedHint.contains('boa');
+    final isAwashHint = normalizedHint.contains('awash');
+    final isOromiaHint = normalizedHint.contains('oromia') ||
+        normalizedHint.contains('coop') ||
+        normalizedHint.contains('cbo') ||
+        normalizedHint.contains('ebirr');
 
     // 1. Detect Bank
     String detectedBank = normalizedHint;
     if (detectedBank.isEmpty) {
-      if (clean.contains('telebirr') ||
-          clean.contains('Lakkoofsa Kaffaltii') ||
-          clean.contains('yeroo daddabarsaa') ||
+      if (clean.contains('awashpay') ||
+          clean.contains('Awash Bank') ||
+          clean.contains('awashbank') ||
+          clean.contains('Awash') ||
+          clean.contains('Awaash') ||
+          clean.contains('አዋሽ')) {
+        detectedBank = 'awash';
+      } else if (clean.contains('receipt.ebirr.com') ||
+          clean.contains('coopay') ||
+          clean.contains('Cooperative Bank of Oromia') ||
+          clean.contains('Baankii Hojii Gamtaa Oromiyaa') ||
+          clean.contains('Oromia Bank') ||
+          clean.contains('Baankii Oromiyaa') ||
+          clean.contains('CBO')) {
+        detectedBank = 'coopayebirr';
+      } else if (clean.contains('telebirr') ||
           clean.contains("Milkaa'eera") ||
+          clean.contains('Mala kaffaltii') ||
+          clean.contains('yeroo daddabarsaa') ||
           clean.contains('የግብይት ቁጥር')) {
         detectedBank = 'telebirr';
       } else if (clean.contains('FT') ||
@@ -147,6 +167,8 @@ class ReceiptTextParser {
         detectedBank = 'cbe';
       } else if (clean.contains('Abyssinia') || clean.contains('Absiiniyaa')) {
         detectedBank = 'boa';
+      } else if (clean.contains('Lakkoofsa Kaffaltii')) {
+        detectedBank = 'telebirr';
       }
     }
 
@@ -227,6 +249,116 @@ class ReceiptTextParser {
       if (teleAccMatch != null) {
         receiverAcc = teleAccMatch.group(1)?.trim();
       }
+    } else if (detectedBank == 'awash' || isAwashHint) {
+      // ── AWASH BANK EXTRACTION ──
+      // 1. AwashPay Receipt URL
+      final awashUrlRegex = RegExp(
+        r'(https?:\/\/awashpay\.awashbank\.com(?::\d+)?\/[^\s]+)',
+        caseSensitive: false,
+      );
+      final awashUrlMatch = awashUrlRegex.firstMatch(clean);
+      if (awashUrlMatch != null) {
+        receiptUrl = awashUrlMatch.group(1);
+        txId = receiptUrl;
+      }
+
+      // 2. Transaction ID / Reference
+      if (txId == null) {
+        final awashRefRegex = RegExp(
+          r'(?:Txn\s*ID|Transaction\s*(?:ID|No|Reference)|Ref(?:\s*No)?|Receipt\s*No)[\s:]*([A-Za-z0-9_-]+)',
+          caseSensitive: false,
+        );
+        final m = awashRefRegex.firstMatch(clean);
+        if (m != null) {
+          txId = m.group(1)?.trim();
+        }
+      }
+      if (txId == null) {
+        final codeMatch = RegExp(r'\b(AW[0-9A-Za-z]{8,14})\b', caseSensitive: false).firstMatch(clean);
+        if (codeMatch != null) {
+          txId = codeMatch.group(1)?.toUpperCase();
+        }
+      }
+
+      // 3. Amount
+      final amountMatch = RegExp(r'(?:ETB|Birr)\s*([0-9,]+(?:\.[0-9]{1,2})?)', caseSensitive: false).firstMatch(clean) ??
+          RegExp(r'([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:ETB|Birr)', caseSensitive: false).firstMatch(clean);
+      if (amountMatch != null) {
+        amount = double.tryParse(amountMatch.group(1)!.replaceAll(',', ''));
+      }
+
+      // 4. Date
+      final dateMatch = RegExp(r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\b').firstMatch(clean) ??
+          RegExp(r'\b(\d{4}[/-]\d{1,2}[/-]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\b').firstMatch(clean);
+      if (dateMatch != null) {
+        dateStr = dateMatch.group(1)?.trim();
+      }
+
+      // 5. Receiver & Sender
+      final receiverMatch = RegExp(r'(?:to|paid to|beneficiary)[\s:]*([A-Za-z0-9\s-]+?)(?:\.|\n|\r|$)', caseSensitive: false).firstMatch(clean);
+      if (receiverMatch != null) {
+        receiverAcc = receiverMatch.group(1)?.trim();
+      }
+      final senderMatch = RegExp(r'(?:from|sender)[\s:]*([A-Za-z\s]+?)(?:\.|\n|\r|$)', caseSensitive: false).firstMatch(clean);
+      if (senderMatch != null) {
+        sender = senderMatch.group(1)?.trim();
+      }
+
+    } else if (detectedBank == 'coopayebirr' || isOromiaHint) {
+      // ── OROMIA / COOPAY EBIRR EXTRACTION ──
+      // 1. Coopay / eBirr Receipt URL
+      final coopUrlRegex = RegExp(
+        r'(https?:\/\/receipt\.ebirr\.com(?::\d+)?\/[^\s]+)',
+        caseSensitive: false,
+      );
+      final coopUrlMatch = coopUrlRegex.firstMatch(clean);
+      if (coopUrlMatch != null) {
+        receiptUrl = coopUrlMatch.group(1);
+        txId = receiptUrl;
+      }
+
+      // 2. Transaction ID
+      if (txId == null) {
+        final coopRefRegex = RegExp(
+          r'(?:Lakkoofsa\s+Kaffaltii|Transaction\s*(?:No|Number|ID)|Ref(?:\s*No)?|Receipt\s*No)[\s:]*([A-Za-z0-9_-]+)',
+          caseSensitive: false,
+        );
+        final m = coopRefRegex.firstMatch(clean);
+        if (m != null) {
+          txId = m.group(1)?.trim();
+        }
+      }
+      if (txId == null) {
+        final codeMatch = RegExp(r'\b(CP[0-9A-Za-z]{8,14})\b', caseSensitive: false).firstMatch(clean);
+        if (codeMatch != null) {
+          txId = codeMatch.group(1)?.toUpperCase();
+        }
+      }
+
+      // 3. Amount
+      final amountMatch = RegExp(r'(?:ETB|Birr)\s*([0-9,]+(?:\.[0-9]{1,2})?)', caseSensitive: false).firstMatch(clean) ??
+          RegExp(r'([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:ETB|Birr)', caseSensitive: false).firstMatch(clean);
+      if (amountMatch != null) {
+        amount = double.tryParse(amountMatch.group(1)!.replaceAll(',', ''));
+      }
+
+      // 4. Date
+      final dateMatch = RegExp(r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\b').firstMatch(clean) ??
+          RegExp(r'\b(\d{4}[/-]\d{1,2}[/-]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\b').firstMatch(clean);
+      if (dateMatch != null) {
+        dateStr = dateMatch.group(1)?.trim();
+      }
+
+      // 5. Receiver & Sender
+      final receiverMatch = RegExp(r'(?:Kan\s+raawwateef|to|paid to)[\s:]*([A-Za-z0-9\s-]+?)(?:\.|\n|\r|$)', caseSensitive: false).firstMatch(clean);
+      if (receiverMatch != null) {
+        receiverAcc = receiverMatch.group(1)?.trim();
+      }
+      final senderMatch = RegExp(r'(?:Kan\s+raawwate|from|sender)[\s:]*([A-Za-z\s]+?)(?:\.|\n|\r|$)', caseSensitive: false).firstMatch(clean);
+      if (senderMatch != null) {
+        sender = senderMatch.group(1)?.trim();
+      }
+
     } else {
       // ── CBE & BOA EXTRACTION ──
       // 1. CBE Receipt URL / Token (from SMS notifications or web receipts)
@@ -420,7 +552,17 @@ class ReceiptTextParser {
       senderName: sender,
       receiverAccount: receiverAcc,
       receiverName: receiverName,
-      bank: detectedBank.isNotEmpty ? detectedBank : (isCbeHint ? 'cbe' : (isTelebirrHint ? 'telebirr' : (isBoaHint ? 'boa' : null))),
+      bank: detectedBank.isNotEmpty
+          ? detectedBank
+          : (isCbeHint
+              ? 'cbe'
+              : (isTelebirrHint
+                  ? 'telebirr'
+                  : (isBoaHint
+                      ? 'boa'
+                      : (isAwashHint
+                          ? 'awash'
+                          : (isOromiaHint ? 'coopayebirr' : null))))),
       rawText: clean,
       source: 'regex',
     );
@@ -464,6 +606,8 @@ class ReceiptTextParser {
           line.toLowerCase().contains('mreciept') ||
           line.toLowerCase().contains('mreceipt') ||
           line.toLowerCase().contains('cbe.com.et') ||
+          line.toLowerCase().contains('awashpay') ||
+          line.toLowerCase().contains('ebirr.com') ||
           line.toLowerCase().contains('forms.gle');
 
       if (isUrlStart) {

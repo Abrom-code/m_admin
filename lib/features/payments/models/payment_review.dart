@@ -195,6 +195,21 @@ class PaymentMethodInfo {
       account: '165093089',
       holder: _defaultHolder,
     ),
+    'awash': PaymentMethodInfo(
+      label: 'Awash Bank',
+      account: '',
+      holder: _defaultHolder,
+    ),
+    'oromia': PaymentMethodInfo(
+      label: 'Oromia / Coop',
+      account: '',
+      holder: _defaultHolder,
+    ),
+    'coop': PaymentMethodInfo(
+      label: 'Coop Bank',
+      account: '',
+      holder: _defaultHolder,
+    ),
     'mpesa': PaymentMethodInfo(
       label: 'M-Pesa',
       account: '',
@@ -206,6 +221,8 @@ class PaymentMethodInfo {
     (key: 'telebirr', label: 'Telebirr'),
     (key: 'cbe', label: 'CBE'),
     (key: 'abyssinia', label: 'Abyssinia'),
+    (key: 'awash', label: 'Awash Bank'),
+    (key: 'oromia', label: 'Oromia / Coop'),
     (key: 'mpesa', label: 'M-Pesa'),
   ];
 
@@ -243,6 +260,18 @@ class PaymentMethodInfo {
           'payment_abyssinia', 'payment_abyssinia_holder'),
       'payment_abyssinia': merge('abyssinia', 'Abyssinia',
           'payment_abyssinia', 'payment_abyssinia_holder'),
+      'awash': merge('awash', 'Awash Bank',
+          'payment_awash', 'payment_awash_holder'),
+      'payment_awash': merge('awash', 'Awash Bank',
+          'payment_awash', 'payment_awash_holder'),
+      'oromia': merge('oromia', 'Oromia / Coop',
+          'payment_oromia', 'payment_oromia_holder'),
+      'payment_oromia': merge('oromia', 'Oromia / Coop',
+          'payment_oromia', 'payment_oromia_holder'),
+      'coop': merge('oromia', 'Oromia / Coop',
+          'payment_coop', 'payment_coop_holder'),
+      'coopayebirr': merge('oromia', 'Oromia / Coop',
+          'payment_coopay', 'payment_coopay_holder'),
       'mpesa': merge('mpesa', 'M-Pesa',
           'payment_mpesa', 'payment_mpesa_holder'),
       'payment_mpesa': merge('mpesa', 'M-Pesa',
@@ -292,6 +321,8 @@ class PaymentMethodInfo {
     final match = byKey[lower] ?? byKey[clean];
     if (match != null) return match.label;
     if (clean == 'cbe') return 'CBE';
+    if (clean == 'awash') return 'Awash Bank';
+    if (clean == 'oromia' || clean == 'coop' || clean == 'coopayebirr') return 'Oromia / Coop';
     if (clean.isNotEmpty) {
       return clean[0].toUpperCase() + clean.substring(1);
     }
