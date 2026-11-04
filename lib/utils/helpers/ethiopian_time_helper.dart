@@ -105,15 +105,30 @@ class EthiopianTimeHelper {
     return DateFormat(showSeconds ? 'h:mm:ss a' : 'h:mm a').format(eat);
   }
 
-  /// Formats date + time in East Africa Time (UTC+3) (e.g. "17 Oct, 20:35")
-  static String formatEatDateTime(DateTime dateTime) {
+  /// Formats date + time in East Africa Time (UTC+3) in 12-hour format (e.g. "17 Oct, 8:35 PM")
+  static String formatEatDateTime(DateTime dateTime, {bool includeYear = false}) {
     final eat = toEastAfricaTime(dateTime);
-    return DateFormat('d MMM, HH:mm').format(eat);
+    final pattern = includeYear ? 'd MMM yyyy, h:mm a' : 'd MMM, h:mm a';
+    return DateFormat(pattern).format(eat);
   }
 
   /// Current time in East Africa (UTC+3)
   static DateTime nowInEastAfrica() {
     return DateTime.now().toUtc().add(eastAfricaOffset);
+  }
+
+  /// Returns the default challenge start time:
+  /// Current date at 8:00 PM (20:00) in East Africa Time (UTC+3).
+  static DateTime defaultChallengeStartsAt() {
+    final nowEat = nowInEastAfrica();
+    return DateTime(nowEat.year, nowEat.month, nowEat.day, 20, 0);
+  }
+
+  /// Returns the default challenge end time:
+  /// Exactly 2 days after start time at 8:00 PM (20:00) in East Africa Time (UTC+3).
+  static DateTime defaultChallengeEndsAt([DateTime? startsAt]) {
+    final start = startsAt ?? defaultChallengeStartsAt();
+    return DateTime(start.year, start.month, start.day + 2, 20, 0);
   }
 
   /// Converts a DateTime chosen in East Africa Time (e.g. from date/time pickers)
