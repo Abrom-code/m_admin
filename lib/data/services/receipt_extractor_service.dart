@@ -4,6 +4,7 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:m_admin/data/services/verify_et_service.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
 /// The extracted fields from a CBE, Telebirr, or Ethiopian bank receipt.
 class ReceiptExtractionResult {
@@ -55,7 +56,7 @@ class ReceiptExtractionResult {
   /// Full recognized text.
   final String rawText;
 
-  /// Extraction method ('mlkit', 'verify_et', or 'regex').
+  /// Extraction method ('mlkit', 'links_et', or 'regex').
   final String source;
 
   bool get hasTransactionId =>
@@ -124,10 +125,13 @@ class ReceiptTextParser {
 
     final normalizedHint = bankHint?.toLowerCase().trim() ?? '';
     final isTelebirrHint = normalizedHint.contains('telebirr');
-    final isCbeHint = normalizedHint.contains('cbe') || normalizedHint.contains('commercial');
-    final isBoaHint = normalizedHint.contains('abyssinia') || normalizedHint.contains('boa');
+    final isCbeHint =
+        normalizedHint.contains('cbe') || normalizedHint.contains('commercial');
+    final isBoaHint =
+        normalizedHint.contains('abyssinia') || normalizedHint.contains('boa');
     final isAwashHint = normalizedHint.contains('awash');
-    final isOromiaHint = normalizedHint.contains('oromia') ||
+    final isOromiaHint =
+        normalizedHint.contains('oromia') ||
         normalizedHint.contains('coop') ||
         normalizedHint.contains('cbo') ||
         normalizedHint.contains('ebirr');
@@ -150,7 +154,9 @@ class ReceiptTextParser {
           clean.contains('Baankii Oromiyaa') ||
           clean.contains('CBO')) {
         detectedBank = 'coopayebirr';
-      } else if (clean.contains('telebirr') ||
+      } else if (clean.toLowerCase().contains('telebirr') ||
+          clean.toLowerCase().contains('ethiotelecom') ||
+          clean.toLowerCase().contains('transactioninfo') ||
           clean.contains("Milkaa'eera") ||
           clean.contains('Mala kaffaltii') ||
           clean.contains('yeroo daddabarsaa') ||
@@ -184,7 +190,19 @@ class ReceiptTextParser {
     if (detectedBank == 'telebirr' || isTelebirrHint) {
       // ── TELEBIRR EXTRACTION ──
       // 1. Transaction ID:
+      // Pattern 0: Full Telebirr portal URL (e.g. from QR code or receipt link)
+      final teleUrlRegex = RegExp(
+        r'(?:https?:\/\/)?transactioninfo\.ethiotelecom\.et\/receipt\/([A-Za-z0-9]{10})',
+        caseSensitive: false,
+      );
+      final teleUrlMatch = teleUrlRegex.firstMatch(clean);
+      if (teleUrlMatch != null) {
+        txId = teleUrlMatch.group(1)!.toUpperCase();
+        receiptUrl = 'https://transactioninfo.ethiotelecom.et/receipt/$txId';
+      }
+
       // Pattern A: Labeled with Afaan Oromo, English, or Amharic
+      if (txId == null) {
       final teleLabeledRegex = RegExp(
         r'(?:Lakkoofsa\s+Kaffaltii|Lakkoofsa\s+daddabarsaa|Transaction\s*(?:No|Number|ID|Code)|Payment\s*Code|የግብይት\s*ቁጥር|የሂሳብ\s*ቁጥር|የማረጋገጫ\s*ቁጥር)[\s:]*([A-Za-z0-9]{10})\b',
         caseSensitive: false,
@@ -192,6 +210,7 @@ class ReceiptTextParser {
       final teleLabeledMatch = teleLabeledRegex.firstMatch(clean);
       if (teleLabeledMatch != null) {
         txId = teleLabeledMatch.group(1)?.toUpperCase();
+      }
       }
 
       // Pattern B: Fallback to standard 10-char Telebirr code (e.g. DJL64F9ZOE, DET8FJGUJ4)
@@ -209,10 +228,20 @@ class ReceiptTextParser {
         for (final m in generic10Regex.allMatches(clean)) {
           final candidate = m.group(1)!;
           // Exclude phone numbers or all numeric strings
-          if (RegExp(r'[A-Za-z]').hasMatch(candidate) && RegExp(r'[0-9]').hasMatch(candidate)) {
+          if (RegExp(r'[A-Za-z]').hasMatch(candidate) &&
+              RegExp(r'[0-9]').hasMatch(candidate)) {
             txId = candidate;
             break;
           }
+        }
+      }
+
+      // Ensure txId is always the clean reference number, never a URL
+      if (txId != null && txId.contains('http')) {
+        final cleanTok = VerifyEtService.sanitizeTelebirrReference(txId);
+        if (cleanTok.isNotEmpty && !cleanTok.startsWith('http')) {
+          receiptUrl ??= txId;
+          txId = cleanTok;
         }
       }
 
@@ -226,26 +255,37 @@ class ReceiptTextParser {
         dateStr = teleDateMatch.group(1)?.trim();
       } else {
         // Fallback: search for YYYY/MM/DD HH:mm:ss format
-        final isoLikeMatch = RegExp(r'\b(\d{4}[/-]\d{1,2}[/-]\d{1,2}\s+\d{1,2}:\d{2}(?::\d{2})?)\b').firstMatch(clean);
+        final isoLikeMatch = RegExp(
+          r'\b(\d{4}[/-]\d{1,2}[/-]\d{1,2}\s+\d{1,2}:\d{2}(?::\d{2})?)\b',
+        ).firstMatch(clean);
         if (isoLikeMatch != null) {
           dateStr = isoLikeMatch.group(1)?.trim();
         }
       }
 
       // 3. Amount:
-      final teleAmountMatch = RegExp(r'-?\s*([0-9,]+(?:\.[0-9]{1,2})?)\s*\(?(?:ETB|Birr|ብር)\)?', caseSensitive: false).firstMatch(clean);
+      final teleAmountMatch = RegExp(
+        r'-?\s*([0-9,]+(?:\.[0-9]{1,2})?)\s*\(?(?:ETB|Birr|ብር)\)?',
+        caseSensitive: false,
+      ).firstMatch(clean);
       if (teleAmountMatch != null) {
         final rawNum = teleAmountMatch.group(1)!.replaceAll(',', '');
         amount = double.tryParse(rawNum);
       }
 
       // 4. Sender / Receiver:
-      final teleReceiverMatch = RegExp(r'(?:Kan\s+raawwateef|Paid\s+to|Receiver)[\s:]*([A-Za-z\s]+?)(?:\n|\r|Lakkoofsa|$)', caseSensitive: false).firstMatch(clean);
+      final teleReceiverMatch = RegExp(
+        r'(?:Kan\s+raawwateef|Paid\s+to|Receiver)[\s:]*([A-Za-z\s]+?)(?:\n|\r|Lakkoofsa|$)',
+        caseSensitive: false,
+      ).firstMatch(clean);
       if (teleReceiverMatch != null) {
         sender = teleReceiverMatch.group(1)?.trim();
       }
 
-      final teleAccMatch = RegExp(r'(?:Lakkoofsa\s+herrega\s+baankii|Account\s*No|Acc)[\s:]*([0-9]+)', caseSensitive: false).firstMatch(clean);
+      final teleAccMatch = RegExp(
+        r'(?:Lakkoofsa\s+herrega\s+baankii|Account\s*No|Acc)[\s:]*([0-9]+)',
+        caseSensitive: false,
+      ).firstMatch(clean);
       if (teleAccMatch != null) {
         receiverAcc = teleAccMatch.group(1)?.trim();
       }
@@ -274,36 +314,56 @@ class ReceiptTextParser {
         }
       }
       if (txId == null) {
-        final codeMatch = RegExp(r'\b(AW[0-9A-Za-z]{8,14})\b', caseSensitive: false).firstMatch(clean);
+        final codeMatch = RegExp(
+          r'\b(AW[0-9A-Za-z]{8,14})\b',
+          caseSensitive: false,
+        ).firstMatch(clean);
         if (codeMatch != null) {
           txId = codeMatch.group(1)?.toUpperCase();
         }
       }
 
       // 3. Amount
-      final amountMatch = RegExp(r'(?:ETB|Birr)\s*([0-9,]+(?:\.[0-9]{1,2})?)', caseSensitive: false).firstMatch(clean) ??
-          RegExp(r'([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:ETB|Birr)', caseSensitive: false).firstMatch(clean);
+      final amountMatch =
+          RegExp(
+            r'(?:ETB|Birr)\s*([0-9,]+(?:\.[0-9]{1,2})?)',
+            caseSensitive: false,
+          ).firstMatch(clean) ??
+          RegExp(
+            r'([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:ETB|Birr)',
+            caseSensitive: false,
+          ).firstMatch(clean);
       if (amountMatch != null) {
         amount = double.tryParse(amountMatch.group(1)!.replaceAll(',', ''));
       }
 
       // 4. Date
-      final dateMatch = RegExp(r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\b').firstMatch(clean) ??
-          RegExp(r'\b(\d{4}[/-]\d{1,2}[/-]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\b').firstMatch(clean);
+      final dateMatch =
+          RegExp(
+            r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\b',
+          ).firstMatch(clean) ??
+          RegExp(
+            r'\b(\d{4}[/-]\d{1,2}[/-]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\b',
+          ).firstMatch(clean);
       if (dateMatch != null) {
         dateStr = dateMatch.group(1)?.trim();
       }
 
       // 5. Receiver & Sender
-      final receiverMatch = RegExp(r'(?:to|paid to|beneficiary)[\s:]*([A-Za-z0-9\s-]+?)(?:\.|\n|\r|$)', caseSensitive: false).firstMatch(clean);
+      final receiverMatch = RegExp(
+        r'(?:to|paid to|beneficiary)[\s:]*([A-Za-z0-9\s-]+?)(?:\.|\n|\r|$)',
+        caseSensitive: false,
+      ).firstMatch(clean);
       if (receiverMatch != null) {
         receiverAcc = receiverMatch.group(1)?.trim();
       }
-      final senderMatch = RegExp(r'(?:from|sender)[\s:]*([A-Za-z\s]+?)(?:\.|\n|\r|$)', caseSensitive: false).firstMatch(clean);
+      final senderMatch = RegExp(
+        r'(?:from|sender)[\s:]*([A-Za-z\s]+?)(?:\.|\n|\r|$)',
+        caseSensitive: false,
+      ).firstMatch(clean);
       if (senderMatch != null) {
         sender = senderMatch.group(1)?.trim();
       }
-
     } else if (detectedBank == 'coopayebirr' || isOromiaHint) {
       // ── OROMIA / COOPAY EBIRR EXTRACTION ──
       // 1. Coopay / eBirr Receipt URL
@@ -329,36 +389,56 @@ class ReceiptTextParser {
         }
       }
       if (txId == null) {
-        final codeMatch = RegExp(r'\b(CP[0-9A-Za-z]{8,14})\b', caseSensitive: false).firstMatch(clean);
+        final codeMatch = RegExp(
+          r'\b(CP[0-9A-Za-z]{8,14})\b',
+          caseSensitive: false,
+        ).firstMatch(clean);
         if (codeMatch != null) {
           txId = codeMatch.group(1)?.toUpperCase();
         }
       }
 
       // 3. Amount
-      final amountMatch = RegExp(r'(?:ETB|Birr)\s*([0-9,]+(?:\.[0-9]{1,2})?)', caseSensitive: false).firstMatch(clean) ??
-          RegExp(r'([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:ETB|Birr)', caseSensitive: false).firstMatch(clean);
+      final amountMatch =
+          RegExp(
+            r'(?:ETB|Birr)\s*([0-9,]+(?:\.[0-9]{1,2})?)',
+            caseSensitive: false,
+          ).firstMatch(clean) ??
+          RegExp(
+            r'([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:ETB|Birr)',
+            caseSensitive: false,
+          ).firstMatch(clean);
       if (amountMatch != null) {
         amount = double.tryParse(amountMatch.group(1)!.replaceAll(',', ''));
       }
 
       // 4. Date
-      final dateMatch = RegExp(r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\b').firstMatch(clean) ??
-          RegExp(r'\b(\d{4}[/-]\d{1,2}[/-]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\b').firstMatch(clean);
+      final dateMatch =
+          RegExp(
+            r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\b',
+          ).firstMatch(clean) ??
+          RegExp(
+            r'\b(\d{4}[/-]\d{1,2}[/-]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\b',
+          ).firstMatch(clean);
       if (dateMatch != null) {
         dateStr = dateMatch.group(1)?.trim();
       }
 
       // 5. Receiver & Sender
-      final receiverMatch = RegExp(r'(?:Kan\s+raawwateef|to|paid to)[\s:]*([A-Za-z0-9\s-]+?)(?:\.|\n|\r|$)', caseSensitive: false).firstMatch(clean);
+      final receiverMatch = RegExp(
+        r'(?:Kan\s+raawwateef|to|paid to)[\s:]*([A-Za-z0-9\s-]+?)(?:\.|\n|\r|$)',
+        caseSensitive: false,
+      ).firstMatch(clean);
       if (receiverMatch != null) {
         receiverAcc = receiverMatch.group(1)?.trim();
       }
-      final senderMatch = RegExp(r'(?:Kan\s+raawwate|from|sender)[\s:]*([A-Za-z\s]+?)(?:\.|\n|\r|$)', caseSensitive: false).firstMatch(clean);
+      final senderMatch = RegExp(
+        r'(?:Kan\s+raawwate|from|sender)[\s:]*([A-Za-z\s]+?)(?:\.|\n|\r|$)',
+        caseSensitive: false,
+      ).firstMatch(clean);
       if (senderMatch != null) {
         sender = senderMatch.group(1)?.trim();
       }
-
     } else {
       // ── CBE & BOA EXTRACTION ──
       // 1. CBE Receipt URL / Token (from SMS notifications or web receipts)
@@ -422,7 +502,10 @@ class ReceiptTextParser {
       }
 
       // Pattern A: CBE Funds Transfer format: FT + 10-14 alphanumeric (e.g. FT26291KVDWY)
-      final cbeFtRegex = RegExp(r'\b(FT[0-9A-Za-z]{10,14})\b', caseSensitive: false);
+      final cbeFtRegex = RegExp(
+        r'\b(FT[0-9A-Za-z]{10,14})\b',
+        caseSensitive: false,
+      );
       final cbeFtMatch = cbeFtRegex.firstMatch(clean);
       if (cbeFtMatch != null) {
         txId = cbeFtMatch.group(1)?.toUpperCase();
@@ -458,6 +541,15 @@ class ReceiptTextParser {
         }
       }
 
+      // Ensure txId is always the clean reference number, never a URL
+      if (txId != null && txId.contains('http')) {
+        final cleanTok = VerifyEtService.sanitizeTelebirrReference(txId);
+        if (cleanTok.isNotEmpty && !cleanTok.startsWith('http')) {
+          receiptUrl ??= txId;
+          txId = cleanTok;
+        }
+      }
+
       // 2. Date:
       final cbeDateMatch = RegExp(
         r'(?:on|date|dated)[\s:]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
@@ -466,7 +558,9 @@ class ReceiptTextParser {
       if (cbeDateMatch != null) {
         dateStr = cbeDateMatch.group(1)?.trim();
       } else {
-        final dateFallback = RegExp(r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b').firstMatch(clean);
+        final dateFallback = RegExp(
+          r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b',
+        ).firstMatch(clean);
         if (dateFallback != null) {
           dateStr = dateFallback.group(1)?.trim();
         }
@@ -490,7 +584,10 @@ class ReceiptTextParser {
           final rawNum = cbeAmountMatch.group(1)!.replaceAll(',', '');
           amount = double.tryParse(rawNum);
         } else {
-          final altAmount = RegExp(r'([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:ETB|Birr)', caseSensitive: false).firstMatch(clean);
+          final altAmount = RegExp(
+            r'([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:ETB|Birr)',
+            caseSensitive: false,
+          ).firstMatch(clean);
           if (altAmount != null) {
             final rawNum = altAmount.group(1)!.replaceAll(',', '');
             amount = double.tryParse(rawNum);
@@ -510,7 +607,10 @@ class ReceiptTextParser {
 
       // Sender Pattern B: Standard receipt "From Abrham Teramed Nega to"
       if (sender == null) {
-        final senderMatch = RegExp(r'From\s+([A-Za-z\s]+?)\s+to\b', caseSensitive: false).firstMatch(clean);
+        final senderMatch = RegExp(
+          r'From\s+([A-Za-z\s]+?)\s+to\b',
+          caseSensitive: false,
+        ).firstMatch(clean);
         if (senderMatch != null) {
           sender = senderMatch.group(1)?.trim();
         }
@@ -531,7 +631,10 @@ class ReceiptTextParser {
 
       // Receiver Pattern B: Standard CBE receipt "to Negawo Abu Neme-6782"
       if (receiverAcc == null) {
-        final receiverMatch = RegExp(r'to\s+([A-Za-z0-9\s-]+?)(?:\.|\s+To\b|\s+on\b|\s+FT)', caseSensitive: false).firstMatch(clean);
+        final receiverMatch = RegExp(
+          r'to\s+([A-Za-z0-9\s-]+?)(?:\.|\s+To\b|\s+on\b|\s+FT)',
+          caseSensitive: false,
+        ).firstMatch(clean);
         if (receiverMatch != null) {
           receiverAcc = receiverMatch.group(1)?.trim();
         }
@@ -555,14 +658,14 @@ class ReceiptTextParser {
       bank: detectedBank.isNotEmpty
           ? detectedBank
           : (isCbeHint
-              ? 'cbe'
-              : (isTelebirrHint
-                  ? 'telebirr'
-                  : (isBoaHint
-                      ? 'boa'
-                      : (isAwashHint
-                          ? 'awash'
-                          : (isOromiaHint ? 'coopayebirr' : null))))),
+                ? 'cbe'
+                : (isTelebirrHint
+                      ? 'telebirr'
+                      : (isBoaHint
+                            ? 'boa'
+                            : (isAwashHint
+                                  ? 'awash'
+                                  : (isOromiaHint ? 'coopayebirr' : null))))),
       rawText: clean,
       source: 'regex',
     );
@@ -601,7 +704,8 @@ class ReceiptTextParser {
         continue;
       }
 
-      final isUrlStart = line.toLowerCase().contains('http://') ||
+      final isUrlStart =
+          line.toLowerCase().contains('http://') ||
           line.toLowerCase().contains('https://') ||
           line.toLowerCase().contains('mreciept') ||
           line.toLowerCase().contains('mreceipt') ||
@@ -615,9 +719,14 @@ class ReceiptTextParser {
         while (i + 1 < lines.length) {
           final nxt = lines[i + 1];
           // Check if next line is a continuation (starts with /, or is v2, or is a link token)
-          final isContinuation = nxt.startsWith('/') ||
-              RegExp(r'^(?:v\d+|[-A-Za-z0-9_]{10,40})$', caseSensitive: false).hasMatch(nxt);
-          final isStopKeyword = nxt.toLowerCase().startsWith('for feedback') ||
+          final isContinuation =
+              nxt.startsWith('/') ||
+              RegExp(
+                r'^(?:v\d+|[-A-Za-z0-9_]{10,40})$',
+                caseSensitive: false,
+              ).hasMatch(nxt);
+          final isStopKeyword =
+              nxt.toLowerCase().startsWith('for feedback') ||
               nxt.toLowerCase().startsWith('dear ') ||
               nxt.toLowerCase().startsWith('thanks ') ||
               nxt.toLowerCase().startsWith('sender ');
@@ -649,6 +758,17 @@ class ReceiptExtractorService {
   static final ReceiptExtractorService instance = ReceiptExtractorService._();
 
   TextRecognizer? _recognizer;
+  final Map<String, ReceiptExtractionResult> _cache = {};
+
+  ReceiptExtractionResult? getCached(String? key) {
+    if (key == null || key.trim().isEmpty) return null;
+    return _cache[key.trim()];
+  }
+
+  void setCache(String? key, ReceiptExtractionResult res) {
+    if (key == null || key.trim().isEmpty) return;
+    _cache[key.trim()] = res;
+  }
 
   TextRecognizer get _textRecognizer {
     _recognizer ??= TextRecognizer(script: TextRecognitionScript.latin);
@@ -659,12 +779,29 @@ class ReceiptExtractorService {
   Future<ReceiptExtractionResult?> extractFromUrl(
     String imageUrl, {
     String? bankHint,
+    String? cacheKey,
   }) async {
-    if (imageUrl.trim().isEmpty) return null;
+    final cleanUrl = imageUrl.trim();
+    if (cleanUrl.isEmpty) return null;
+    final baseKey = cacheKey ?? cleanUrl.split('?').first;
+    if (_cache.containsKey(baseKey)) {
+      return _cache[baseKey];
+    }
+    if (_cache.containsKey(cleanUrl)) {
+      return _cache[cleanUrl];
+    }
     try {
-      final res = await http.get(Uri.parse(imageUrl));
+      final res = await http.get(Uri.parse(cleanUrl));
       if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
-        return await extractFromBytes(res.bodyBytes, bankHint: bankHint);
+        final extracted = await extractFromBytes(
+          res.bodyBytes,
+          bankHint: bankHint,
+        );
+        if (extracted != null) {
+          _cache[baseKey] = extracted;
+          _cache[cleanUrl] = extracted;
+        }
+        return extracted;
       }
     } catch (e) {
       debugPrint('[ReceiptExtractorService] Failed to fetch image: $e');
@@ -692,22 +829,25 @@ class ReceiptExtractorService {
       }
     }
 
-    // 2. Fallback to Verify.ET Image OCR & Verification if API key is present
+    // 2. Fallback to Verify.ET Image Processing & upstream bank verification if API key is present
     final verifyService = VerifyEtService.instance;
     if (verifyService.hasApiKey) {
       try {
-        final vRes = await verifyService.verifyReceiptImage(
+        final vRes = await verifyService.verifyScreenshot(
           imageBytes: bytes,
           fileName: fileName,
-          bank: bankHint,
+          bankHint: bankHint,
+          autoPoll:
+              false, // Return detected reference immediately without waiting 10-20s for bank polling loops
         );
 
         final txId = vRes.referenceNumber ?? vRes.receiptNumber;
         final dateStr = vRes.timestamp != null
-            ? DateFormat('d MMM yyyy, HH:mm').format(vRes.timestamp!)
+            ? '${DateFormat('d MMM yyyy, h:mm a').format(EthiopianTimeHelper.toEastAfricaTime(vRes.timestamp!))} EAT'
             : null;
-        final isHttpReceipt = vRes.receiptNumber != null && vRes.receiptNumber!.startsWith('http');
-        final receiptUrl = isHttpReceipt ? vRes.receiptNumber : null;
+        final resolvedUrl = vRes.resolvedUrl ?? vRes.detected?.url;
+        final isHttpReceipt = txId != null && txId.startsWith('http');
+        final receiptUrl = resolvedUrl ?? (isHttpReceipt ? txId : null);
 
         return ReceiptExtractionResult(
           transactionId: txId,
@@ -737,13 +877,18 @@ class ReceiptExtractorService {
     Directory? tempDir;
     try {
       tempDir = Directory.systemTemp.createTempSync('ocr_receipt_');
-      final tempFile = File('${tempDir.path}/receipt_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      final tempFile = File(
+        '${tempDir.path}/receipt_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
       await tempFile.writeAsBytes(bytes, flush: true);
 
       final inputImage = InputImage.fromFilePath(tempFile.path);
       final recognizedText = await _textRecognizer.processImage(inputImage);
 
-      final parsed = ReceiptTextParser.parse(recognizedText.text, bankHint: bankHint);
+      final parsed = ReceiptTextParser.parse(
+        recognizedText.text,
+        bankHint: bankHint,
+      );
       return parsed.copyWith(source: 'mlkit');
     } finally {
       try {

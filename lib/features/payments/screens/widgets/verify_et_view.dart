@@ -1,7 +1,9 @@
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:m_admin/features/payments/controllers/payments_controller.dart';
 import 'package:m_admin/features/payments/controllers/verify_et_controller.dart';
 import 'package:m_admin/features/payments/models/verify_et_model.dart';
@@ -24,14 +26,15 @@ class _VerifyEtViewState extends State<VerifyEtView> {
 
   final List<Map<String, String>> _supportedBanks = [
     {'id': 'universal', 'label': 'Universal', 'icon': '🌐'},
-    {'id': 'cbe', 'label': 'CBE', 'icon': '🏦'},
     {'id': 'telebirr', 'label': 'Telebirr', 'icon': '📱'},
+    {'id': 'cbe', 'label': 'CBE', 'icon': '🏦'},
     {'id': 'boa', 'label': 'Abyssinia', 'icon': '🦁'},
+    {'id': 'awash', 'label': 'Awash', 'icon': '🌊'},
+    {'id': 'zemen', 'label': 'Zemen', 'icon': '🏛️'},
+    {'id': 'dashen', 'label': 'Dashen', 'icon': '🏢'},
     {'id': 'cbebirr', 'label': 'CBE Birr', 'icon': '💳'},
     {'id': 'mpesa', 'label': 'M-Pesa', 'icon': '📲'},
-    {'id': 'dashen', 'label': 'Dashen', 'icon': '🏛️'},
-    {'id': 'awash', 'label': 'Awash', 'icon': '🌊'},
-    {'id': 'coopayebirr', 'label': 'Oromia / Coop', 'icon': '🤝'},
+    {'id': 'oromia', 'label': 'Oromia / Coop', 'icon': '🤝'},
   ];
 
   @override
@@ -107,7 +110,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Verify.ET',
+                  'verify.et',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 SizedBox(width: 8),
@@ -151,7 +154,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                 ),
                 const SizedBox(width: 6),
                 IconButton(
-                  tooltip: 'Verify.ET Settings',
+                  tooltip: 'Verify.ET Configuration',
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.all(6),
                   constraints: const BoxConstraints(),
@@ -185,7 +188,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                   Icon(Iconsax.search_status_copy, size: 17, color: AppColors.primary),
                   SizedBox(width: 8),
                   Text(
-                    'Instant Verification',
+                    'Instant Bank Verification',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
                   ),
                 ],
@@ -236,35 +239,173 @@ class _VerifyEtViewState extends State<VerifyEtView> {
               }).toList(),
             );
           }),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
-          // Reference Input Field
+          // ── PREVIOUSLY SCANNED WARNING BANNER ─────────────────────────────
+          Obx(() {
+            final prev = _ctrl.previousScannedRecord.value;
+            if (prev == null) return const SizedBox.shrink();
+
+            final isPrevApproved = prev.isApproved;
+            final bannerColor = isPrevApproved ? AppColors.error : AppColors.warning;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: bannerColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: bannerColor.withValues(alpha: 0.5), width: 1.2),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(isPrevApproved ? Icons.gpp_bad_rounded : Icons.warning_amber_rounded, size: 16, color: bannerColor),
+                      const SizedBox(width: 6),
+                      Text(
+                        isPrevApproved ? 'ALREADY APPROVED BEFORE' : 'ALREADY SCANNED BEFORE',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: bannerColor,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: bannerColor.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Scanned ${prev.scanCount}x',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: bannerColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Text(
+                        'Status: ',
+                        style: TextStyle(fontSize: 11, color: dark ? Colors.white70 : Colors.black87),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: (isPrevApproved ? AppColors.error : AppColors.success).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          prev.status.toUpperCase(),
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isPrevApproved ? AppColors.error : AppColors.success),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          isPrevApproved
+                              ? 'Approved: ${prev.formattedApprovedDate ?? prev.formattedScannedDate}'
+                              : 'Date: ${prev.formattedScannedDate}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (prev.userEmail != null && prev.userEmail!.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        const Icon(Icons.person_outline, size: 12, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'User: ${prev.userEmail}',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (prev.amount != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      'Amount: ${prev.amount} ${prev.currency} (${prev.method.toUpperCase()})',
+                      style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+
+          // Supported Way Guide
           Obx(() {
             final bank = _ctrl.selectedBank.value;
-            String label = 'Reference / Receipt Number / Transaction ID *';
-            String hint = 'e.g. fHCxyExampleRcpt1, FT26..., or DET8FJGUJ4';
-
-            if (bank == 'cbe') {
-              label = 'CBE Receipt ID or Reference *';
-              hint = 'e.g. fHCxyExampleRcpt1 or mbreciept link';
-            } else if (bank == 'telebirr') {
-              label = 'Telebirr Transaction Number *';
-              hint = 'e.g. DET8FJGUJ4 or fHCxy...';
-            } else if (bank == 'mpesa') {
-              label = 'M-Pesa Transaction Code *';
-              hint = 'e.g. DET8FJGUJ4';
+            String guide;
+            if (bank == 'telebirr') {
+              guide = 'Supported: Telebirr Transaction Number (e.g. DF33KS5FB9), Receipt URL, or Screenshot image.';
+            } else if (bank == 'cbe') {
+              guide = 'Supported: CBE SMS link, dashed token (FT...-12345678), branch slip (FT...), or raw SMS.';
             } else if (bank == 'boa') {
-              label = 'Abyssinia Reference *';
-              hint = 'e.g. FT26...';
+              guide = 'Supported: Abyssinia reference token (FT...), digital slip link, or raw confirmation SMS.';
             } else if (bank == 'awash') {
-              label = 'Awash Receipt Link or Ref *';
-              hint = 'e.g. https://awashpay.awashbank.com:8225/... or Ref';
-            } else if (bank == 'coopayebirr') {
-              label = 'Oromia / Coopay Receipt Link or Ref *';
-              hint = 'e.g. https://receipt.ebirr.com/coopay/... or Ref';
-            } else if (bank == 'cbebirr') {
-              label = 'CBE Birr Receipt Number *';
-              hint = 'e.g. 1009827361';
+              guide = 'Supported: AwashPay receipt URL (https://awashpay.awashbank.com:8225/...).';
+            } else if (bank == 'zemen') {
+              guide = 'Supported: Zemen Bank PDF receipt URL (https://share.zemenbank.com/rt/.../pdf).';
+            } else if (bank == 'universal') {
+              guide = 'Supported: Works for every bank via receipt URL, reference token, or SMS text.';
+            } else {
+              guide = 'Supported: Official digital receipt URL or reference for ${bank.toUpperCase()}.';
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, size: 13, color: Color(0xFF6366F1)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      guide,
+                      style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+
+          // Input Field (URL or Reference)
+          Obx(() {
+            final bank = _ctrl.selectedBank.value;
+            String label = 'Receipt URL, Reference, or SMS *';
+            String hint = 'https://... or reference code';
+
+            if (bank == 'telebirr') {
+              label = 'Telebirr Reference or Receipt URL *';
+              hint = 'e.g. DF33KS5FB9 or https://transactioninfo.ethiotelecom.et/...';
+            } else if (bank == 'cbe') {
+              label = 'CBE Reference, Receipt Link, or SMS *';
+              hint = 'e.g. FT... or https://mbreciept.cbe.com.et/...';
+            } else if (bank == 'boa') {
+              label = 'Abyssinia Reference (FT...) or Slip Link *';
+              hint = 'e.g. FT... or https://cs.bankofabyssinia.com/slip/?trx=...';
+            } else if (bank == 'awash') {
+              label = 'AwashPay Receipt URL *';
+              hint = 'e.g. https://awashpay.awashbank.com:8225/...';
+            } else if (bank == 'zemen') {
+              label = 'Zemen Bank Receipt URL *';
+              hint = 'e.g. https://share.zemenbank.com/rt/.../pdf';
+            } else if (bank != 'universal') {
+              label = '${bank.toUpperCase()} Digital Receipt URL or Code *';
+              hint = 'Official receipt URL or reference';
             }
 
             return TextField(
@@ -274,96 +415,39 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                 labelText: label,
                 hintText: hint,
                 prefixIcon: const Icon(Iconsax.receipt_2_copy, size: 17),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_ctrl.referenceCtrl.text.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 16),
+                        tooltip: 'Clear',
+                        onPressed: () {
+                          _ctrl.referenceCtrl.clear();
+                          _ctrl.activeResult.value = null;
+                        },
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.content_paste_rounded, size: 16),
+                      tooltip: 'Paste from clipboard',
+                      onPressed: () async {
+                        final data = await Clipboard.getData('text/plain');
+                        if (data?.text != null && data!.text!.trim().isNotEmpty) {
+                          _ctrl.referenceCtrl.text = data.text!.trim();
+                          _ctrl.checkPriorScan();
+                        }
+                      },
+                    ),
+                  ],
+                ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
             );
           }),
-          const SizedBox(height: 10),
-
-          // Contextual Fields: Suffix for CBE, BoA, Universal and phone for CBE Birr, Coopay
-          Obx(() {
-            final bank = _ctrl.selectedBank.value;
-            final isCbe = bank == 'cbe';
-            final isBoa = bank == 'boa';
-            final isUniversal = bank == 'universal';
-            final needsSuffix = isBoa || isCbe || isUniversal;
-            final needsPhone = bank == 'cbebirr' || isUniversal || bank == 'coopayebirr';
-
-            if (!needsSuffix && !needsPhone) return const SizedBox.shrink();
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      if (needsSuffix)
-                        Expanded(
-                          child: TextField(
-                            controller: _ctrl.accountSuffixCtrl,
-                            keyboardType: TextInputType.number,
-                            maxLength: (isCbe || isUniversal) ? 8 : 5,
-                            style: const TextStyle(fontSize: 12.5),
-                            decoration: InputDecoration(
-                              labelText: isCbe
-                                  ? 'Account Suffix (8 digits for FT)'
-                                  : (isBoa ? 'Account Suffix (5 digits for BoA)' : 'Account Suffix (optional)'),
-                              hintText: (isCbe || isUniversal) ? 'e.g. 03997441' : 'e.g. 07441',
-                              counterText: '',
-                              prefixIcon: const Icon(Iconsax.hashtag_copy, size: 15),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                        ),
-                      if (needsSuffix && needsPhone) const SizedBox(width: 8),
-                      if (needsPhone)
-                        Expanded(
-                          child: TextField(
-                            controller: _ctrl.phoneCtrl,
-                            keyboardType: TextInputType.phone,
-                            style: const TextStyle(fontSize: 12.5),
-                            decoration: InputDecoration(
-                              labelText: 'Phone Number (Wallet/Birr)',
-                              hintText: 'e.g. 0911234567',
-                              prefixIcon: const Icon(Iconsax.call_copy, size: 15),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  if (isCbe)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 3, left: 2),
-                      child: Text(
-                        'CBE FT references require the 8-digit suffix. CBE receipt IDs & links do not.',
-                        style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          }),
-
-          // Settlement Account Matching
-          TextField(
-            controller: _ctrl.settlementAccountCtrl,
-            style: const TextStyle(fontSize: 12.5),
-            decoration: InputDecoration(
-              labelText: 'Expected Settlement Account (Optional)',
-              hintText: 'Leave empty to use default account',
-              prefixIcon: const Icon(Iconsax.bank_copy, size: 16),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
           const SizedBox(height: 12),
 
-          // Receipt Image Dropzone
+          // Receipt Image Dropzone (for Telebirr auto-OCR & verification)
           Obx(() {
             final bytes = _ctrl.selectedImageBytes.value;
             final fileName = _ctrl.selectedImageName.value;
@@ -384,10 +468,20 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        fileName ?? 'Receipt Image',
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            fileName ?? 'Receipt Image',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Will be verified via Verify.ET Image Processing',
+                            style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                          ),
+                        ],
                       ),
                     ),
                     IconButton(
@@ -420,7 +514,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                     const SizedBox(width: 8),
                     const Flexible(
                       child: Text(
-                        'Upload Receipt Photo (QR / OCR)',
+                        'Upload Receipt Screenshot (AI Detector & OCR)',
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                       ),
@@ -447,7 +541,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
             final pollMsg = _ctrl.pollingStatusMessage.value;
             final labelText = pollMsg.isNotEmpty
                 ? pollMsg
-                : (loading ? 'Verifying with Bank...' : 'Verify Transaction');
+                : (loading ? 'Verifying with verify.et...' : 'Verify Receipt');
 
             return SizedBox(
               width: double.infinity,
@@ -504,9 +598,9 @@ class _VerifyEtViewState extends State<VerifyEtView> {
     return _buildHistoryCard(context, dark);
   }
 
-  Widget _buildResultCard(BuildContext context, bool dark, VerifyEtResult res) {
+  Widget _buildResultCard(BuildContext context, bool dark, LinksEtResult res) {
     final isVerified = res.verified;
-    final statusColor = isVerified ? AppColors.success : (res.status == 'pending' ? AppColors.warning : AppColors.error);
+    final statusColor = isVerified ? AppColors.success : (res.isPending ? AppColors.warning : AppColors.error);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -530,7 +624,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  isVerified ? Icons.check_circle : (res.status == 'pending' ? Icons.hourglass_empty : Icons.cancel),
+                  isVerified ? Icons.check_circle : (res.isPending ? Icons.hourglass_empty : Icons.cancel),
                   color: statusColor,
                   size: 18,
                 ),
@@ -541,12 +635,16 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isVerified ? 'TRANSACTION VERIFIED' : 'VERIFICATION ${res.status.toUpperCase()}',
+                      isVerified
+                          ? 'CONFIRMED BY ${res.providerKey.toUpperCase()}'
+                          : (res.isPending
+                              ? 'QUEUED UPSTREAM'
+                              : (res.isParsedButInvalid ? 'RECEIPT NOT FOUND AT BANK' : 'UNVERIFIED')),
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: statusColor),
                     ),
                     Text(
-                      'Gateway: ${res.bank.toUpperCase()}',
+                      'Gateway: verify.et (${res.providerKey})',
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                     ),
@@ -563,8 +661,140 @@ class _VerifyEtViewState extends State<VerifyEtView> {
           ),
           const Divider(height: 20),
 
-          // Queued Telebirr / Bank Notification & Manual Status Refresh Button
-          if (res.isPending) ...[
+          // Failure Diagnosis Banner (for parsed but failed, missing receipt, etc.)
+          if (!isVerified && !res.isPending) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 14, color: AppColors.error),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          res.isParsedButInvalid
+                              ? 'Receipt Not Found on Bank Portal'
+                              : 'Verification Not Confirmed',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.error),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    res.userFriendlyErrorMessage,
+                    style: TextStyle(fontSize: 11, color: dark ? Colors.white70 : Colors.black87),
+                  ),
+                  if ((res.upstreamInspectionUrl ?? res.telebirrPortalUrl) != null) ...[
+                    () {
+                      final inspectionUrl = (res.upstreamInspectionUrl ?? res.telebirrPortalUrl)!;
+                      final provKey = res.providerKey.toLowerCase();
+                      final portalName = provKey.contains('telebirr')
+                          ? 'Ethio Telecom Portal'
+                          : (provKey.contains('cbe')
+                              ? 'CBE Portal'
+                              : (provKey.contains('boa') || provKey.contains('abyssinia')
+                                  ? 'Bank of Abyssinia Portal'
+                                  : '${res.providerKey.toUpperCase()} Portal'));
+
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          children: [
+                            InkWell(
+                              onTap: () async {
+                                final uri = Uri.tryParse(inspectionUrl);
+                                if (uri != null) {
+                                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.open_in_new_rounded, size: 11, color: Color(0xFF6366F1)),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Open in $portalName',
+                                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF6366F1)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            InkWell(
+                              onTap: _ctrl.submitVerification,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.refresh, size: 11, color: AppColors.primary),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Retry',
+                                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.primary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }(),
+                  ],
+                ],
+              ),
+            ),
+          ],
+
+          // Double-scan alert if this was in database before
+          if (res.wasScannedBefore) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.warning),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Notice: Verified successfully. Note that this transaction was already in database (Previous scan: ${res.previousRecord?.formattedPreviousDate ?? res.previousRecord?.formattedScannedDate}, Status: ${res.previousRecord?.previousStatus ?? res.previousRecord?.status}).',
+                      style: const TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Queued status refresh button
+          if (res.isPending && res.requestId != null && res.requestId!.isNotEmpty) ...[
             Container(
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(8),
@@ -583,21 +813,20 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                       style: const TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.w600),
                     ),
                   ),
-                  if (res.requestId != null && res.requestId!.isNotEmpty)
-                    Obx(() {
-                      final isBusy = _ctrl.isLoading.value;
-                      return FilledButton.tonal(
-                        onPressed: isBusy ? null : () => _ctrl.refreshStatus(res.requestId!),
-                        style: FilledButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                        ),
-                        child: Text(
-                          isBusy ? 'Checking...' : 'Check Status',
-                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold),
-                        ),
-                      );
-                    }),
+                  Obx(() {
+                    final isBusy = _ctrl.isLoading.value;
+                    return FilledButton.tonal(
+                      onPressed: isBusy ? null : () => _ctrl.refreshStatus(res.requestId!),
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                      ),
+                      child: Text(
+                        isBusy ? 'Checking...' : 'Check Status',
+                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -616,99 +845,17 @@ class _VerifyEtViewState extends State<VerifyEtView> {
           ),
           const SizedBox(height: 10),
 
-          // Details Table with overflow protection
+          // Details Table
           _buildDetailRow('Sender Name', res.senderName ?? '—'),
           _buildDetailRow('Receiver Name', res.receiverName ?? '—'),
           _buildDetailRow('Receiver Account', res.receiverAccount ?? '—'),
           _buildDetailRow('Reference Number', res.referenceNumber ?? '—', canCopy: res.referenceNumber != null),
-          _buildDetailRow('Receipt Number', res.receiptNumber ?? '—', canCopy: res.receiptNumber != null),
+          if (res.receipt?.source != null)
+            _buildDetailRow('Receipt Source', res.receipt!.source),
           if (res.timestamp != null)
-            _buildDetailRow('Timestamp', EthiopianTimeHelper.formatDateTimeWithEth(res.timestamp!)),
-
-          // Settlement Account Match Badge
-          if (res.settlementAccountMatch != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: res.settlementAccountMatch!.matched
-                    ? AppColors.success.withValues(alpha: 0.1)
-                    : AppColors.error.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: res.settlementAccountMatch!.matched
-                      ? AppColors.success.withValues(alpha: 0.3)
-                      : AppColors.error.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    res.settlementAccountMatch!.matched ? Icons.verified_user : Icons.gpp_bad,
-                    size: 15,
-                    color: res.settlementAccountMatch!.matched ? AppColors.success : AppColors.error,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          res.settlementAccountMatch!.matched ? 'Settlement Matched' : 'Settlement Mismatch',
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.bold,
-                            color: res.settlementAccountMatch!.matched ? AppColors.success : AppColors.error,
-                          ),
-                        ),
-                        Text(
-                          res.settlementAccountMatch!.reasonLabel,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 10.5),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          // Confirmation History Badge (Double Spend Protection)
-          if (res.confirmationHistory != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: dark ? AppColors.darkContainer : AppColors.grey.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    res.confirmationHistory!.isFirstConfirmation ? Icons.security : Icons.warning_amber,
-                    size: 15,
-                    color: res.confirmationHistory!.isFirstConfirmation ? AppColors.success : AppColors.warning,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      res.confirmationHistory!.isFirstConfirmation
-                          ? 'First Confirmation (Safe)'
-                          : 'Warning: Confirmed ${res.confirmationHistory!.confirmationCount}x previously!',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: res.confirmationHistory!.isFirstConfirmation ? AppColors.success : AppColors.warning,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            _buildDetailRow('Timestamp', '${DateFormat('d MMM yyyy, h:mm a').format(EthiopianTimeHelper.toEastAfricaTime(res.timestamp!))} EAT'),
+          if (res.resolvedUrl != null)
+            _buildDetailRow('Upstream URL', res.resolvedUrl!, canCopy: true),
 
           // Actions
           if (isVerified) ...[
@@ -718,7 +865,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
               child: OutlinedButton.icon(
                 onPressed: () {
                   final paymentsCtrl = Get.find<PaymentsController>();
-                  final ref = res.referenceNumber ?? res.receiptNumber ?? '';
+                  final ref = res.referenceNumber ?? '';
                   if (ref.isNotEmpty) {
                     paymentsCtrl.searchController.text = ref;
                     paymentsCtrl.onSearchChanged(ref);
@@ -793,16 +940,28 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                   Icon(Iconsax.clock_copy, size: 17, color: AppColors.primary),
                   SizedBox(width: 8),
                   Text(
-                    'Recent Verifications',
+                    'Scanned Receipts (Database)',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
                   ),
                 ],
               ),
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 15),
-                tooltip: 'Refresh History',
-                visualDensity: VisualDensity.compact,
-                onPressed: _ctrl.loadHistory,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_ctrl.historyList.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.error),
+                      tooltip: 'Clear Scanned Database',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _confirmClearHistory(context),
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 15),
+                    tooltip: 'Refresh History',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: _ctrl.loadHistory,
+                  ),
+                ],
               ),
             ],
           ),
@@ -817,7 +976,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                   children: [
                     Icon(Iconsax.receipt_item_copy, size: 32, color: dark ? AppColors.darkGrey : AppColors.grey),
                     const SizedBox(height: 6),
-                    const Text('No recent verifications yet.', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+                    const Text('No scanned receipts in local database yet.', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
                   ],
                 ),
               ),
@@ -826,7 +985,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: _ctrl.historyList.take(8).length,
+              itemCount: _ctrl.historyList.take(10).length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, idx) {
                 final item = _ctrl.historyList[idx];
@@ -849,20 +1008,71 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                       Text(item.bank.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
                       const SizedBox(width: 6),
                       _StatusTag(label: item.status.toUpperCase(), color: isOk ? AppColors.success : AppColors.error),
+                      if (item.scanCount > 1) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            '${item.scanCount}x',
+                            style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: AppColors.warning),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   subtitle: Text(
-                    item.requestId.length > 12 ? '${item.requestId.substring(0, 12)}...' : item.requestId,
+                    item.requestId,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 10.5),
+                    style: const TextStyle(fontSize: 10.5, fontFamily: 'monospace'),
                   ),
-                  trailing: item.createdAt != null
-                      ? Text(EthiopianTimeHelper.formatDate(item.createdAt!), style: const TextStyle(fontSize: 10, color: AppColors.textSecondary))
-                      : null,
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (item.amount > 0)
+                        Text(
+                          '${item.amount.toStringAsFixed(0)} ${item.currency}',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+                        ),
+                      if (item.createdAt != null)
+                        Text(
+                          '${DateFormat('d MMM yyyy, h:mm a').format(EthiopianTimeHelper.toEastAfricaTime(item.createdAt!))} EAT',
+                          style: const TextStyle(fontSize: 9.5, color: AppColors.textSecondary),
+                        ),
+                    ],
+                  ),
                 );
               },
             ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClearHistory(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear Scanned Database?', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'This will remove all stored verification records and scan timestamps from the local app database.',
+          style: TextStyle(fontSize: 12.5),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _ctrl.clearAllHistory();
+            },
+            child: const Text('Clear All'),
+          ),
         ],
       ),
     );

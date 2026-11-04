@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:m_admin/data/services/scanned_receipt_storage.dart';
 import 'package:m_admin/data/services/verify_et_service.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/payments/models/verify_et_model.dart';
@@ -15,18 +16,15 @@ class VerifyEtController extends GetxController {
           : Get.put(VerifyEtController(), permanent: true);
   static bool get isRegistered => Get.isRegistered<VerifyEtController>();
 
-  final _service = Get.put(VerifyEtService(), permanent: true);
+  final _service = VerifyEtService.instance;
+  final scannedStorage = ScannedReceiptStorage.instance;
 
   // ── Form State ────────────────────────────────────────────────────────────
   final selectedBank = 'universal'.obs;
   final referenceCtrl = TextEditingController();
-  final accountSuffixCtrl = TextEditingController();
-  final phoneCtrl = TextEditingController();
-  final settlementAccountCtrl = TextEditingController();
 
   // ── Settings State ────────────────────────────────────────────────────────
   final apiKeyCtrl = TextEditingController();
-  final defaultSettlementCtrl = TextEditingController();
 
   // ── Image State ───────────────────────────────────────────────────────────
   final selectedImageBytes = Rxn<Uint8List>();
@@ -35,10 +33,13 @@ class VerifyEtController extends GetxController {
   // ── Execution State ───────────────────────────────────────────────────────
   final isLoading = false.obs;
   final pollingStatusMessage = ''.obs;
-  final activeResult = Rxn<VerifyEtResult>();
+  final activeResult = Rxn<LinksEtResult>();
   final errorMessage = RxnString();
 
-  // ── History State ─────────────────────────────────────────────────────────
+  // ── Double-Scan / Previous Verification Detection ─────────────────────────
+  final previousScannedRecord = Rxn<ScannedReceiptRecord>();
+
+  // ── Local Database History State ──────────────────────────────────────────
   final historyList = <VerifyEtHistoryItem>[].obs;
   final isLoadingHistory = false.obs;
 
@@ -46,33 +47,36 @@ class VerifyEtController extends GetxController {
   void onInit() {
     super.onInit();
     apiKeyCtrl.text = _service.apiKey.value;
-    defaultSettlementCtrl.text = _service.defaultSettlementAccount.value;
-
-    if (_service.hasApiKey) {
-      loadHistory();
-    }
+    referenceCtrl.addListener(_onInputChanged);
+    loadHistory();
   }
 
   @override
   void onClose() {
+    referenceCtrl.removeListener(_onInputChanged);
     referenceCtrl.dispose();
-    accountSuffixCtrl.dispose();
-    phoneCtrl.dispose();
-    settlementAccountCtrl.dispose();
     apiKeyCtrl.dispose();
-    defaultSettlementCtrl.dispose();
     super.onClose();
+  }
+
+  void checkPriorScan() => _onInputChanged();
+
+  void _onInputChanged() {
+    final text = referenceCtrl.text.trim();
+    if (text.isEmpty) {
+      previousScannedRecord.value = null;
+      return;
+    }
+    final existing = scannedStorage.findRecord(text);
+    previousScannedRecord.value = existing;
   }
 
   bool get hasApiKey => _service.hasApiKey;
 
   void saveSettings() {
     _service.saveApiKey(apiKeyCtrl.text.trim());
-    _service.saveDefaultSettlementAccount(defaultSettlementCtrl.text.trim());
-    SnackbarHelper.success('Settings Saved', 'Verify.ET API Key and default settlement account updated.');
-    if (historyList.isEmpty && _service.hasApiKey) {
-      loadHistory();
-    }
+    SnackbarHelper.success('Settings Saved', 'Verify.ET API Key updated successfully.');
+    loadHistory();
   }
 
   Future<void> pickReceiptImage() async {
@@ -99,20 +103,18 @@ class VerifyEtController extends GetxController {
 
   void resetForm() {
     referenceCtrl.clear();
-    accountSuffixCtrl.clear();
-    phoneCtrl.clear();
-    settlementAccountCtrl.clear();
     clearImage();
     activeResult.value = null;
     errorMessage.value = null;
     pollingStatusMessage.value = '';
+    previousScannedRecord.value = null;
   }
 
   /// Pre-fills the verification form from a pending PaymentReview item.
   void prefillFromReview(PaymentReview review) {
     resetForm();
 
-    // Guess bank from paymentMethod string
+    // Determine bank from paymentMethod string
     final m = review.paymentMethod.toLowerCase();
     if (m.contains('telebirr')) {
       selectedBank.value = 'telebirr';
@@ -120,29 +122,39 @@ class VerifyEtController extends GetxController {
       selectedBank.value = 'cbe';
     } else if (m.contains('abyssinia') || m.contains('boa')) {
       selectedBank.value = 'boa';
-    } else if (m.contains('mpesa') || m.contains('m-pesa')) {
-      selectedBank.value = 'mpesa';
-    } else if (m.contains('dashen')) {
-      selectedBank.value = 'dashen';
     } else if (m.contains('awash')) {
       selectedBank.value = 'awash';
-    } else if (m.contains('oromia') || m.contains('coop') || m.contains('cbo') || m.contains('coopay')) {
-      selectedBank.value = 'coopayebirr';
+    } else if (m.contains('zemen')) {
+      selectedBank.value = 'zemen';
+    } else if (m.contains('dashen')) {
+      selectedBank.value = 'dashen';
+    } else if (m.contains('cbebirr') || m.contains('cbe_birr')) {
+      selectedBank.value = 'cbebirr';
+    } else if (m.contains('mpesa') || m.contains('m-pesa')) {
+      selectedBank.value = 'mpesa';
+    } else if (m.contains('oromia') || m.contains('coop') || m.contains('coopay')) {
+      selectedBank.value = 'oromia';
     } else {
       selectedBank.value = 'universal';
     }
 
     if (review.verificationUrl.isNotEmpty) {
-      referenceCtrl.text = review.verificationUrl;
+      final raw = review.verificationUrl.trim();
+      if (selectedBank.value == 'telebirr') {
+        final cleanTok = VerifyEtService.sanitizeTelebirrReference(raw);
+        referenceCtrl.text = cleanTok.isNotEmpty && !cleanTok.startsWith('http') ? cleanTok : raw;
+      } else {
+        referenceCtrl.text = raw;
+      }
     }
   }
 
-  /// Refreshes the verification status for a pending requestId
+  /// Refreshes the verification status for a queued requestId
   Future<void> refreshStatus(String requestId) async {
     if (!_service.hasApiKey) return;
     isLoading.value = true;
     errorMessage.value = null;
-    pollingStatusMessage.value = 'Checking verification status...';
+    pollingStatusMessage.value = 'Checking verification status on verify.et...';
 
     try {
       final res = await _service.getVerificationStatus(requestId);
@@ -175,50 +187,64 @@ class VerifyEtController extends GetxController {
   /// Triggers verification via Verify.ET
   Future<void> submitVerification() async {
     if (!_service.hasApiKey) {
-      errorMessage.value = 'Please provide your Verify.ET API key first.';
-      SnackbarHelper.warning('API Key Required', 'Please enter your Verify.ET API key in the settings section.');
+      errorMessage.value = 'Please configure your Verify.ET API key (VERIFY_BANK_ET_...) first.';
+      SnackbarHelper.warning('API Key Required', 'Please enter your Verify.ET API key in settings.');
       return;
     }
 
     final hasImage = selectedImageBytes.value != null;
-    final ref = referenceCtrl.text.trim();
+    final inputVal = referenceCtrl.text.trim();
+    final bank = selectedBank.value;
 
-    if (!hasImage && ref.isEmpty) {
-      errorMessage.value = 'Please enter a reference number or upload a receipt photo.';
-      SnackbarHelper.warning('Missing Reference', 'Please enter a transaction ID, reference, or upload a receipt photo.');
+    if (!hasImage && inputVal.isEmpty) {
+      errorMessage.value = 'Please enter a receipt URL or Telebirr reference.';
+      SnackbarHelper.warning('Input Required', 'Please provide a receipt link or reference number.');
       return;
+    }
+
+    ResolvedReceiptInput? resolved;
+    if (!hasImage) {
+      resolved = LinksEtService.resolveReceiptInput(
+        input: inputVal,
+        bank: bank,
+      );
+      if (resolved.primaryTarget.isEmpty) {
+        errorMessage.value = 'Please enter a valid reference, receipt URL, or confirmation SMS.';
+        SnackbarHelper.warning('Input Required', 'Please provide a receipt link or reference number.');
+        return;
+      }
     }
 
     isLoading.value = true;
     errorMessage.value = null;
     activeResult.value = null;
-    pollingStatusMessage.value = '';
+    pollingStatusMessage.value = resolved?.isAutoConstructed == true && resolved?.note != null
+        ? resolved!.note!
+        : '';
+
+    // Check for prior scan in local database
+    final existing = scannedStorage.findRecord(inputVal);
+    previousScannedRecord.value = existing;
 
     try {
-      VerifyEtResult res;
+      LinksEtResult res;
 
       void onTick(int attempt, int maxAttempts) {
-        pollingStatusMessage.value = 'Checking bank confirmation ($attempt/$maxAttempts)...';
+        pollingStatusMessage.value = 'Checking upstream bank confirmation ($attempt/$maxAttempts)...';
       }
 
       if (hasImage) {
-        res = await _service.verifyReceiptImage(
+        res = await _service.verifyScreenshot(
           imageBytes: selectedImageBytes.value!,
-          fileName: selectedImageName.value ?? 'receipt.jpg',
-          bank: selectedBank.value,
-          reference: ref.isNotEmpty ? ref : null,
-          accountSuffix: accountSuffixCtrl.text.trim().isNotEmpty ? accountSuffixCtrl.text.trim() : null,
-          phone: phoneCtrl.text.trim().isNotEmpty ? phoneCtrl.text.trim() : null,
-          settlementAccount: settlementAccountCtrl.text.trim().isNotEmpty ? settlementAccountCtrl.text.trim() : null,
+          fileName: selectedImageName.value,
+          bankHint: bank,
           onPollTick: onTick,
         );
       } else {
-        res = await _service.verifyTransaction(
-          bank: selectedBank.value,
-          reference: ref,
-          accountSuffix: accountSuffixCtrl.text.trim().isNotEmpty ? accountSuffixCtrl.text.trim() : null,
-          phone: phoneCtrl.text.trim().isNotEmpty ? phoneCtrl.text.trim() : null,
-          settlementAccount: settlementAccountCtrl.text.trim().isNotEmpty ? settlementAccountCtrl.text.trim() : null,
+        res = await _service.verifyReceipt(
+          url: resolved!.url,
+          reference: resolved.reference,
+          bankHint: resolved.resolvedBank,
           onPollTick: onTick,
         );
       }
@@ -226,17 +252,27 @@ class VerifyEtController extends GetxController {
       activeResult.value = res;
 
       if (res.verified) {
-        SnackbarHelper.success('Verified!', 'Transaction confirmed by ${res.bank.toUpperCase()}: ${res.amount} ${res.currency}');
+        final amountStr = '${res.amount} ${res.currency}';
+        final bankLabel = res.bank.toUpperCase();
+        if (existing != null) {
+          SnackbarHelper.warning(
+            'Already Scanned Before!',
+            'Verified $bankLabel receipt ($amountStr). Note: This receipt was previously scanned on ${existing.formattedScannedDate} (Status: ${existing.status}).',
+          );
+        } else {
+          SnackbarHelper.success('Verified at Source!', 'Confirmed by $bankLabel: $amountStr');
+        }
       } else if (res.isPending) {
         SnackbarHelper.info(
           'Verification Queued',
-          '${res.bank.toUpperCase()} verification is in progress. Use "Check Status" to refresh once processed.',
+          '${res.bank.toUpperCase()} verification is in progress upstream. Use "Check Status" to refresh.',
         );
       } else {
-        SnackbarHelper.warning('Unverified', 'Status: ${res.status} (${res.processingStatus ?? 'unconfirmed'})');
+        final reason = res.userFriendlyErrorMessage;
+        SnackbarHelper.warning('Not Verified', reason);
       }
 
-      // Reload verification history
+      // Reload local database history
       loadHistory();
     } catch (e) {
       final msg = e.toString().replaceFirst('Exception: ', '');
@@ -248,8 +284,8 @@ class VerifyEtController extends GetxController {
     }
   }
 
+  /// Loads verified/scanned receipt history from the local database.
   Future<void> loadHistory() async {
-    if (!_service.hasApiKey) return;
     isLoadingHistory.value = true;
     try {
       historyList.value = await _service.fetchHistory();
@@ -257,5 +293,19 @@ class VerifyEtController extends GetxController {
     } finally {
       isLoadingHistory.value = false;
     }
+  }
+
+  /// Removes a history item from the local app database.
+  void deleteHistoryRecord(String id) {
+    scannedStorage.removeRecord(id);
+    loadHistory();
+  }
+
+  /// Clears all stored verification records from local database.
+  void clearAllHistory() {
+    scannedStorage.clearAll();
+    loadHistory();
+    previousScannedRecord.value = null;
+    SnackbarHelper.info('Database Cleared', 'All local scanned receipt records have been removed.');
   }
 }

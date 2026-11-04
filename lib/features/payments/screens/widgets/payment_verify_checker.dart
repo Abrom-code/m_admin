@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:m_admin/data/repositories/admin_payment_repository.dart';
 import 'package:m_admin/data/services/receipt_extractor_service.dart';
+import 'package:m_admin/data/services/scanned_receipt_storage.dart';
 import 'package:m_admin/data/services/verify_et_service.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/payments/models/verify_et_model.dart';
@@ -16,16 +17,18 @@ import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 /// Content-first inline verification widget embedded on the payment approval screen.
-/// Exclusively activates for CBE, Telebirr, or Bank of Abyssinia receipts.
+/// Implements Verify.ET bank-level verification (https://verify.et/docs/api).
 class PaymentVerifyChecker extends StatefulWidget {
   const PaymentVerifyChecker({
     super.key,
     required this.review,
     this.onApproveWithAmount,
+    this.onTransactionExtracted,
   });
 
   final PaymentReview review;
   final void Function(num verifiedAmount)? onApproveWithAmount;
+  final void Function(String extractedTransactionId)? onTransactionExtracted;
 
   /// Returns supported bank key or null otherwise.
   static String? resolveSupportedBank(String rawMethod) {
@@ -34,8 +37,9 @@ class PaymentVerifyChecker extends StatefulWidget {
     if (clean.contains('cbe') || clean.contains('commercial_bank')) return 'cbe';
     if (clean.contains('abyssinia') || clean.contains('boa')) return 'boa';
     if (clean.contains('awash')) return 'awash';
+    if (clean.contains('zemen')) return 'zemen';
     if (clean.contains('oromia') || clean.contains('coop') || clean.contains('cbo') || clean.contains('coopay')) {
-      return 'coopayebirr';
+      return 'oromia';
     }
     if (clean.contains('dashen')) return 'dashen';
     if (clean.contains('cbebirr') || clean.contains('cbe_birr')) return 'cbebirr';
@@ -49,46 +53,72 @@ class PaymentVerifyChecker extends StatefulWidget {
 
 class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
   final _service = VerifyEtService.instance;
+  final _scannedStorage = ScannedReceiptStorage.instance;
+
   late final TextEditingController _refCtrl;
-  late final TextEditingController _suffixCtrl;
 
   bool _isLoading = false;
   bool _isExtracting = false;
   String? _pollStatus;
   ReceiptExtractionResult? _extractedInfo;
-  VerifyEtResult? _result;
+  LinksEtResult? _result;
   String? _errorMessage;
+  ScannedReceiptRecord? _previousRecord;
 
   @override
   void initState() {
     super.initState();
-    _refCtrl = TextEditingController(text: widget.review.verificationUrl.trim());
-    _suffixCtrl = TextEditingController();
+    final initialText = widget.review.verificationUrl.trim();
+    final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
+    String cleanInitial = initialText;
+    if (bank == 'telebirr' && initialText.isNotEmpty) {
+      final sanitized = VerifyEtService.sanitizeTelebirrReference(initialText);
+      if (sanitized.isNotEmpty && !sanitized.startsWith('http')) {
+        cleanInitial = sanitized;
+      }
+    }
+    _refCtrl = TextEditingController(text: cleanInitial);
     _refCtrl.addListener(_onRefChanged);
 
-    // Auto-prefill suffix from saved settlement account if available
-    _prefillSuffixFromDefaultSettlement();
+    _checkPreviousRecord();
 
-    // Auto-detect transaction ID from receipt image if input is empty
+    // Auto-detect transaction ID or link from receipt image if input is empty
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _autoExtractIfApplicable();
     });
   }
 
   void _onRefChanged() {
+    _checkPreviousRecord();
+    final text = _refCtrl.text.trim();
+    if (text.isNotEmpty) {
+      final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
+      var clean = text;
+      if (bank == 'telebirr' && text.contains('transactioninfo.ethiotelecom.et')) {
+        final sanitized = VerifyEtService.sanitizeTelebirrReference(text);
+        if (sanitized.isNotEmpty && !sanitized.startsWith('http')) {
+          clean = sanitized;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_refCtrl.text != clean) {
+              _refCtrl.value = TextEditingValue(
+                text: clean,
+                selection: TextSelection.collapsed(offset: clean.length),
+              );
+            }
+          });
+        }
+      }
+      widget.onTransactionExtracted?.call(clean);
+    }
     if (mounted) setState(() {});
   }
 
-  void _prefillSuffixFromDefaultSettlement() {
-    final defaultAcc = _service.defaultSettlementAccount.value.trim();
-    if (defaultAcc.isNotEmpty && _suffixCtrl.text.isEmpty) {
-      final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
-      final digits = defaultAcc.replaceAll(RegExp(r'\D'), '');
-      if (bank == 'cbe' && digits.length >= 8) {
-        _suffixCtrl.text = digits.substring(digits.length - 8);
-      } else if (bank == 'boa' && digits.length >= 5) {
-        _suffixCtrl.text = digits.substring(digits.length - 5);
-      }
+  void _checkPreviousRecord() {
+    final text = _refCtrl.text.trim();
+    if (text.isEmpty) {
+      _previousRecord = null;
+    } else {
+      _previousRecord = _scannedStorage.findRecord(text);
     }
   }
 
@@ -96,13 +126,21 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
   void didUpdateWidget(covariant PaymentVerifyChecker oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.review.id != widget.review.id) {
-      _refCtrl.text = widget.review.verificationUrl.trim();
-      _suffixCtrl.clear();
-      _prefillSuffixFromDefaultSettlement();
+      final raw = widget.review.verificationUrl.trim();
+      final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
+      String cleanText = raw;
+      if (bank == 'telebirr' && raw.isNotEmpty) {
+        final sanitized = VerifyEtService.sanitizeTelebirrReference(raw);
+        if (sanitized.isNotEmpty && !sanitized.startsWith('http')) {
+          cleanText = sanitized;
+        }
+      }
+      _refCtrl.text = cleanText;
       _result = null;
       _errorMessage = null;
       _pollStatus = null;
       _extractedInfo = null;
+      _checkPreviousRecord();
       _autoExtractIfApplicable();
     }
   }
@@ -134,9 +172,16 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
         return;
       }
 
+      final cacheKey = widget.review.id.isNotEmpty
+          ? widget.review.id
+          : (widget.review.receiptPath.isNotEmpty
+              ? widget.review.receiptPath
+              : imageUrl.split('?').first);
+
       final res = await ReceiptExtractorService.instance.extractFromUrl(
         imageUrl,
         bankHint: bank,
+        cacheKey: cacheKey,
       );
 
       if (mounted) {
@@ -144,19 +189,35 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
           _isExtracting = false;
           _extractedInfo = res;
           if (res != null && res.hasTransactionId) {
-            final targetRef = res.transactionId ?? res.receiptUrl!;
+            final isTelebirr = (bank == 'telebirr') ||
+                widget.review.paymentMethod.toLowerCase().contains('telebirr') ||
+                (res.bank?.toLowerCase() == 'telebirr');
+
+            String targetRef;
+            if (isTelebirr) {
+              // For Telebirr, ALWAYS display the clean 10-character reference number, NOT a URL
+              final raw = res.transactionId ?? res.receiptUrl ?? '';
+              final cleanRef = VerifyEtService.sanitizeTelebirrReference(raw);
+              targetRef = cleanRef.isNotEmpty && !cleanRef.startsWith('http') ? cleanRef : raw;
+            } else {
+              targetRef = res.receiptUrl ?? res.transactionId!;
+            }
+
             _refCtrl.text = targetRef;
+            _checkPreviousRecord();
+            ReceiptExtractorService.instance.setCache(widget.review.id, res);
+            widget.onTransactionExtracted?.call(targetRef);
             if (manual) {
               final isLink = targetRef.startsWith('http');
               SnackbarHelper.success(
-                isLink ? 'Receipt Link Extracted' : 'Transaction ID Extracted',
+                isLink ? 'Receipt Link Extracted' : 'Reference Number Extracted',
                 'Found $targetRef from receipt image.',
               );
             }
           } else if (manual) {
             SnackbarHelper.info(
               'Notice',
-              'Could not detect transaction ID automatically. You can enter it manually.',
+              'Could not detect transaction ID automatically. You can enter the URL or ID manually.',
             );
           }
         });
@@ -183,7 +244,6 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
   void dispose() {
     _refCtrl.removeListener(_onRefChanged);
     _refCtrl.dispose();
-    _suffixCtrl.dispose();
     super.dispose();
   }
 
@@ -194,7 +254,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
-      _pollStatus = 'Checking verification status...';
+      _pollStatus = 'Checking verification status on verify.et...';
     });
 
     try {
@@ -225,14 +285,24 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
       VerifyEtSettingsDialog.show(context);
       SnackbarHelper.warning(
         'Verify.ET Key Required',
-        'Please enter your Verify.ET API key to perform automated verification.',
+        'Please enter your Verify.ET API key (VERIFY_BANK_ET_...) to perform automated bank verification.',
       );
       return;
     }
 
-    final ref = _refCtrl.text.trim();
-    if (ref.isEmpty) {
-      setState(() => _errorMessage = 'Please enter a transaction reference or receipt ID.');
+    final inputVal = _refCtrl.text.trim();
+    if (inputVal.isEmpty) {
+      setState(() => _errorMessage = 'Please enter a receipt URL or Telebirr reference.');
+      return;
+    }
+
+    final resolved = LinksEtService.resolveReceiptInput(
+      input: inputVal,
+      bank: bank,
+    );
+
+    if (resolved.primaryTarget.isEmpty) {
+      setState(() => _errorMessage = 'Please enter a valid reference code, receipt link, or confirmation SMS.');
       return;
     }
 
@@ -240,19 +310,20 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
       _isLoading = true;
       _errorMessage = null;
       _result = null;
-      _pollStatus = null;
+      _pollStatus = resolved.isAutoConstructed && resolved.note != null
+          ? resolved.note
+          : null;
     });
 
     try {
-      final suffixText = _suffixCtrl.text.trim();
-      final res = await _service.verifyTransaction(
-        bank: bank,
-        reference: ref,
-        accountSuffix: suffixText.isNotEmpty ? suffixText : null,
+      final res = await _service.verifyReceipt(
+        url: resolved.url,
+        reference: resolved.reference,
+        bankHint: resolved.resolvedBank,
         onPollTick: (attempt, max) {
           if (mounted) {
             setState(() {
-              _pollStatus = 'Checking bank confirmation ($attempt/$max)...';
+              _pollStatus = 'Checking upstream bank confirmation ($attempt/$max)...';
             });
           }
         },
@@ -264,6 +335,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
           _isLoading = false;
           _pollStatus = null;
         });
+        _checkPreviousRecord();
       }
     } catch (e) {
       if (mounted) {
@@ -282,79 +354,77 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     if (bank == null) return const SizedBox.shrink();
 
     final dark = AppHelperFunctions.isDark(context);
-    final refText = _refCtrl.text.trim();
-    final isCbe = bank == 'cbe';
-    final isBoa = bank == 'boa';
-
-    final isCbeLinkOrModern = isCbe && (
-        refText.toLowerCase().startsWith('http') ||
-        refText.toLowerCase().contains('cbe.com.et') ||
-        refText.toLowerCase().contains('mreciept') ||
-        refText.toLowerCase().contains('mreceipt')
-    );
-    final isCbeFt = isCbe && refText.toUpperCase().startsWith('FT');
 
     String bankName;
     String bankIcon;
     String refLabel;
     String refHint;
+    String methodExplanation;
 
     switch (bank) {
-      case 'cbe':
-        bankName = 'CBE';
-        bankIcon = '🏦';
-        refLabel = 'CBE Transaction ID / Receipt Link';
-        refHint = 'e.g. FT26... or https://mreciept.cbe.com.et/...';
-        break;
       case 'telebirr':
         bankName = 'Telebirr';
         bankIcon = '📱';
-        refLabel = 'Telebirr Transaction Number';
-        refHint = 'e.g. DET8FJGUJ4';
+        refLabel = 'Telebirr Reference or Receipt URL';
+        refHint = 'e.g. DET8FJGUJ4 or https://transactioninfo.ethiotelecom.et/...';
+        methodExplanation = 'Supported: Reference number (e.g. DET8...) or official receipt link.';
+        break;
+      case 'cbe':
+        bankName = 'CBE';
+        bankIcon = '🏦';
+        refLabel = 'CBE Reference, Receipt Link, or SMS';
+        refHint = 'e.g. FT... or https://mbreciept.cbe.com.et/...';
+        methodExplanation = 'Supported: SMS receipt link, dashed token (FT...-12345678), branch slip (FT...), or raw SMS.';
         break;
       case 'boa':
+      case 'abyssinia':
         bankName = 'Abyssinia';
         bankIcon = '🦁';
-        refLabel = 'Abyssinia Reference';
-        refHint = 'e.g. FT26...';
+        refLabel = 'Abyssinia Reference (FT...) or Slip Link';
+        refHint = 'e.g. FT... or https://cs.bankofabyssinia.com/slip/?trx=...';
+        methodExplanation = 'Supported: Reference token (FT...), digital slip link, or raw confirmation SMS.';
         break;
       case 'awash':
         bankName = 'Awash Bank';
         bankIcon = '🌊';
-        refLabel = 'Awash Receipt Link or Ref';
-        refHint = 'e.g. https://awashpay.awashbank.com:8225/... or Ref';
+        refLabel = 'AwashPay Receipt URL';
+        refHint = 'e.g. https://awashpay.awashbank.com:8225/...';
+        methodExplanation = 'Supported: AwashPay web receipt link.';
         break;
-      case 'coopayebirr':
-      case 'oromia':
-      case 'coop':
-        bankName = 'Oromia / Coop';
-        bankIcon = '🤝';
-        refLabel = 'Oromia / Coopay Receipt Link or Ref';
-        refHint = 'e.g. https://receipt.ebirr.com/coopay/... or Ref';
+      case 'zemen':
+        bankName = 'Zemen Bank';
+        bankIcon = '🏛️';
+        refLabel = 'Zemen Bank Receipt URL';
+        refHint = 'e.g. https://share.zemenbank.com/rt/.../pdf';
+        methodExplanation = 'Supported: Zemen share receipt PDF URL.';
         break;
       case 'dashen':
         bankName = 'Dashen';
         bankIcon = '🏛️';
-        refLabel = 'Dashen Reference';
-        refHint = 'e.g. FT26...';
+        refLabel = 'Dashen Receipt URL';
+        refHint = 'e.g. https://... or Dashen web receipt URL';
+        methodExplanation = 'Supported: Dashen Super App or PDF receipt link.';
         break;
       case 'cbebirr':
         bankName = 'CBE Birr';
         bankIcon = '💳';
-        refLabel = 'CBE Birr Receipt Number';
-        refHint = 'e.g. 1009827361';
+        refLabel = 'CBE Birr Receipt URL';
+        refHint = 'Official CBE Birr receipt URL';
+        methodExplanation = 'Supported: CBE Birr web receipt link.';
         break;
       case 'mpesa':
         bankName = 'M-Pesa';
         bankIcon = '📲';
-        refLabel = 'M-Pesa Transaction Code';
-        refHint = 'e.g. DET8FJGUJ4';
+        refLabel = 'M-Pesa Receipt URL';
+        refHint = 'Official M-Pesa receipt link';
+        methodExplanation = 'Supported: M-Pesa digital receipt URL.';
         break;
       default:
         bankName = bank.toUpperCase();
         bankIcon = '💳';
-        refLabel = '$bankName Reference';
-        refHint = 'Transaction reference or link';
+        refLabel = '$bankName Receipt URL';
+        refHint = 'Official web receipt link';
+        methodExplanation = 'Supported: Full official receipt URL.';
         break;
     }
 
@@ -372,7 +442,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header Bar (Responsive & Protected from Overflow)
+          // Header Bar
           LayoutBuilder(
             builder: (context, constraints) {
               final isNarrow = constraints.maxWidth < 360;
@@ -409,7 +479,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
                             border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
                           ),
                           child: const Text(
-                            'LIVE',
+                            'verify.et',
                             style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.success),
                           ),
                         ),
@@ -472,49 +542,175 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
               );
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // Responsive Input Area (No Overflow)
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isCompact = constraints.maxWidth < 420;
+          // ── DOUBLE-SCAN / PREVIOUS SCAN ALERT BANNER ───────────────────────
+          if (_previousRecord != null) () {
+            final isPrevApproved = _previousRecord!.isApproved;
+            final bannerColor = isPrevApproved ? AppColors.error : AppColors.warning;
 
-              // Suffix is strictly needed for BoA (5 digits) or CBE when using an FT reference code.
-              // For CBE with links/QR codes or other banks (Awash, Oromia, Telebirr), suffix is NOT required.
-              final needsSuffix = isBoa || (isCbe && !isCbeLinkOrModern);
-
-              final inputField = TextField(
-                controller: _refCtrl,
-                style: const TextStyle(fontSize: 12.5),
-                decoration: InputDecoration(
-                  labelText: refLabel,
-                  hintText: refHint,
-                  prefixIcon: const Icon(Iconsax.receipt_2_copy, size: 16),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  isDense: true,
-                ),
-              );
-
-              final suffixField = needsSuffix
-                  ? TextField(
-                      controller: _suffixCtrl,
-                      keyboardType: TextInputType.number,
-                      maxLength: isCbe ? 8 : 5,
-                      style: const TextStyle(fontSize: 12.5),
-                      decoration: InputDecoration(
-                        labelText: isCbe ? 'Suffix (8-digits)' : 'Suffix (5-digits)',
-                        hintText: isCbe ? '03997441' : '07441',
-                        counterText: '',
-                        prefixIcon: const Icon(Iconsax.hashtag_copy, size: 14),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        isDense: true,
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: bannerColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: bannerColor.withValues(alpha: 0.5), width: 1.2),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(isPrevApproved ? Icons.gpp_bad_rounded : Icons.warning_amber_rounded, size: 16, color: bannerColor),
+                      const SizedBox(width: 6),
+                      Text(
+                        isPrevApproved ? 'ALREADY APPROVED BEFORE' : 'ALREADY SCANNED BEFORE',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: bannerColor,
+                          letterSpacing: 0.5,
+                        ),
                       ),
-                    )
-                  : null;
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: bannerColor.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Scanned ${_previousRecord!.scanCount}x',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: bannerColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Text(
+                        'Status: ',
+                        style: TextStyle(fontSize: 11, color: dark ? Colors.white70 : Colors.black87),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: (isPrevApproved ? AppColors.error : AppColors.success).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          _previousRecord!.status.toUpperCase(),
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isPrevApproved ? AppColors.error : AppColors.success),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          isPrevApproved
+                              ? 'Approved: ${_previousRecord!.formattedApprovedDate ?? _previousRecord!.formattedScannedDate}'
+                              : 'Date: ${_previousRecord!.formattedScannedDate}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_previousRecord!.userEmail != null && _previousRecord!.userEmail!.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        const Icon(Icons.person_outline, size: 12, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'User: ${_previousRecord!.userEmail}',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (_previousRecord!.amount != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      'Amount: ${_previousRecord!.amount} ${_previousRecord!.currency} (${_previousRecord!.method.toUpperCase()})',
+                      style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }(),
 
-              final checkButton = SizedBox(
+          // Supported Verify Way Guide Note
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, size: 13, color: Color(0xFF6366F1)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    methodExplanation,
+                    style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Input Area (URL or Reference)
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _refCtrl,
+                  style: const TextStyle(fontSize: 12.5),
+                  decoration: InputDecoration(
+                    labelText: refLabel,
+                    hintText: refHint,
+                    prefixIcon: const Icon(Iconsax.receipt_2_copy, size: 16),
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_refCtrl.text.isNotEmpty)
+                          IconButton(
+                            icon: const Icon(Icons.clear, size: 16),
+                            tooltip: 'Clear',
+                            onPressed: () {
+                              _refCtrl.clear();
+                              setState(() {
+                                _result = null;
+                                _errorMessage = null;
+                              });
+                            },
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.content_paste_rounded, size: 16),
+                          tooltip: 'Paste from clipboard',
+                          onPressed: () async {
+                            final data = await Clipboard.getData('text/plain');
+                            if (data?.text != null && data!.text!.trim().isNotEmpty) {
+                              _refCtrl.text = data.text!.trim();
+                              _checkPreviousRecord();
+                              widget.onTransactionExtracted?.call(_refCtrl.text.trim());
+                              setState(() {});
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
                 height: 38,
                 child: FilledButton.icon(
                   onPressed: _isLoading ? null : _check,
@@ -535,111 +731,11 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
-              );
-
-              if (isCompact) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    inputField,
-                    if (suffixField != null) ...[
-                      const SizedBox(height: 8),
-                      suffixField,
-                    ],
-                    const SizedBox(height: 8),
-                    checkButton,
-                  ],
-                );
-              }
-
-              return Row(
-                children: [
-                  Expanded(flex: needsSuffix ? 4 : 5, child: inputField),
-                  if (suffixField != null) ...[
-                    const SizedBox(width: 6),
-                    Expanded(flex: isCbe ? 3 : 2, child: suffixField),
-                  ],
-                  const SizedBox(width: 8),
-                  checkButton,
-                ],
-              );
-            },
+              ),
+            ],
           ),
-          if (isCbe) ...[
-            const SizedBox(height: 6),
-            if (isCbeLinkOrModern)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.check_circle_outline, size: 14, color: AppColors.success),
-                    SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Receipt Link / QR Mode: Suffix NOT required. CBE links contain full instant proof.',
-                        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppColors.success),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else if (isCbeFt)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline, size: 14, color: Color(0xFF6366F1)),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        _suffixCtrl.text.trim().isNotEmpty
-                            ? 'Legacy FT Reference: 8-digit suffix auto-filled from default settlement account.'
-                            : 'Legacy FT Reference: 8-digit suffix required (last 8 digits of receiver account).',
-                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF6366F1)),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              const Padding(
-                padding: EdgeInsets.only(top: 4, left: 4),
-                child: Text(
-                  '💡 CBE Suffix Rule: Only needed for older FT references (FT26...). Never needed for modern CBE QR codes or receipt links.',
-                  style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
-                ),
-              ),
-          ] else if (bank == 'awash') ...[
-            const SizedBox(height: 6),
-            const Padding(
-              padding: EdgeInsets.only(top: 2, left: 4),
-              child: Text(
-                '💡 Awash Bank: Suffix not needed. Enter the AwashPay receipt link (https://awashpay.awashbank.com:8225/...) or transaction reference.',
-                style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
-              ),
-            ),
-          ] else if (bank == 'coopayebirr' || bank == 'oromia' || bank == 'coop') ...[
-            const SizedBox(height: 6),
-            const Padding(
-              padding: EdgeInsets.only(top: 2, left: 4),
-              child: Text(
-                '💡 Oromia / Coop: Suffix not needed. Enter the Coopay/eBirr receipt link (https://receipt.ebirr.com/coopay/...) or transaction reference.',
-                style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
-              ),
-            ),
-          ],
 
-          // Reference Option Switcher (When a CBE Receipt Link is available)
+          // Quick Option Switcher if receipt link was extracted
           if (_extractedInfo != null && _extractedInfo!.receiptUrl != null) ...[
             const SizedBox(height: 8),
             Container(
@@ -649,115 +745,37 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.2)),
               ),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              child: Row(
                 children: [
-                  const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.tune_rounded, size: 12, color: Color(0xFF6366F1)),
-                      SizedBox(width: 4),
-                      Text(
-                        'Quick Option:',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF6366F1),
-                        ),
-                      ),
-                    ],
+                  const Icon(Icons.link_rounded, size: 13, color: Color(0xFF6366F1)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _extractedInfo!.receiptUrl!,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10.5, fontFamily: 'monospace', color: Color(0xFF6366F1)),
+                    ),
                   ),
+                  const SizedBox(width: 6),
                   InkWell(
-                    onTap: () => setState(() => _refCtrl.text = _extractedInfo!.receiptUrl!),
-                    borderRadius: BorderRadius.circular(4),
+                    onTap: () {
+                      _refCtrl.text = _extractedInfo!.receiptUrl!;
+                    },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: _refCtrl.text == _extractedInfo!.receiptUrl
-                            ? const Color(0xFF6366F1)
-                            : Colors.transparent,
+                        color: const Color(0xFF6366F1),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: _refCtrl.text == _extractedInfo!.receiptUrl
-                              ? const Color(0xFF6366F1)
-                              : AppColors.borderPrimary,
-                        ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.link_rounded,
-                            size: 11,
-                            color: _refCtrl.text == _extractedInfo!.receiptUrl
-                                ? Colors.white
-                                : AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            'Use Full Link',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: _refCtrl.text == _extractedInfo!.receiptUrl
-                                  ? Colors.white
-                                  : AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
+                      child: const Text('Use Link', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ),
-                  if (_extractedInfo!.receiptToken != null)
-                    InkWell(
-                      onTap: () => setState(() => _refCtrl.text = _extractedInfo!.receiptToken!),
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: _refCtrl.text == _extractedInfo!.receiptToken
-                              ? const Color(0xFF6366F1)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: _refCtrl.text == _extractedInfo!.receiptToken
-                                ? const Color(0xFF6366F1)
-                                : AppColors.borderPrimary,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.tag_rounded,
-                              size: 11,
-                              color: _refCtrl.text == _extractedInfo!.receiptToken
-                                  ? Colors.white
-                                  : AppColors.textSecondary,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              'Use Token (${_extractedInfo!.receiptToken!.length > 10 ? '${_extractedInfo!.receiptToken!.substring(0, 8)}...' : _extractedInfo!.receiptToken})',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: _refCtrl.text == _extractedInfo!.receiptToken
-                                    ? Colors.white
-                                    : AppColors.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
           ],
 
-          // Scanning in-progress pill
+          // Scanning / Polling status
           if (_isExtracting) ...[
             const SizedBox(height: 8),
             Container(
@@ -768,20 +786,12 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
               ),
               child: const Row(
                 children: [
-                  SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: CircularProgressIndicator(strokeWidth: 1.8),
-                  ),
+                  SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.8)),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Scanning receipt image for Transaction ID...',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF6366F1),
-                        fontWeight: FontWeight.w500,
-                      ),
+                      'Scanning receipt screenshot for transaction link / reference...',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF6366F1), fontWeight: FontWeight.w500),
                     ),
                   ),
                 ],
@@ -789,7 +799,6 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
             ),
           ],
 
-          // Polling status pill (for queued banks like Telebirr)
           if (_pollStatus != null) ...[
             const SizedBox(height: 8),
             Container(
@@ -801,172 +810,12 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
               ),
               child: Row(
                 children: [
-                  const SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: CircularProgressIndicator(strokeWidth: 1.8),
-                  ),
+                  const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.8)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       _pollStatus!,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          // Extracted info preview (Shows detected ID, Link, Date & Parties before checking)
-          if (_extractedInfo != null && _result == null && !_isExtracting) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF6366F1).withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.25)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 2),
-                    child: Icon(Iconsax.scan_barcode_copy, size: 14, color: Color(0xFF6366F1)),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _extractedInfo!.receiptUrl != null
-                              ? 'Detected Receipt Reference / Link:'
-                              : 'Extracted ID: ${_extractedInfo!.transactionId ?? '—'}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF6366F1),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (_extractedInfo!.receiptUrl != null) ...[
-                          const SizedBox(height: 3),
-                          Text(
-                            _extractedInfo!.receiptUrl!,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontFamily: 'monospace',
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: [
-                              InkWell(
-                                onTap: () async {
-                                  final uri = Uri.tryParse(_extractedInfo!.receiptUrl!);
-                                  if (uri != null) {
-                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                  }
-                                },
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.open_in_new_rounded, size: 11, color: Color(0xFF6366F1)),
-                                    SizedBox(width: 3),
-                                    Text(
-                                      'Open Official CBE Receipt',
-                                      style: TextStyle(
-                                        fontSize: 10.5,
-                                        color: Color(0xFF6366F1),
-                                        fontWeight: FontWeight.w600,
-                                        decoration: TextDecoration.underline,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              InkWell(
-                                onTap: () {
-                                  Clipboard.setData(ClipboardData(text: _extractedInfo!.receiptUrl!));
-                                  SnackbarHelper.info('Copied', 'Receipt link copied to clipboard');
-                                },
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.copy_rounded, size: 11, color: Color(0xFF6366F1)),
-                                    SizedBox(width: 3),
-                                    Text(
-                                      'Copy Link',
-                                      style: TextStyle(
-                                        fontSize: 10.5,
-                                        color: Color(0xFF6366F1),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                        if (_extractedInfo!.amount != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Amount: ${_extractedInfo!.amount!.toStringAsFixed(2)} ${_extractedInfo!.currency}',
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                        if (_extractedInfo!.senderName != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            'Sender: ${_extractedInfo!.senderName!}',
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              color: AppColors.textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                        if (_extractedInfo!.receiverAccount != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            'Receiver: ${_extractedInfo!.receiverAccount!}${_extractedInfo!.receiverName != null ? ' (${_extractedInfo!.receiverName!})' : ''}',
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              color: AppColors.textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                        if (_extractedInfo!.date != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            'Receipt Date: ${_extractedInfo!.date!}',
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ],
+                      style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -1009,13 +858,11 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     );
   }
 
-  Widget _buildResultView(BuildContext context, bool dark, VerifyEtResult res) {
+  Widget _buildResultView(BuildContext context, bool dark, LinksEtResult res) {
     final isOk = res.verified;
-    final statusColor = isOk ? AppColors.success : (res.status == 'pending' ? AppColors.warning : AppColors.error);
-    final dateStr = _formatResultDate(res.timestamp) ?? _extractedInfo?.date;
-    final refVal = (res.referenceNumber != null && res.referenceNumber!.isNotEmpty)
-        ? res.referenceNumber!
-        : (res.receiptNumber ?? '');
+    final statusColor = isOk ? AppColors.success : (res.isPending ? AppColors.warning : AppColors.error);
+    final dateStr = res.receipt?.paymentDate ?? _formatResultDate(res.timestamp);
+    final refVal = res.referenceNumber ?? '';
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1041,115 +888,190 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
               Expanded(
                 child: Text(
                   isOk
-                      ? 'TRANSACTION CONFIRMED'
+                      ? 'CONFIRMED BY ${res.providerKey.toUpperCase()}'
                       : (res.isPending
-                          ? 'QUEUED IN BANK (PENDING)'
-                          : 'UNVERIFIED (${res.status.toUpperCase()})'),
+                          ? 'QUEUED UPSTREAM'
+                          : (res.isParsedButInvalid ? 'RECEIPT NOT FOUND AT BANK' : 'UNVERIFIED')),
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: statusColor,
-                  ),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: statusColor),
                 ),
               ),
               if (res.amount > 0)
                 Text(
                   '${res.amount.toStringAsFixed(res.amount.truncateToDouble() == res.amount ? 0 : 2)} ${res.currency}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: statusColor,
-                  ),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: statusColor),
                 ),
             ],
           ),
           const Divider(height: 16),
 
-          // Queued Telebirr / Bank Notification & Manual Status Refresh Button
-          if (res.isPending) ...[
+          // Failure Diagnosis Banner (for parsed but failed, missing receipt, etc.)
+          if (!isOk && !res.isPending) ...[
             Container(
               margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.12),
+                color: AppColors.error.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.info_outline_rounded, size: 14, color: AppColors.warning),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${res.bank.toUpperCase()} verification is in queue. If the bank takes longer to confirm, tap Check Status.',
-                      style: const TextStyle(
-                        fontSize: 10.5,
-                        color: AppColors.warning,
-                        fontWeight: FontWeight.w600,
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 14, color: AppColors.error),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          res.isParsedButInvalid
+                              ? 'Receipt Not Found on Bank Portal'
+                              : 'Verification Not Confirmed',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.error),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                  if (res.requestId != null && res.requestId!.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    FilledButton.tonal(
-                      onPressed: _isLoading ? null : _refreshStatus,
-                      style: FilledButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                      ),
-                      child: const Text('Check Status', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
-                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    res.userFriendlyErrorMessage,
+                    style: TextStyle(fontSize: 10.5, color: dark ? Colors.white70 : Colors.black87),
+                  ),
+                  if ((res.upstreamInspectionUrl ?? res.telebirrPortalUrl) != null) ...[
+                    () {
+                      final inspectionUrl = (res.upstreamInspectionUrl ?? res.telebirrPortalUrl)!;
+                      final provKey = res.providerKey.toLowerCase();
+                      final portalName = provKey.contains('telebirr')
+                          ? 'Ethio Telecom Portal'
+                          : (provKey.contains('cbe')
+                              ? 'CBE Portal'
+                              : (provKey.contains('boa') || provKey.contains('abyssinia')
+                                  ? 'Bank of Abyssinia Portal'
+                                  : '${res.providerKey.toUpperCase()} Portal'));
+
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          children: [
+                            InkWell(
+                              onTap: () async {
+                                final uri = Uri.tryParse(inspectionUrl);
+                                if (uri != null) {
+                                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.open_in_new_rounded, size: 11, color: Color(0xFF6366F1)),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Open in $portalName',
+                                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF6366F1)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            InkWell(
+                              onTap: _check,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.refresh, size: 11, color: AppColors.primary),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Retry',
+                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }(),
                   ],
                 ],
               ),
             ),
           ],
 
-          // Details List with strict overflow guards
-          // 1. Transaction Date (From verified timestamp or receipt image)
-          if (dateStr != null && dateStr.isNotEmpty)
-            _buildInfoRow('Date', dateStr, icon: Iconsax.calendar_1_copy),
-
-          // 2. Sender Name
-          if (res.senderName != null && res.senderName!.isNotEmpty)
-            _buildInfoRow('Sender', res.senderName!, icon: Iconsax.user_copy),
-
-          // 3. Receiver Account
-          if (res.receiverAccount != null && res.receiverAccount!.isNotEmpty)
-            _buildInfoRow('Receiver Acc', res.receiverAccount!, icon: Iconsax.card_copy),
-
-          // 4. Ref #
-          if (refVal.isNotEmpty)
-            _buildInfoRow('Ref #', refVal, canCopy: true, icon: Iconsax.receipt_2_copy),
-
-          // Settlement Badge
-          if (res.settlementAccountMatch != null) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(
-                  res.settlementAccountMatch!.matched ? Icons.verified_user : Icons.gpp_bad,
-                  size: 13,
-                  color: res.settlementAccountMatch!.matched ? AppColors.success : AppColors.error,
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    res.settlementAccountMatch!.matched
-                        ? 'Settlement Matched (Funds landed in your account)'
-                        : 'Settlement Mismatch: ${res.settlementAccountMatch!.reasonLabel}',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
-                      color: res.settlementAccountMatch!.matched ? AppColors.success : AppColors.error,
-                    ),
-                  ),
-                ),
-              ],
+          // If previously scanned, show reminder in result card too
+          if (res.wasScannedBefore) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Notice: Verified successfully. Note that this transaction was already in database (previous scan: ${res.previousRecord?.formattedPreviousDate ?? res.previousRecord?.formattedScannedDate}, status: ${res.previousRecord?.previousStatus ?? res.previousRecord?.status}).',
+                style: const TextStyle(fontSize: 10.5, color: AppColors.warning, fontWeight: FontWeight.w600),
+              ),
             ),
           ],
+
+          if (res.isPending && res.requestId != null && res.requestId!.isNotEmpty) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 14, color: AppColors.warning),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Upstream verification is in progress. Tap Check Status to refresh.',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.warning, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: _isLoading ? null : _refreshStatus,
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    ),
+                    child: const Text('Check Status', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Details
+          if (dateStr != null && dateStr.isNotEmpty)
+            _buildInfoRow('Date', dateStr, icon: Iconsax.calendar_1_copy),
+          if (res.senderName != null && res.senderName!.isNotEmpty)
+            _buildInfoRow('Sender', res.senderName!, icon: Iconsax.user_copy),
+          if (res.receiverName != null && res.receiverName!.isNotEmpty)
+            _buildInfoRow('Receiver', res.receiverName!, icon: Iconsax.user_tick_copy),
+          if (res.receiverAccount != null && res.receiverAccount!.isNotEmpty)
+            _buildInfoRow('Receiver Acc', res.receiverAccount!, icon: Iconsax.card_copy),
+          if (refVal.isNotEmpty)
+            _buildInfoRow('Reference #', refVal, canCopy: true, icon: Iconsax.receipt_2_copy),
+          if (res.receipt?.source != null)
+            _buildInfoRow('Receipt Source', res.receipt!.source, icon: Iconsax.document_copy),
 
           // Quick Approve Action
           if (isOk && widget.onApproveWithAmount != null && widget.review.isPending) ...[
@@ -1180,7 +1102,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
   String? _formatResultDate(DateTime? dt) {
     if (dt == null) return null;
     final eat = EthiopianTimeHelper.toEastAfricaTime(dt);
-    return '${DateFormat('d MMM yyyy, HH:mm').format(eat)} EAT';
+    return '${DateFormat('d MMM yyyy, h:mm a').format(eat)} EAT';
   }
 
   Widget _buildInfoRow(

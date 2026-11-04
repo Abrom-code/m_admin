@@ -7,7 +7,7 @@ import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
-/// Modal dialog to view and update the Verify.ET API key and settlement settings.
+/// Modal dialog to view and update the links.et API key configuration.
 class VerifyEtSettingsDialog extends StatefulWidget {
   const VerifyEtSettingsDialog({super.key});
 
@@ -24,36 +24,29 @@ class VerifyEtSettingsDialog extends StatefulWidget {
 }
 
 class _VerifyEtSettingsDialogState extends State<VerifyEtSettingsDialog> {
-  final _service = VerifyEtService.instance;
+  final _service = LinksEtService.instance;
   late final TextEditingController _apiKeyCtrl;
-  late final TextEditingController _settlementCtrl;
   bool _obscureKey = true;
 
   @override
   void initState() {
     super.initState();
     _apiKeyCtrl = TextEditingController(text: _service.apiKey.value);
-    _settlementCtrl = TextEditingController(text: _service.defaultSettlementAccount.value);
   }
 
   @override
   void dispose() {
     _apiKeyCtrl.dispose();
-    _settlementCtrl.dispose();
     super.dispose();
   }
 
   void _save() {
     final key = _apiKeyCtrl.text.trim();
-    final acc = _settlementCtrl.text.trim();
-
     _service.saveApiKey(key);
-    _service.saveDefaultSettlementAccount(acc);
 
     if (VerifyEtController.isRegistered) {
       final ctrl = VerifyEtController.instance;
       ctrl.apiKeyCtrl.text = key;
-      ctrl.defaultSettlementCtrl.text = acc;
       if (ctrl.historyList.isEmpty && key.isNotEmpty) {
         ctrl.loadHistory();
       }
@@ -61,8 +54,8 @@ class _VerifyEtSettingsDialogState extends State<VerifyEtSettingsDialog> {
 
     Navigator.of(context).pop();
     SnackbarHelper.success(
-      'Verify.ET Settings Saved',
-      'API Key and settlement configuration updated successfully.',
+      'Verify.ET Key Saved',
+      'API Key updated successfully.',
     );
   }
 
@@ -95,9 +88,19 @@ class _VerifyEtSettingsDialogState extends State<VerifyEtSettingsDialog> {
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
-                    child: Text(
-                      'Verify.ET Configuration',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Verify.ET Configuration',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Ethiopian Bank & Wallet Payment Verification Gateway',
+                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(
@@ -108,14 +111,38 @@ class _VerifyEtSettingsDialogState extends State<VerifyEtSettingsDialog> {
               ),
               const SizedBox(height: AppSizes.spaceBtwItems),
 
+              // API Key Info Box
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.2)),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Iconsax.info_circle_copy, size: 16, color: Color(0xFF6366F1)),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Mint your API key from the Verify.ET dashboard at https://verify.et. Production keys start with "VERIFY_BANK_ET_".',
+                        style: TextStyle(fontSize: 12, height: 1.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSizes.spaceBtwInputFields),
+
               // API Key input
               TextField(
                 controller: _apiKeyCtrl,
                 obscureText: _obscureKey,
-                style: const TextStyle(fontSize: 13),
+                style: const TextStyle(fontSize: 13, fontFamily: 'monospace'),
                 decoration: InputDecoration(
                   labelText: 'x-api-key',
-                  hintText: 'VERIFY_BANK_ET_...',
+                  hintText: 'VERIFY_BANK_ET_xxxxxxxxxxxxxxxxxxxxxxxx',
                   prefixIcon: const Icon(Iconsax.key_copy, size: 18),
                   suffixIcon: IconButton(
                     icon: Icon(
@@ -124,20 +151,6 @@ class _VerifyEtSettingsDialogState extends State<VerifyEtSettingsDialog> {
                     ),
                     onPressed: () => setState(() => _obscureKey = !_obscureKey),
                   ),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: AppSizes.spaceBtwInputFields),
-
-              // Default Settlement Account input
-              TextField(
-                controller: _settlementCtrl,
-                style: const TextStyle(fontSize: 13),
-                decoration: InputDecoration(
-                  labelText: 'Default Settlement Account (Optional)',
-                  hintText: 'e.g. 1000303997441 or 0911234567',
-                  prefixIcon: const Icon(Iconsax.card_pos_copy, size: 18),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
