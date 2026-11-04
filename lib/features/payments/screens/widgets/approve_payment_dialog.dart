@@ -14,6 +14,7 @@ class ApprovePaymentResult {
     required this.expiresAt,
     required this.notificationTitle,
     required this.notificationBody,
+    this.transactionId,
   });
 
   final num amount;
@@ -22,6 +23,7 @@ class ApprovePaymentResult {
   final DateTime expiresAt;
   final String notificationTitle;
   final String notificationBody;
+  final String? transactionId;
 }
 
 /// Dialog to verify payment amount, select matching premium plan, and preview
@@ -31,15 +33,18 @@ class ApprovePaymentDialog extends StatefulWidget {
     super.key,
     required this.review,
     this.prefilledAmount,
+    this.extractedTransactionId,
   });
 
   final PaymentReview review;
   final num? prefilledAmount;
+  final String? extractedTransactionId;
 
   static Future<ApprovePaymentResult?> show(
     BuildContext context, {
     required PaymentReview review,
     num? prefilledAmount,
+    String? extractedTransactionId,
   }) {
     return showDialog<ApprovePaymentResult>(
       context: context,
@@ -47,6 +52,7 @@ class ApprovePaymentDialog extends StatefulWidget {
       builder: (_) => ApprovePaymentDialog(
         review: review,
         prefilledAmount: prefilledAmount,
+        extractedTransactionId: extractedTransactionId,
       ),
     );
   }
@@ -253,6 +259,42 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
               ),
               const SizedBox(height: AppSizes.md),
 
+              if (widget.extractedTransactionId != null && widget.extractedTransactionId!.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.receipt_long_rounded, size: 14, color: Color(0xFF6366F1)),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Extracted TX ID: ',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                      Expanded(
+                        child: Text(
+                          widget.extractedTransactionId!,
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text('Saved Locally', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.success)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               // Amount verification field
               const Text(
                 '1. Verify Amount Paid:',
@@ -428,6 +470,7 @@ class _ApprovePaymentDialogState extends State<ApprovePaymentDialog> {
                 expiresAt: finalExpiry,
                 notificationTitle: notifTitle,
                 notificationBody: notifBody,
+                transactionId: widget.extractedTransactionId,
               ),
             );
           },

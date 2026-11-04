@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/common/widgets/admin_data_table.dart';
 import 'package:m_admin/common/widgets/admin_scaffold.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
@@ -527,7 +528,7 @@ class _ModernTable extends StatelessWidget {
                 Text(
                   row.createdAt == null
                       ? ''
-                      : '${DateFormat('HH:mm').format(row.createdAt!)} EAT',
+                      : '${DateFormat('h:mm a').format(EthiopianTimeHelper.toEastAfricaTime(row.createdAt!))} EAT',
                   style: const TextStyle(
                     fontSize: 10,
                     color: AppColors.textSecondary,

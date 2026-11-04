@@ -30,11 +30,11 @@ class _RejectDialogState extends State<_RejectDialog> {
   bool _hasText = false;
 
   static const _presets = [
-    'Receipt is unreadable or too blurry.',
-    'Amount on receipt does not match the expected fee.',
-    'Receipt appears to be a screenshot of a previous transaction.',
-    'Wrong account number — payment was not received.',
-    'Please resubmit with a clearer photo of the full receipt.',
+    'Previous payment',
+    'Unreadable',
+    '⚠️ Not related',
+    'Not correct amount',
+    'Wrong account',
   ];
 
   @override
@@ -50,14 +50,15 @@ class _RejectDialogState extends State<_RejectDialog> {
   }
 
   void _onChanged() {
-    final hasText = _controller.text.trim().length >= 5;
+    final hasText = _controller.text.trim().isNotEmpty;
     if (hasText != _hasText) setState(() => _hasText = hasText);
   }
 
   void _pickPreset(String text) {
     _controller.text = text;
-    _controller.selection =
-        TextSelection.fromPosition(TextPosition(offset: text.length));
+    _controller.selection = TextSelection.fromPosition(
+      TextPosition(offset: text.length),
+    );
   }
 
   @override
@@ -101,55 +102,54 @@ class _RejectDialogState extends State<_RejectDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-            const Text(
-              'Specify why this receipt is being rejected. '
-              'The receipt record and screenshot will be removed from database and storage.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: AppSizes.md),
-
-            // ── Quick-pick presets ──────────────────────────────────
-            Wrap(
-              spacing: AppSizes.xs,
-              runSpacing: AppSizes.xs,
-              children: [
-                for (final preset in _presets)
-                  ActionChip(
-                    label: Text(
-                      preset,
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSizes.xs,
-                      vertical: 0,
-                    ),
-                    onPressed: () => _pickPreset(preset),
-                    backgroundColor:
-                        dark ? AppColors.darkSurface : AppColors.softGrey,
-                    shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(AppSizes.borderRadiusMd),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: AppSizes.sm),
-
-            // ── Free-text field ─────────────────────────────────────
-            TextField(
-              controller: _controller,
-              autofocus: false,
-              maxLines: 4,
-              minLines: 2,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                hintText: 'Describe the problem with this receipt…',
-                alignLabelWithHint: true,
+              const Text(
+                'Specify why this receipt is being rejected. '
+                'The receipt record and screenshot will be removed from database and storage.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
-            ),
-          ],
+              const SizedBox(height: AppSizes.md),
+
+              // ── Quick-pick presets ──────────────────────────────────
+              Wrap(
+                spacing: AppSizes.xs,
+                runSpacing: AppSizes.xs,
+                children: [
+                  for (final preset in _presets)
+                    ActionChip(
+                      label: Text(preset, style: const TextStyle(fontSize: 11)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSizes.xs,
+                        vertical: 0,
+                      ),
+                      onPressed: () => _pickPreset(preset),
+                      backgroundColor: dark
+                          ? AppColors.darkSurface
+                          : AppColors.softGrey,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          AppSizes.borderRadiusMd,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSizes.sm),
+
+              // ── Free-text field ─────────────────────────────────────
+              TextField(
+                controller: _controller,
+                autofocus: false,
+                maxLines: 4,
+                minLines: 2,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  hintText: 'Describe the problem with this receipt…',
+                  alignLabelWithHint: true,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
       actions: [
         TextButton(

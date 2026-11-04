@@ -6,6 +6,9 @@ import 'package:get_storage/get_storage.dart';
 import 'package:m_admin/data/repositories/admin_payment_repository.dart';
 import 'package:m_admin/data/services/admin_notification_service.dart';
 import 'package:m_admin/data/services/admin_session_service.dart';
+import 'package:m_admin/data/services/receipt_extractor_service.dart';
+import 'package:m_admin/data/services/scanned_receipt_storage.dart';
+import 'package:m_admin/data/services/verify_et_service.dart';
 import 'package:m_admin/features/dashboard/controllers/dashboard_controller.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
@@ -299,6 +302,7 @@ class PaymentsController extends GetxController {
     DateTime? expiresAt,
     String? notificationTitle,
     String? notificationBody,
+    String? transactionId,
   }) async {
     if (isActing(review.id)) return false;
 
@@ -340,6 +344,30 @@ class PaymentsController extends GetxController {
         expiresAt: calculatedExpiry,
       );
 
+      // When a payment receipt is approved, store the person's email, payment method,
+      // and the transaction ID to the local database IF that transaction ID is extracted.
+      // Stored ONLY in the local database (GetStorage / ScannedReceiptStorage), NOT in remote DB.
+      try {
+        final effectiveTxId = (transactionId != null && transactionId.trim().isNotEmpty)
+            ? transactionId.trim()
+            : _resolveExtractedTransactionId(review);
+
+        if (effectiveTxId != null && effectiveTxId.isNotEmpty) {
+          ScannedReceiptStorage.instance.recordApprovedPayment(
+            transactionId: effectiveTxId,
+            paymentMethod: review.paymentMethod,
+            userEmail: review.userEmail,
+            receiptId: review.id,
+            amount: resolvedAmount?.toDouble(),
+            currency: review.currency,
+            payerName: review.userName,
+            receiptUrl: review.verificationUrl.isNotEmpty ? review.verificationUrl : null,
+          );
+        }
+      } catch (e) {
+        debugPrint('[PaymentsController] Non-fatal error storing approved receipt locally: $e');
+      }
+
       final label = review.planLabel;
       SnackbarHelper.success(
         'Payment approved',
@@ -364,6 +392,61 @@ class PaymentsController extends GetxController {
       actingIds.refresh();
     }
   }
+
+  /// Attempts to discover any extracted transaction ID for the payment receipt.
+
+  String? _resolveExtractedTransactionId(PaymentReview review) {
+    final isTelebirr = review.paymentMethod.toLowerCase().contains('telebirr');
+
+    // 1. Check memory cache in ReceiptExtractorService
+    final cached = ReceiptExtractorService.instance.getCached(review.id) ??
+        (review.receiptUrl.isNotEmpty ? ReceiptExtractorService.instance.getCached(review.receiptUrl) : null);
+    if (cached != null && cached.hasTransactionId) {
+      final id = cached.transactionId ?? cached.receiptUrl;
+      if (id != null && id.trim().isNotEmpty) {
+        if (isTelebirr) {
+          final cleanTok = VerifyEtService.sanitizeTelebirrReference(id);
+          if (cleanTok.isNotEmpty && !cleanTok.startsWith('http')) return cleanTok;
+        }
+        return id.trim();
+      }
+    }
+
+    // 2. Check review verificationUrl
+    if (review.verificationUrl.trim().isNotEmpty) {
+      final input = review.verificationUrl.trim();
+      if (isTelebirr) {
+        final cleanTok = VerifyEtService.sanitizeTelebirrReference(input);
+        if (cleanTok.isNotEmpty && !cleanTok.startsWith('http')) return cleanTok;
+      }
+      final resolved = VerifyEtService.resolveReceiptInput(
+        input: input,
+        bank: review.paymentMethod,
+      );
+      if (resolved.reference != null && resolved.reference!.trim().isNotEmpty) {
+        return resolved.reference!.trim();
+      }
+      if (resolved.url != null && resolved.url!.trim().isNotEmpty) {
+        return resolved.url!.trim();
+      }
+      return input;
+    }
+
+    // 3. Check ScannedReceiptStorage for any existing record associated with review
+    final existing = ScannedReceiptStorage.instance.findRecord(review.id) ??
+        (review.verificationUrl.isNotEmpty ? ScannedReceiptStorage.instance.findRecord(review.verificationUrl) : null);
+    if (existing != null && existing.id.isNotEmpty) {
+      if (isTelebirr) {
+        final cleanTok = VerifyEtService.sanitizeTelebirrReference(existing.id);
+        if (cleanTok.isNotEmpty && !cleanTok.startsWith('http')) return cleanTok;
+      }
+      return existing.id;
+    }
+
+    return null;
+  }
+
+
 
   Future<bool> reject(PaymentReview review, String reason) async {
     if (isActing(review.id)) return false;

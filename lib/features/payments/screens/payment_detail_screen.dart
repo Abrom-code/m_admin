@@ -13,6 +13,7 @@ import 'package:m_admin/features/payments/screens/widgets/payment_verify_checker
 import 'package:m_admin/features/payments/screens/widgets/receipt_viewer.dart';
 import 'package:m_admin/features/payments/screens/widgets/reject_dialog.dart';
 import 'package:m_admin/utils/constants/colors.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 
@@ -37,11 +38,13 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
   final _focusNode = FocusNode();
 
   late PaymentReview _review;
+  String? _extractedTxId;
 
   @override
   void initState() {
     super.initState();
     _review = widget.review;
+    _extractedTxId = widget.review.verificationUrl.trim().isNotEmpty ? widget.review.verificationUrl.trim() : null;
     WidgetsBinding.instance.addPostFrameCallback(
       (_) {
         _focusNode.requestFocus();
@@ -92,6 +95,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
           final detailPane = _ModernDetailPane(
             review: _review,
             onApproveWithAmount: _approve,
+            onTransactionExtracted: (txId) => _extractedTxId = txId,
           );
 
           return SingleChildScrollView(
@@ -214,6 +218,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
       context,
       review: _review,
       prefilledAmount: prefilledAmount,
+      extractedTransactionId: _extractedTxId,
     );
     if (result == null) return;
 
@@ -225,6 +230,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen> {
       expiresAt: result.expiresAt,
       notificationTitle: result.notificationTitle,
       notificationBody: result.notificationBody,
+      transactionId: result.transactionId ?? _extractedTxId,
     );
     if (!mounted) return;
 
@@ -295,10 +301,12 @@ class _ModernDetailPane extends StatelessWidget {
   const _ModernDetailPane({
     required this.review,
     this.onApproveWithAmount,
+    this.onTransactionExtracted,
   });
 
   final PaymentReview review;
   final void Function(num amount)? onApproveWithAmount;
+  final void Function(String txId)? onTransactionExtracted;
 
   @override
   Widget build(BuildContext context) {
@@ -386,6 +394,7 @@ class _ModernDetailPane extends StatelessWidget {
               PaymentVerifyChecker(
                 review: review,
                 onApproveWithAmount: onApproveWithAmount,
+                onTransactionExtracted: onTransactionExtracted,
               ),
               const Divider(height: 20),
               _DetailRow(
@@ -445,7 +454,7 @@ class _ModernDetailPane extends StatelessWidget {
                 label: 'Submitted At',
                 value: review.createdAt == null
                     ? '—'
-                    : '${DateFormat('d MMM yyyy, HH:mm').format(review.createdAt!)} EAT',
+                    : '${DateFormat('d MMM yyyy, h:mm a').format(EthiopianTimeHelper.toEastAfricaTime(review.createdAt!))} EAT',
               ),
               if (review.verificationUrl.isNotEmpty) ...[
                 const SizedBox(height: 4),
@@ -482,7 +491,7 @@ class _ModernDetailPane extends StatelessWidget {
                   label: 'Reviewed At',
                   value: review.reviewedAt == null
                       ? '—'
-                      : '${DateFormat('d MMM yyyy, HH:mm').format(review.reviewedAt!)} EAT',
+                      : '${DateFormat('d MMM yyyy, h:mm a').format(EthiopianTimeHelper.toEastAfricaTime(review.reviewedAt!))} EAT',
                 ),
                 _DetailRow(
                   label: 'Reviewed By',
