@@ -26,7 +26,7 @@ class ChallengesListScreen extends StatefulWidget {
 
 class _ChallengesListScreenState extends State<ChallengesListScreen> {
   final _ctrl = Get.put(ChallengesListController());
-  final _dateFormat = DateFormat('MMM dd, HH:mm');
+  final _dateFormat = DateFormat('MMM dd, h:mm a');
   final _scrollCtrl = ScrollController();
 
   @override
@@ -261,7 +261,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                             const SizedBox(width: 8),
                             Text(
                               _ctrl.statusFilter.value == 'all'
-                                  ? 'Live, Scheduled & Draft Challenges'
+                                  ? 'Live & Scheduled Challenges'
                                   : '${_ctrl.statusFilter.value.capitalizeFirst} Challenges',
                               style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold),
                             ),
@@ -298,12 +298,12 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                                 const SizedBox(height: 8),
                                 Text(
                                   _ctrl.statusFilter.value == 'all'
-                                      ? 'No live, scheduled, or draft challenges'
+                                      ? 'No live or scheduled challenges'
                                       : 'No ${_ctrl.statusFilter.value} challenges found',
                                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                                 ),
                                 const SizedBox(height: 2),
-                                const Text('Create a challenge to see active and upcoming rounds here.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                const Text('Active and scheduled rounds will appear here. Drafts are managed under each subject below.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                               ],
                             ),
                           )
@@ -339,31 +339,7 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                               );
                             },
                           ),
-                        if (_ctrl.hasMore.value) ...[
-                          const SizedBox(height: 12),
-                          Center(
-                            child: Obx(
-                              () => OutlinedButton.icon(
-                                onPressed: _ctrl.isLoadingMore.value
-                                    ? null
-                                    : _ctrl.loadMoreChallenges,
-                                icon: _ctrl.isLoadingMore.value
-                                    ? const SizedBox(
-                                        width: 14,
-                                        height: 14,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : const Icon(Icons.arrow_downward_rounded, size: 15),
-                                label: Text(
-                                  _ctrl.isLoadingMore.value
-                                      ? 'Loading more...'
-                                      : 'Load More (25 per page)',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+
 
                         const SizedBox(height: 24),
                         const Divider(height: 1),
@@ -473,7 +449,11 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                                 },
                                 onCreateChallenge: () async {
                                   FocusManager.instance.primaryFocus?.unfocus();
-                                  await Get.to(() => ChallengeEditorScreen(initialSubjectId: subId));
+                                  final targetAudience = isCommon ? 'both' : (isNatural ? 'natural' : 'social');
+                                  await Get.to(() => ChallengeEditorScreen(
+                                        initialSubjectId: subId,
+                                        initialAudience: targetAudience,
+                                      ));
                                   _ctrl.loadAll(showLoading: false);
                                 },
                               );
@@ -580,19 +560,14 @@ class _SubjectTile extends StatelessWidget {
     final dark = AppHelperFunctions.isDark(context);
 
     Color streamColor;
-    String streamLabel;
     if (isAllSubjects) {
       streamColor = const Color(0xFF0284C7);
-      streamLabel = 'All Streams & Common';
     } else if (isCommon) {
       streamColor = const Color(0xFF0284C7);
-      streamLabel = 'Common';
     } else if (isNatural) {
       streamColor = AppColors.primary;
-      streamLabel = 'Natural Stream';
     } else {
       streamColor = AppColors.secondary;
-      streamLabel = 'Social Stream';
     }
 
     final total = stats['total'] ?? 0;
@@ -649,22 +624,33 @@ class _SubjectTile extends StatelessWidget {
                                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: streamColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                streamLabel,
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  color: streamColor,
+
+                            if (draft > 0) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: AppColors.warning.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Iconsax.edit_2_copy, size: 9, color: AppColors.warning),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      '$draft ${draft == 1 ? 'Draft' : 'Drafts'}',
+                                      style: const TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.warning,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 4),

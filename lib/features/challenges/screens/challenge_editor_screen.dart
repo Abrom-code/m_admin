@@ -16,10 +16,12 @@ class ChallengeEditorScreen extends StatefulWidget {
     super.key,
     this.challengeId,
     this.initialSubjectId,
+    this.initialAudience,
   });
 
   final String? challengeId;
   final int? initialSubjectId;
+  final String? initialAudience;
 
   @override
   State<ChallengeEditorScreen> createState() => _ChallengeEditorScreenState();
@@ -27,7 +29,7 @@ class ChallengeEditorScreen extends StatefulWidget {
 
 class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
   late final ChallengeEditorController _ctrl;
-  final _dateFormat = DateFormat('MMM dd, yyyy • HH:mm');
+  final _dateFormat = DateFormat('MMM dd, yyyy • h:mm a');
   final _scrollCtrl = ScrollController();
 
   @override
@@ -37,6 +39,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
       ChallengeEditorController(
         challengeId: widget.challengeId,
         initialSubjectId: widget.initialSubjectId,
+        initialAudience: widget.initialAudience,
       ),
       tag: 'challenge_editor_${widget.challengeId ?? 'new_${DateTime.now().millisecondsSinceEpoch}'}',
     );
@@ -50,31 +53,53 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
 
   Future<DateTime?> _pickDateTime(DateTime? initial) async {
     final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial ?? now,
-      firstDate: now.subtract(const Duration(days: 1)),
-      lastDate: now.add(const Duration(days: 365)),
-    );
-    if (date == null || !mounted) return null;
+    // Allow dates from 2020 up to 5 years into the future (so editing past/existing challenges never crashes)
+    final firstDate = DateTime(2020, 1, 1);
+    final lastDate = now.add(const Duration(days: 365 * 5));
 
-    final time = await showTimePicker(
-      context: context,
-      initialTime: initial != null
-          ? TimeOfDay.fromDateTime(initial)
-          : TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
-    );
-    if (time == null) return null;
-
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
-  }
-
-  void _openQuestionDialog({ChallengeQuestionModel? question}) {
-    if (_ctrl.currentChallengeId.value == null || _ctrl.currentChallengeId.value!.isEmpty) {
-      SnackbarHelper.warning('Save First', 'Please save the challenge details before adding questions.');
-      return;
+    DateTime initialDate = initial ?? now;
+    if (initialDate.isBefore(firstDate)) {
+      initialDate = firstDate;
+    } else if (initialDate.isAfter(lastDate)) {
+      initialDate = lastDate;
     }
 
+    try {
+      final date = await showDatePicker(
+        context: context,
+        initialDate: initialDate,
+        firstDate: firstDate,
+        lastDate: lastDate,
+        helpText: 'Select Date',
+      );
+      if (date == null || !mounted) return null;
+
+      final initialTime = initial != null
+          ? TimeOfDay(hour: initial.hour, minute: initial.minute)
+          : const TimeOfDay(hour: 20, minute: 0);
+
+      final time = await showTimePicker(
+        context: context,
+        initialTime: initialTime,
+        helpText: 'Select Time',
+      );
+      if (!mounted) return null;
+
+      final chosenTime = time ?? initialTime;
+      return DateTime(date.year, date.month, date.day, chosenTime.hour, chosenTime.minute);
+    } catch (e) {
+      debugPrint('[ChallengeEditor] Error picking date/time: ');
+      return null;
+    }
+  }
+
+  Future<void> _openQuestionDialog({ChallengeQuestionModel? question}) async {
+    if (_ctrl.currentChallengeId.value == null || _ctrl.currentChallengeId.value!.isEmpty) {
+      final savedId = await _ctrl.saveChallenge(isPublish: false);
+      if (savedId == null) return;
+    }
+
+    if (!mounted) return;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -116,34 +141,10 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                 );
               }
 
-              if (!_ctrl.isEditingExisting) {
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      onPressed: () async {
-                        final id = await _ctrl.saveChallenge(isPublish: false);
-                        if (id != null) {
-                          Get.back(result: true);
-                        }
-                      },
-                      icon: const Icon(Icons.save_outlined, size: 14),
-                      label: const Text('Save Draft', style: TextStyle(fontSize: 11.5)),
-                    ),
-                    const SizedBox(width: 12),
-                  ],
-                );
-              }
-
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  OutlinedButton(
+                  OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       visualDensity: VisualDensity.compact,
@@ -154,7 +155,8 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                         Get.back(result: true);
                       }
                     },
-                    child: const Text('Save Draft', style: TextStyle(fontSize: 11.5)),
+                    icon: const Icon(Icons.save_outlined, size: 14),
+                    label: const Text('Save Draft', style: TextStyle(fontSize: 11.5)),
                   ),
                   const SizedBox(width: 8),
                   FilledButton.icon(
@@ -300,7 +302,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                             ),
                                           ),
                                         ],
-                                        onChanged: (v) => _ctrl.selectedSubjectId.value = v,
+                                        onChanged: (v) => _ctrl.onSubjectChanged(v),
                                       ),
                                     ),
                                     const SizedBox(width: 12),
@@ -334,7 +336,7 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                       ),
                                     ),
                                   ],
-                                  onChanged: (v) => _ctrl.selectedSubjectId.value = v,
+                                  onChanged: (v) => _ctrl.onSubjectChanged(v),
                                 ),
                                 const SizedBox(height: 16),
                                 _StreamSelectorBox(ctrl: _ctrl),
@@ -376,23 +378,26 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                           final dt = await _pickDateTime(_ctrl.startsAt.value);
                                           if (dt != null) _ctrl.startsAt.value = dt;
                                         },
-                                        child: InputDecorator(
-                                          decoration: InputDecoration(
-                                            labelText: 'Start Time *',
-                                            prefixIcon: const Icon(Iconsax.calendar_1_copy, size: 16),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                            border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
+                                        child: IgnorePointer(
+                                          child: InputDecorator(
+                                            decoration: InputDecoration(
+                                              labelText: 'Start Time *',
+                                              prefixIcon: const Icon(Iconsax.calendar_1_copy, size: 16),
+                                              suffixIcon: const Icon(Icons.arrow_drop_down_rounded, size: 22),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                              border: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
                                             ),
-                                          ),
-                                          child: Obx(
-                                            () => Text(
-                                              _ctrl.startsAt.value != null
-                                                  ? _dateFormat.format(_ctrl.startsAt.value!)
-                                                  : 'Select start',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(fontSize: 12),
+                                            child: Obx(
+                                              () => Text(
+                                                _ctrl.startsAt.value != null
+                                                    ? _dateFormat.format(_ctrl.startsAt.value!)
+                                                    : 'Select start',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(fontSize: 12),
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -408,23 +413,26 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                           final dt = await _pickDateTime(_ctrl.endsAt.value);
                                           if (dt != null) _ctrl.endsAt.value = dt;
                                         },
-                                        child: InputDecorator(
-                                          decoration: InputDecoration(
-                                            labelText: 'End Time *',
-                                            prefixIcon: const Icon(Iconsax.calendar_2_copy, size: 16),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                            border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
+                                        child: IgnorePointer(
+                                          child: InputDecorator(
+                                            decoration: InputDecoration(
+                                              labelText: 'End Time *',
+                                              prefixIcon: const Icon(Iconsax.calendar_2_copy, size: 16),
+                                              suffixIcon: const Icon(Icons.arrow_drop_down_rounded, size: 22),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                              border: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
                                             ),
-                                          ),
-                                          child: Obx(
-                                            () => Text(
-                                              _ctrl.endsAt.value != null
-                                                  ? _dateFormat.format(_ctrl.endsAt.value!)
-                                                  : 'Select end',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(fontSize: 12),
+                                            child: Obx(
+                                              () => Text(
+                                                _ctrl.endsAt.value != null
+                                                    ? _dateFormat.format(_ctrl.endsAt.value!)
+                                                    : 'Select end',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(fontSize: 12),
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -456,21 +464,24 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                     final dt = await _pickDateTime(_ctrl.startsAt.value);
                                     if (dt != null) _ctrl.startsAt.value = dt;
                                   },
-                                  child: InputDecorator(
-                                    decoration: InputDecoration(
-                                      labelText: 'Start Time *',
-                                      prefixIcon: const Icon(Iconsax.calendar_1_copy, size: 16),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
+                                  child: IgnorePointer(
+                                    child: InputDecorator(
+                                      decoration: InputDecoration(
+                                        labelText: 'Start Time *',
+                                        prefixIcon: const Icon(Iconsax.calendar_1_copy, size: 16),
+                                        suffixIcon: const Icon(Icons.arrow_drop_down_rounded, size: 22),
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
                                       ),
-                                    ),
-                                    child: Obx(
-                                      () => Text(
-                                        _ctrl.startsAt.value != null
-                                            ? _dateFormat.format(_ctrl.startsAt.value!)
-                                            : 'Select start',
-                                        style: const TextStyle(fontSize: 12),
+                                      child: Obx(
+                                        () => Text(
+                                          _ctrl.startsAt.value != null
+                                              ? _dateFormat.format(_ctrl.startsAt.value!)
+                                              : 'Select start',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -482,21 +493,24 @@ class _ChallengeEditorScreenState extends State<ChallengeEditorScreen> {
                                     final dt = await _pickDateTime(_ctrl.endsAt.value);
                                     if (dt != null) _ctrl.endsAt.value = dt;
                                   },
-                                  child: InputDecorator(
-                                    decoration: InputDecoration(
-                                      labelText: 'End Time *',
-                                      prefixIcon: const Icon(Iconsax.calendar_2_copy, size: 16),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
+                                  child: IgnorePointer(
+                                    child: InputDecorator(
+                                      decoration: InputDecoration(
+                                        labelText: 'End Time *',
+                                        prefixIcon: const Icon(Iconsax.calendar_2_copy, size: 16),
+                                        suffixIcon: const Icon(Icons.arrow_drop_down_rounded, size: 22),
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
                                       ),
-                                    ),
-                                    child: Obx(
-                                      () => Text(
-                                        _ctrl.endsAt.value != null
-                                            ? _dateFormat.format(_ctrl.endsAt.value!)
-                                            : 'Select end',
-                                        style: const TextStyle(fontSize: 12),
+                                      child: Obx(
+                                        () => Text(
+                                          _ctrl.endsAt.value != null
+                                              ? _dateFormat.format(_ctrl.endsAt.value!)
+                                              : 'Select end',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -718,7 +732,7 @@ class _StreamSelectorBox extends StatelessWidget {
             children: [
               Expanded(
                 child: _StreamTab(
-                  label: 'Both',
+                  label: 'Common (Both)',
                   selected: ctrl.audience.value == 'both',
                   onTap: () => ctrl.audience.value = 'both',
                 ),

@@ -76,8 +76,8 @@ class ChallengeRepository {
     String? status,
     String? audience,
     int? subjectId,
-    int page = 0,
-    int pageSize = 25,
+    int? page,
+    int? pageSize,
   }) async {
     // Auto-sync any expired challenges to closed + premium in the database
     _syncExpiredChallenges();
@@ -87,7 +87,7 @@ class ChallengeRepository {
         .select(
           'id, set_id, subject_id, audience, title, starts_at, ends_at, '
           'duration_seconds, status, created_by, created_at, is_premium, review_policy, '
-          'subjects(name), challenge_questions(id)',
+          'subjects(id, name, is_natural, is_common), challenge_questions(id)',
         );
 
     if (status != null && status.isNotEmpty && status != 'all') {
@@ -100,9 +100,11 @@ class ChallengeRepository {
       query = query.eq('subject_id', subjectId);
     }
 
-    final rows = await query
-        .order('created_at', ascending: false)
-        .range(page * pageSize, (page + 1) * pageSize - 1);
+    final orderedQuery = query.order('created_at', ascending: false);
+    final rows = (page != null && pageSize != null)
+        ? await orderedQuery.range(page * pageSize, (page + 1) * pageSize - 1)
+        : await orderedQuery.limit(pageSize ?? 1000);
+
     return (rows as List)
         .map((r) => LeaderboardChallengeModel.fromJson(r as Map<String, dynamic>))
         .toList();
@@ -114,7 +116,7 @@ class ChallengeRepository {
         .select(
           'id, set_id, subject_id, audience, title, starts_at, ends_at, '
           'duration_seconds, status, created_by, created_at, is_premium, review_policy, '
-          'subjects(name), challenge_questions(id)',
+          'subjects(id, name, is_natural, is_common), challenge_questions(id)',
         )
         .eq('id', challengeId)
         .single();

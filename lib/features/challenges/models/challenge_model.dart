@@ -158,9 +158,9 @@ class LeaderboardChallengeModel {
     final rawSetId = json['set_id']?.toString() ?? rawId;
     final finalId = rawId.isNotEmpty ? rawId : rawSetId;
 
-    int sId = (json['subject_id'] as num?)?.toInt() ?? 0;
+    int sId = (json['subject_id'] as num?)?.toInt() ?? int.tryParse(json['subject_id']?.toString() ?? '') ?? 0;
     if (sId == 0 && json['subjects'] != null && json['subjects'] is Map) {
-      sId = (json['subjects']['id'] as num?)?.toInt() ?? 0;
+      sId = (json['subjects']['id'] as num?)?.toInt() ?? int.tryParse(json['subjects']['id']?.toString() ?? '') ?? 0;
     }
 
     final subjName = json['subjects'] != null && json['subjects'] is Map

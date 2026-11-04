@@ -34,7 +34,7 @@ class SubjectChallengesScreen extends StatefulWidget {
 
 class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
   late final ChallengesListController _ctrl;
-  final _dateFormat = DateFormat('MMM dd, HH:mm');
+  final _dateFormat = DateFormat('MMM dd, h:mm a');
   final _scrollCtrl = ScrollController();
   final _searchCtrl = TextEditingController();
   final _searchQuery = ''.obs;
@@ -54,6 +54,7 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
     } else {
       _ctrl = Get.put(ChallengesListController());
     }
+    _ctrl.loadChallenges();
     _loadQuestionSets();
   }
 
@@ -168,12 +169,22 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
     }
   }
 
+  bool _matchesSubject(LeaderboardChallengeModel c) {
+    if (widget.subjectId == 0) return true;
+    if (c.subjectId == widget.subjectId) return true;
+    if (widget.subjectName.isNotEmpty &&
+        c.subjectName?.trim().toLowerCase() == widget.subjectName.trim().toLowerCase()) {
+      return true;
+    }
+    return false;
+  }
+
   List<LeaderboardChallengeModel> get _subjectChallenges {
     final query = _searchQuery.value.trim().toLowerCase();
     final status = _statusFilter.value.toLowerCase();
 
     return _ctrl.challenges.where((c) {
-      if (widget.subjectId != 0 && c.subjectId != widget.subjectId) return false;
+      if (!_matchesSubject(c)) return false;
       if (status != 'all' && c.status.toLowerCase() != status) return false;
       if (query.isNotEmpty) {
         final matchTitle = c.title.toLowerCase().contains(query);
@@ -185,7 +196,7 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
   }
 
   int _countByStatus(String status) {
-    final allForSubject = widget.subjectId != 0 ? _ctrl.challenges.where((c) => c.subjectId == widget.subjectId) : _ctrl.challenges;
+    final allForSubject = _ctrl.challenges.where(_matchesSubject);
     if (status == 'all') return allForSubject.length;
     if (status == 'live') return allForSubject.where((c) => c.isLive).length;
     if (status == 'scheduled') return allForSubject.where((c) => c.isScheduled).length;
@@ -254,6 +265,94 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
       default:
         return AppColors.primary;
     }
+  }
+
+  Widget _buildChallengeCard(LeaderboardChallengeModel challenge) {
+    return ChallengeCard(
+      challenge: challenge,
+      dateFormat: _dateFormat,
+      onEdit: () async {
+        FocusManager.instance.primaryFocus?.unfocus();
+        await Get.to(() => ChallengeEditorScreen(challengeId: challenge.id));
+        _ctrl.loadAll(showLoading: false);
+      },
+      onNotify: () {
+        FocusManager.instance.primaryFocus?.unfocus();
+        NotifyChallengeDialog.show(context, challenge);
+      },
+      onPublish: () => _confirmPublish(context, challenge),
+      onClose: () => _confirmClose(context, challenge),
+      onDelete: () => _confirmDelete(context, challenge),
+      onStatusChange: (newStatus) => _ctrl.updateChallengeStatus(challenge.id, newStatus),
+    );
+  }
+
+  Widget _buildChallengeGrid(List<LeaderboardChallengeModel> items) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 460,
+        mainAxisExtent: 148,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, index) => _buildChallengeCard(items[index]),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required IconData icon,
+    required String title,
+    required Color color,
+    int? count,
+    String? subtitle,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(icon, size: 14, color: color),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+            if (count != null) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          ),
+        ],
+        const SizedBox(height: 8),
+      ],
+    );
   }
 
   @override
@@ -332,7 +431,11 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                 ),
                 onPressed: () async {
                   FocusManager.instance.primaryFocus?.unfocus();
-                  await Get.to(() => ChallengeEditorScreen(initialSubjectId: widget.subjectId));
+                  final targetAudience = widget.isCommon ? 'both' : (widget.isNatural ? 'natural' : 'social');
+                  await Get.to(() => ChallengeEditorScreen(
+                        initialSubjectId: widget.subjectId == 0 ? null : widget.subjectId,
+                        initialAudience: widget.subjectId == 0 ? null : targetAudience,
+                      ));
                   _ctrl.loadAll(showLoading: false);
                 },
                 icon: const Icon(Iconsax.add_circle_copy, size: 14),
@@ -543,7 +646,11 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                               ),
                               onPressed: () async {
                                 FocusManager.instance.primaryFocus?.unfocus();
-                                await Get.to(() => ChallengeEditorScreen(initialSubjectId: widget.subjectId));
+                                final targetAudience = widget.isCommon ? 'both' : (widget.isNatural ? 'natural' : 'social');
+                  await Get.to(() => ChallengeEditorScreen(
+                        initialSubjectId: widget.subjectId == 0 ? null : widget.subjectId,
+                        initialAudience: widget.subjectId == 0 ? null : targetAudience,
+                      ));
                                 _ctrl.loadAll(showLoading: false);
                               },
                               icon: const Icon(Iconsax.add_circle_copy, size: 16),
@@ -555,38 +662,59 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                     );
                   }
 
+                  final drafts = list.where((c) => c.isDraft).toList();
+                  final liveAndScheduled = list.where((c) => c.isLive || c.isScheduled).toList();
+                  final ended = list.where((c) => c.isClosed || c.isArchived).toList();
+
                   return RefreshIndicator(
                     onRefresh: _ctrl.loadAll,
-                    child: GridView.builder(
+                    child: SingleChildScrollView(
                       controller: _scrollCtrl,
                       physics: const AlwaysScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 460,
-                        mainAxisExtent: 148,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_statusFilter.value == 'all') ...[
+                            if (drafts.isNotEmpty) ...[
+                              _buildSectionHeader(
+                                icon: Iconsax.edit_2_copy,
+                                title: 'Draft Challenges',
+                                color: AppColors.warning,
+                                count: drafts.length,
+                                subtitle: 'Drafts for this subject. Add questions, edit, and publish when ready.',
+                              ),
+                              _buildChallengeGrid(drafts),
+                              if (liveAndScheduled.isNotEmpty || ended.isNotEmpty)
+                                const SizedBox(height: 18),
+                            ],
+                            if (liveAndScheduled.isNotEmpty) ...[
+                              _buildSectionHeader(
+                                icon: Iconsax.flash_1_copy,
+                                title: 'Live & Scheduled Challenges',
+                                color: AppColors.primary,
+                                count: liveAndScheduled.length,
+                                subtitle: 'Active rounds and upcoming scheduled challenges.',
+                              ),
+                              _buildChallengeGrid(liveAndScheduled),
+                              if (ended.isNotEmpty)
+                                const SizedBox(height: 18),
+                            ],
+                            if (ended.isNotEmpty) ...[
+                              _buildSectionHeader(
+                                icon: Iconsax.archive_tick_copy,
+                                title: 'Ended Challenges',
+                                color: AppColors.grey,
+                                count: ended.length,
+                                subtitle: 'Completed and closed rounds for this subject.',
+                              ),
+                              _buildChallengeGrid(ended),
+                            ],
+                          ] else ...[
+                            _buildChallengeGrid(list),
+                          ],
+                        ],
                       ),
-                      itemCount: list.length,
-                      itemBuilder: (context, index) {
-                        final challenge = list[index];
-                        return ChallengeCard(
-                          challenge: challenge,
-                          dateFormat: _dateFormat,
-                          onEdit: () async {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            await Get.to(() => ChallengeEditorScreen(challengeId: challenge.id));
-                            _ctrl.loadAll(showLoading: false);
-                          },
-                          onNotify: () {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            NotifyChallengeDialog.show(context, challenge);
-                          },
-                          onPublish: () => _confirmPublish(context, challenge),
-                          onClose: () => _confirmClose(context, challenge),
-                          onDelete: () => _confirmDelete(context, challenge),
-                          onStatusChange: (newStatus) => _ctrl.updateChallengeStatus(challenge.id, newStatus),
-                        );
-                      },
                     ),
                   );
                 }),

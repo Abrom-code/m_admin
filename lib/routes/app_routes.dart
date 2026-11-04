@@ -229,6 +229,7 @@ class AdminAppRoutes {
         return ChallengeEditorScreen(
           challengeId: args['challenge_id']?.toString(),
           initialSubjectId: (args['subject_id'] as num?)?.toInt(),
+          initialAudience: args['audience']?.toString(),
         );
       },
       middlewares: [AdminAuthMiddleware()],

@@ -7,12 +7,19 @@ import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 class ChallengeEditorController extends GetxController {
-  ChallengeEditorController({this.challengeId, this.initialSubjectId});
+  ChallengeEditorController({
+    this.challengeId,
+    this.initialSubjectId,
+    this.initialAudience,
+    ChallengeRepository? repository,
+  }) : _customRepo = repository;
 
   final String? challengeId;
   final int? initialSubjectId;
+  final String? initialAudience;
 
-  final _repo = ChallengeRepository();
+  final ChallengeRepository? _customRepo;
+  ChallengeRepository get _repo => _customRepo ?? ChallengeRepository();
 
   final isLoading = false.obs;
   final isSaving = false.obs;
@@ -28,8 +35,8 @@ class ChallengeEditorController extends GetxController {
   final isPremium = false.obs;
   final reviewPolicy = 'on_completion'.obs; // 'on_completion', 'when_closed'
 
-  final startsAt = Rxn<DateTime>();
-  final endsAt = Rxn<DateTime>();
+  final startsAt = Rxn<DateTime>(EthiopianTimeHelper.defaultChallengeStartsAt());
+  final endsAt = Rxn<DateTime>(EthiopianTimeHelper.defaultChallengeEndsAt());
 
   final subjects = <Map<String, dynamic>>[].obs;
   final questions = <ChallengeQuestionModel>[].obs;
@@ -42,11 +49,14 @@ class ChallengeEditorController extends GetxController {
     super.onInit();
     currentChallengeId.value = challengeId;
     selectedSubjectId.value = initialSubjectId;
+    if (initialAudience != null && initialAudience!.isNotEmpty) {
+      audience.value = initialAudience!;
+    }
 
-    // Default dates: starts now + 1h, ends now + 13h (East Africa Time)
-    final now = EthiopianTimeHelper.nowInEastAfrica();
-    startsAt.value = now.add(const Duration(hours: 1));
-    endsAt.value = now.add(const Duration(hours: 13));
+    // Default dates: starts current date at 8:00 PM (20:00) UTC+3, ends after two days at same time
+    final defaultStart = EthiopianTimeHelper.defaultChallengeStartsAt();
+    startsAt.value = defaultStart;
+    endsAt.value = EthiopianTimeHelper.defaultChallengeEndsAt(defaultStart);
 
     _loadData();
   }
@@ -78,11 +88,44 @@ class ChallengeEditorController extends GetxController {
         endsAt.value = c.endsAt != null ? EthiopianTimeHelper.toEastAfricaTime(c.endsAt!) : null;
 
         questions.value = await _repo.fetchQuestionsForChallenge(c.id, setId: c.setId);
+      } else {
+        // When creating a new challenge: default stream to the subject's stream
+        if (selectedSubjectId.value != null) {
+          applySubjectStream(selectedSubjectId.value);
+        }
       }
     } catch (e) {
       SnackbarHelper.error('Error', AppExceptionHandler.handle(e).message);
     } finally {
       isLoading.value = false;
+    }
+  }
+
+
+  /// Sets the challenge stream/audience ('natural', 'social', or 'both') to match the subject's stream.
+  void applySubjectStream(int? subjectId) {
+    if (subjectId == null) return;
+    final match = subjects.firstWhereOrNull((s) {
+      final sid = (s['id'] as num?)?.toInt() ?? int.tryParse(s['id']?.toString() ?? '') ?? 0;
+      return sid == subjectId;
+    });
+    if (match != null) {
+      final isCommon = match['is_common'] == true || match['is_common'] == 1 || match['is_common'] == 'true';
+      final isNatural = match['is_natural'] == true || match['is_natural'] == 1 || match['is_natural'] == 'true';
+      if (isCommon) {
+        audience.value = 'both';
+      } else if (isNatural) {
+        audience.value = 'natural';
+      } else {
+        audience.value = 'social';
+      }
+    }
+  }
+
+  void onSubjectChanged(int? subjectId) {
+    selectedSubjectId.value = subjectId;
+    if (subjectId != null) {
+      applySubjectStream(subjectId);
     }
   }
 

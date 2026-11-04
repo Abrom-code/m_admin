@@ -24,12 +24,13 @@ class ChallengeSchedulerController extends GetxController {
   final selectedSetId = RxnString();
   final selectedSubjectId = RxnInt();
 
-  final startsAt = Rxn<DateTime>();
-  final endsAt = Rxn<DateTime>();
+  final startsAt = Rxn<DateTime>(EthiopianTimeHelper.defaultChallengeStartsAt());
+  final endsAt = Rxn<DateTime>(EthiopianTimeHelper.defaultChallengeEndsAt());
   final currentStatus = 'draft'.obs;
   final selectedReviewPolicy = 'on_completion'.obs; // 'on_completion', 'when_closed'
 
   final questionSets = <ChallengeQuestionSetModel>[].obs;
+  final subjects = <Map<String, dynamic>>[].obs;
   final formKey = GlobalKey<FormState>();
 
   ChallengeQuestionSetModel? get selectedSet {
@@ -42,6 +43,13 @@ class ChallengeSchedulerController extends GetxController {
     super.onInit();
     selectedSetId.value = preselectedSetId;
     selectedSubjectId.value = preselectedSubjectId;
+
+    if (challengeId == null || challengeId!.isEmpty) {
+      final defaultStart = EthiopianTimeHelper.defaultChallengeStartsAt();
+      startsAt.value = defaultStart;
+      endsAt.value = EthiopianTimeHelper.defaultChallengeEndsAt(defaultStart);
+    }
+
     _initData();
   }
 
@@ -56,6 +64,7 @@ class ChallengeSchedulerController extends GetxController {
     isLoading.value = true;
     try {
       questionSets.value = await _repo.fetchQuestionSets();
+      subjects.value = await _repo.fetchSubjects();
 
       if (challengeId != null && challengeId!.isNotEmpty) {
         final ch = await _repo.fetchChallengeDetail(challengeId!);
@@ -93,6 +102,23 @@ class ChallengeSchedulerController extends GetxController {
         if (titleCtrl.text.isEmpty) {
           titleCtrl.text = match.title;
         }
+        applySubjectAudience(match.subjectId);
+      }
+    }
+  }
+
+  void applySubjectAudience(int? subjectId) {
+    if (subjectId == null) return;
+    final sub = subjects.firstWhereOrNull((s) => s['id'] == subjectId);
+    if (sub != null) {
+      final isCommon = sub['is_common'] == true || sub['is_common'] == 1;
+      final isNatural = sub['is_natural'] == true || sub['is_natural'] == 1;
+      if (isCommon) {
+        selectedAudience.value = 'both';
+      } else if (isNatural) {
+        selectedAudience.value = 'natural';
+      } else {
+        selectedAudience.value = 'social';
       }
     }
   }

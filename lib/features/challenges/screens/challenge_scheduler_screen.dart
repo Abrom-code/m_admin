@@ -30,7 +30,7 @@ class ChallengeSchedulerScreen extends StatefulWidget {
 
 class _ChallengeSchedulerScreenState extends State<ChallengeSchedulerScreen> {
   late final ChallengeSchedulerController _ctrl;
-  final _dateFormat = DateFormat('EEE, MMM dd, yyyy • HH:mm');
+  final _dateFormat = DateFormat('EEE, MMM dd, yyyy • h:mm a');
 
   @override
   void initState() {
@@ -47,23 +47,43 @@ class _ChallengeSchedulerScreenState extends State<ChallengeSchedulerScreen> {
 
   Future<DateTime?> _pickDateTime(DateTime? initial) async {
     final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial ?? now,
-      firstDate: now.subtract(const Duration(days: 1)),
-      lastDate: now.add(const Duration(days: 365)),
-    );
-    if (date == null || !mounted) return null;
+    final firstDate = DateTime(2020, 1, 1);
+    final lastDate = now.add(const Duration(days: 365 * 5));
 
-    final time = await showTimePicker(
-      context: context,
-      initialTime: initial != null
-          ? TimeOfDay.fromDateTime(initial)
-          : TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
-    );
-    if (time == null) return null;
+    DateTime initialDate = initial ?? now;
+    if (initialDate.isBefore(firstDate)) {
+      initialDate = firstDate;
+    } else if (initialDate.isAfter(lastDate)) {
+      initialDate = lastDate;
+    }
 
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    try {
+      final date = await showDatePicker(
+        context: context,
+        initialDate: initialDate,
+        firstDate: firstDate,
+        lastDate: lastDate,
+        helpText: 'Select Date',
+      );
+      if (date == null || !mounted) return null;
+
+      final initialTime = initial != null
+          ? TimeOfDay(hour: initial.hour, minute: initial.minute)
+          : TimeOfDay.fromDateTime(now.add(const Duration(hours: 1)));
+
+      final time = await showTimePicker(
+        context: context,
+        initialTime: initialTime,
+        helpText: 'Select Time',
+      );
+      if (!mounted) return null;
+
+      final chosenTime = time ?? initialTime;
+      return DateTime(date.year, date.month, date.day, chosenTime.hour, chosenTime.minute);
+    } catch (e) {
+      debugPrint('[ChallengeScheduler] Error picking date/time: ');
+      return null;
+    }
   }
 
   @override
