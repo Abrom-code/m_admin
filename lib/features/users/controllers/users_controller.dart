@@ -6,6 +6,7 @@ import 'package:m_admin/data/services/admin_session_service.dart';
 import 'package:m_admin/features/dashboard/controllers/dashboard_controller.dart';
 import 'package:m_admin/features/users/models/admin_subscription_plan.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
+import 'package:m_admin/features/users/models/reset_password_result.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -277,6 +278,32 @@ class UsersController extends GetxController {
     } catch (e) {
       AppExceptionHandler.handleResponse(e);
       return false;
+    } finally {
+      actingIds.remove(user.id);
+      actingIds.refresh();
+    }
+  }
+
+  /// Resets a student's password using the admin-reset-password Edge Function.
+  ///
+  /// Prevents duplicate requests using [actingIds], triggers the backend function,
+  /// and returns the temporary password result for immediate display in the success dialog.
+  Future<ResetPasswordResult?> resetStudentPassword(AdminUserModel user) async {
+    if (isActing(user.id)) return null;
+
+    try {
+      actingIds.add(user.id);
+      actingIds.refresh();
+
+      final result = await _repo.resetStudentPassword(
+        userId: user.id,
+        email: user.email,
+      );
+
+      return result;
+    } catch (e) {
+      AppExceptionHandler.handleResponse(e);
+      return null;
     } finally {
       actingIds.remove(user.id);
       actingIds.refresh();

@@ -9,6 +9,7 @@ import 'package:m_admin/data/repositories/users_repository.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_chips.dart';
 import 'package:m_admin/features/users/controllers/users_controller.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
+import 'package:m_admin/features/users/screens/widgets/reset_password_success_dialog.dart';
 import 'package:m_admin/features/users/screens/widgets/subscription_plan_dialog.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
@@ -36,6 +37,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   List<Map<String, dynamic>> _deviceHistory = [];
   bool _loadingDevice = true;
   bool _resettingDevice = false;
+  bool _resettingPassword = false;
 
   @override
   void initState() {
@@ -90,6 +92,39 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
       SnackbarHelper.error('Error', 'Failed to reset device: $e');
     } finally {
       if (mounted) setState(() => _resettingDevice = false);
+    }
+  }
+
+  Future<void> _resetPassword(AdminUserModel user) async {
+    final confirmed = await AppDialogBoxes.confirm(
+      title: 'Reset Student Password?',
+      message:
+          "You are about to reset this student's password. A new temporary password will be generated and the student's current password will no longer work.",
+      confirmLabel: 'Confirm Reset',
+      cancelLabel: 'Cancel',
+      isDestructive: true,
+    );
+
+    if (!confirmed) return;
+
+    setState(() => _resettingPassword = true);
+
+    try {
+      final result = await UsersController.instance.resetStudentPassword(user);
+      if (result != null && result.success && mounted) {
+        await ResetPasswordSuccessDialog.show(
+          context,
+          studentName: result.studentName.isNotEmpty ? result.studentName : user.displayName,
+          studentEmail: result.studentEmail.isNotEmpty ? result.studentEmail : user.email,
+          temporaryPassword: result.temporaryPassword,
+        );
+      }
+    } catch (e) {
+      SnackbarHelper.error('Error', 'Failed to reset password: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _resettingPassword = false);
+      }
     }
   }
 
@@ -235,6 +270,22 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
             icon: const Icon(Icons.close_rounded),
             onPressed: () => Navigator.of(context).maybePop(),
           ),
+          actions: [
+            IconButton(
+              tooltip: 'Reset Student Password',
+              icon: _resettingPassword
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF6366F1),
+                      ),
+                    )
+                  : const Icon(Icons.lock_reset_rounded, color: Color(0xFF6366F1)),
+              onPressed: _resettingPassword ? null : () => _resetPassword(user),
+            ),
+          ],
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSizes.md),
@@ -256,7 +307,15 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
               ),
               const SizedBox(height: AppSizes.spaceBtwItems),
 
-              // ── 3. Device Management & History Card ───────────────────────
+              // ── 3. Account Security & Password Card ───────────────────────
+              _AccountSecurityCard(
+                user: user,
+                isResetting: _resettingPassword,
+                onResetPassword: () => _resetPassword(user),
+              ),
+              const SizedBox(height: AppSizes.spaceBtwItems),
+
+              // ── 4. Device Management & History Card ───────────────────────
               _DeviceManagementCard(
                 loading: _loadingDevice,
                 device: _userDevice,
@@ -266,14 +325,14 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
               ),
               const SizedBox(height: AppSizes.spaceBtwItems),
 
-              // ── 3. Receipt History Card ───────────────────────────────────
+              // ── 5. Receipt History Card ───────────────────────────────────
               _ReceiptHistoryCard(
                 loading: _loadingReceipts,
                 receipts: _receipts,
               ),
               const SizedBox(height: AppSizes.spaceBtwItems),
 
-              // ── 4. Danger Zone Card ───────────────────────────────────────
+              // ── 6. Danger Zone Card ───────────────────────────────────────
               _DangerZoneCard(
                 user: user,
                 onDelete: () => _deleteUser(user),
@@ -571,6 +630,92 @@ class _SubscriptionActionsCard extends StatelessWidget {
                   ),
                 ],
               ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Account Security & Password Card ───────────────────────────────────────
+
+class _AccountSecurityCard extends StatelessWidget {
+  const _AccountSecurityCard({
+    required this.user,
+    required this.isResetting,
+    required this.onResetPassword,
+  });
+
+  final AdminUserModel user;
+  final bool isResetting;
+  final VoidCallback onResetPassword;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSizes.md),
+      decoration: BoxDecoration(
+        color: dark ? AppColors.darkSurface : AppColors.white,
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.shield_outlined, size: 18, color: Color(0xFF6366F1)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Account Security & Password',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSizes.sm),
+          const Text(
+            'Admin-initiated password recovery for students who are locked out or cannot access their email. Generates a secure temporary password. Changing the password after login is optional for the student.',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.3),
+          ),
+          const SizedBox(height: AppSizes.md),
+          Obx(() {
+            final isActing = (Get.isRegistered<UsersController>() &&
+                    UsersController.instance.isActing(user.id)) ||
+                isResetting;
+
+            return SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: isActing ? null : onResetPassword,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF6366F1),
+                  side: const BorderSide(color: Color(0xFF6366F1)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                ),
+                icon: isActing
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF6366F1),
+                        ),
+                      )
+                    : const Icon(Icons.lock_reset_rounded, size: 18),
+                label: Text(
+                  isActing ? 'Resetting Password...' : 'Reset Student Password',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
+                ),
+              ),
             );
           }),
         ],

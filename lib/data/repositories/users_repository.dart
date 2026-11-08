@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:m_admin/features/users/models/admin_user_model.dart';
+import 'package:m_admin/features/users/models/reset_password_result.dart';
 import 'package:m_admin/utils/constants/app_env.dart';
+import 'package:m_admin/utils/exceptions/app_failure_model.dart';
 import 'package:m_admin/utils/exceptions/exception_handler.dart';
 import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 
@@ -379,6 +381,119 @@ class UsersRepository {
 
       return true;
     } catch (e) {
+      throw AppExceptionHandler.handle(e);
+    }
+  }
+
+  /// Initiates an administrator password reset for the specified student.
+  ///
+  /// Invokes the secure `admin-reset-password` Supabase Edge Function with the
+  /// administrator's verified JWT. The Edge Function generates a cryptographically
+  /// secure temporary password, updates the student's existing auth.users record,
+  /// and writes an immutable entry to the audit log.
+  ///
+  /// Security:
+  /// - Only authorized administrators can invoke this successfully.
+  /// - The temporary password returned in [ResetPasswordResult] must never be logged
+  ///   or stored in persistent local storage.
+  Future<ResetPasswordResult> resetStudentPassword({
+    required String userId,
+    String? email,
+  }) async {
+    try {
+      final session = _sb.auth.currentSession;
+      final token = session?.accessToken;
+
+      if (token == null || token.isEmpty) {
+        throw const AppFailure(
+          title: 'Unauthorized',
+          message: 'No active administrator session found. Please sign in again.',
+        );
+      }
+
+      final payload = <String, dynamic>{
+        'userId': userId,
+        if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+      };
+
+      Map<String, dynamic>? data;
+
+      // 1. Try invoking via supabase_flutter functions client
+      try {
+        final response = await _sb.functions.invoke(
+          'admin-reset-password',
+          body: payload,
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        );
+
+        if (response.status >= 200 && response.status < 300) {
+          if (response.data is Map<String, dynamic>) {
+            data = response.data as Map<String, dynamic>;
+          } else if (response.data is Map) {
+            data = Map<String, dynamic>.from(response.data as Map);
+          } else if (response.data is String) {
+            final decoded = jsonDecode(response.data as String);
+            if (decoded is Map) {
+              data = Map<String, dynamic>.from(decoded);
+            }
+          }
+        } else {
+          String errorMsg = 'Failed to reset password (${response.status})';
+          if (response.data is Map && (response.data as Map)['error'] != null) {
+            errorMsg = (response.data as Map)['error'].toString();
+          }
+          throw AppFailure(title: 'Password Reset Failed', message: errorMsg);
+        }
+      } on FunctionException catch (fe) {
+        String msg = fe.reasonPhrase ?? fe.details?.toString() ?? 'Function error (${fe.status})';
+        if (fe.details is Map && (fe.details as Map)['error'] != null) {
+          msg = (fe.details as Map)['error'].toString();
+        }
+        throw AppFailure(title: 'Password Reset Failed', message: msg);
+      } catch (e) {
+        if (e is AppFailure) rethrow;
+
+        // Fallback to direct HTTP endpoint if functions.invoke encountered a network issue
+        final endpoint = Uri.parse('${AppEnv.adminFunctionsBaseUrl}/admin-reset-password');
+        final httpResponse = await http.post(
+          endpoint,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+            'apikey': AppEnv.supabaseApiKey,
+          },
+          body: jsonEncode(payload),
+        ).timeout(const Duration(seconds: 25));
+
+        if (httpResponse.statusCode >= 200 && httpResponse.statusCode < 300) {
+          final decoded = jsonDecode(httpResponse.body);
+          if (decoded is Map) {
+            data = Map<String, dynamic>.from(decoded);
+          }
+        } else {
+          String errorMsg = 'Password reset failed (${httpResponse.statusCode})';
+          try {
+            final decoded = jsonDecode(httpResponse.body);
+            if (decoded is Map && decoded['error'] != null) {
+              errorMsg = decoded['error'].toString();
+            }
+          } catch (_) {}
+          throw AppFailure(title: 'Password Reset Failed', message: errorMsg);
+        }
+      }
+
+      if (data == null || data['temporaryPassword'] == null) {
+        throw const AppFailure(
+          title: 'Password Reset Failed',
+          message: 'Server did not return a valid temporary password.',
+        );
+      }
+
+      return ResetPasswordResult.fromJson(data);
+    } catch (e) {
+      if (e is AppFailure) rethrow;
       throw AppExceptionHandler.handle(e);
     }
   }
