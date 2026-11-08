@@ -266,25 +266,37 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    if (!targetAuthUser) {
-      const emailToLookup = studentProfile?.email || targetEmail;
-      if (emailToLookup) {
-        // Query users list for the matching email
+    const emailToLookup = (studentProfile?.email || targetEmail || "").trim();
+    if (!targetAuthUser && emailToLookup) {
+      // Query users list with pagination to locate matching auth account
+      let page = 1;
+      const perPage = 100;
+      let hasMore = true;
+      while (hasMore && !targetAuthUser && page <= 50) {
         const { data: listData, error: listErr } = await supabaseAdmin.auth.admin.listUsers({
-          page: 1,
-          perPage: 50,
+          page,
+          perPage,
         });
-        if (!listErr && listData?.users) {
-          targetAuthUser = listData.users.find(
-            (u) => u.email?.toLowerCase() === emailToLookup.toLowerCase(),
-          ) || null;
+        if (listErr || !listData?.users || listData.users.length === 0) {
+          hasMore = false;
+          break;
         }
+        targetAuthUser = listData.users.find(
+          (u) => u.email?.toLowerCase().trim() === emailToLookup.toLowerCase(),
+        ) || null;
+        if (listData.users.length < perPage) {
+          hasMore = false;
+        }
+        page++;
       }
     }
 
     if (!targetAuthUser) {
+      const lookupIdentifier = emailToLookup || candidateId;
       return new Response(
-        JSON.stringify({ error: "Student account not found in authentication system." }),
+        JSON.stringify({
+          error: `Student account not found in authentication system for "${lookupIdentifier}". Ensure the student has registered an account.`,
+        }),
         {
           status: 404,
           headers: { ...CORS_HEADERS, "Content-Type": "application/json" },

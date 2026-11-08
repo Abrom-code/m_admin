@@ -113,15 +113,15 @@ class SettingsController extends GetxController {
   final isSavingVersion = false.obs;
   final isUpdateCheckEnabled = true.obs;
   final isForceUpdate = false.obs;
-  final targetAppVersion = TextEditingController(text: '1.0.9');
-  final targetAppBuild = TextEditingController(text: '10');
+  final targetAppVersion = TextEditingController(text: '1.1.0');
+  final targetAppBuild = TextEditingController(text: '11');
   final appUpdateNotes = TextEditingController(text: '');
   final appUpdateUrl = TextEditingController(
       text: 'https://play.google.com/store/apps/details?id=com.abopia.matricet');
 
   // Baseline student version in production (for inconsistency comparison)
-  static const String studentBaselineVersion = '1.0.9';
-  static const int studentBaselineBuild = 10;
+  static const String studentBaselineVersion = '1.1.0';
+  static const int studentBaselineBuild = 11;
 
   static int compareVersions(String v1, String v2) {
     final clean1 = v1.replaceAll(RegExp(r'[^0-9.]'), '');

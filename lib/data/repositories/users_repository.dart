@@ -447,9 +447,24 @@ class UsersRepository {
           throw AppFailure(title: 'Password Reset Failed', message: errorMsg);
         }
       } on FunctionException catch (fe) {
-        String msg = fe.reasonPhrase ?? fe.details?.toString() ?? 'Function error (${fe.status})';
+        String msg = 'Failed to reset password (${fe.status})';
         if (fe.details is Map && (fe.details as Map)['error'] != null) {
           msg = (fe.details as Map)['error'].toString();
+        } else if (fe.details is String) {
+          try {
+            final decoded = jsonDecode(fe.details as String);
+            if (decoded is Map && decoded['error'] != null) {
+              msg = decoded['error'].toString();
+            } else if ((fe.details as String).trim().isNotEmpty) {
+              msg = fe.details as String;
+            }
+          } catch (_) {
+            if ((fe.details as String).trim().isNotEmpty) {
+              msg = fe.details as String;
+            }
+          }
+        } else if (fe.reasonPhrase != null && fe.reasonPhrase!.isNotEmpty) {
+          msg = fe.reasonPhrase!;
         }
         throw AppFailure(title: 'Password Reset Failed', message: msg);
       } catch (e) {
