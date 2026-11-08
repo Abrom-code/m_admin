@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:m_admin/features/tips_and_news/controllers/admin_tips_news_controller.dart';
 import 'package:m_admin/features/tips_and_news/models/admin_tip_news_model.dart';
@@ -6,6 +8,7 @@ import 'package:m_admin/features/tips_and_news/screens/widgets/tip_news_form_dia
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
+import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
 /// Modal dialog for viewing full details of a Tip or News entry.
 ///
@@ -96,6 +99,19 @@ class TipNewsDetailDialog extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Iconsax.copy_copy, size: 18),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(
+                        text: '${item.title}\n\n${item.content}',
+                      ));
+                      SnackbarHelper.success(
+                        'Copied',
+                        'Broadcast content copied to clipboard.',
+                      );
+                    },
+                    tooltip: 'Copy broadcast text',
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, size: 20),
@@ -266,7 +282,7 @@ class TipNewsDetailDialog extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
 
-                    // Full Content (Selectable with clean typography)
+                    // Full Content (Selectable with clean typography & interactive links)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
@@ -280,13 +296,14 @@ class TipNewsDetailDialog extends StatelessWidget {
                               : AppColors.borderPrimary,
                         ),
                       ),
-                      child: SelectableText(
-                        item.content,
+                      child: _InteractiveBodyText(
+                        text: item.content,
                         style: TextStyle(
                           fontSize: 14,
                           height: 1.6,
                           color: dark ? AppColors.white : const Color(0xFF1E293B),
                         ),
+                        isDark: dark,
                       ),
                     ),
                   ],
@@ -510,6 +527,119 @@ class TipNewsDetailDialog extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Renders content with selectable text and clickable hyperlinks.
+class _InteractiveBodyText extends StatefulWidget {
+  const _InteractiveBodyText({
+    required this.text,
+    required this.style,
+    required this.isDark,
+  });
+
+  final String text;
+  final TextStyle style;
+  final bool isDark;
+
+  @override
+  State<_InteractiveBodyText> createState() => _InteractiveBodyTextState();
+}
+
+class _InteractiveBodyTextState extends State<_InteractiveBodyText> {
+  final List<TapGestureRecognizer> _recognizers = [];
+
+  @override
+  void dispose() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+
+    final linkColor = widget.isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
+    final linkStyle = widget.style.copyWith(
+      color: linkColor,
+      fontWeight: FontWeight.w600,
+      decoration: TextDecoration.underline,
+      decorationColor: linkColor.withValues(alpha: 0.6),
+    );
+
+    final raw = widget.text;
+    final spans = <InlineSpan>[];
+
+    // Regex matching markdown [label](url), BBCode [a...], or raw URLs
+    final pattern = RegExp(
+      r'\[([^\]]+)\]\(((?:https?://|tg://|t\.me/)[^\)\s]+)\)|\[a(?:\s+href\s*=\s*["' "'" r']?([^"' "'" r'\]\s>]+)["' "'" r']?|=\s*([^\s\]]+))?\s*\](.*?)\[/a\]|(https?://[^\s<>"' "'" r'\]\)]+|(?<!@)(?:t\.me|telegram\.me)/[a-zA-Z0-9_+/]+|www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}[^\s<>"' "'" r'\]\)]*)',
+      caseSensitive: false,
+    );
+
+    int cursor = 0;
+    for (final match in pattern.allMatches(raw)) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(
+          text: raw.substring(cursor, match.start),
+          style: widget.style,
+        ));
+      }
+
+      String displayText = '';
+      String targetUrl = '';
+
+      if (match.group(1) != null && match.group(2) != null) {
+        // Markdown [label](url)
+        displayText = match.group(1)!.trim();
+        targetUrl = match.group(2)!.trim();
+      } else if (match.group(5) != null) {
+        // BBCode [a]
+        displayText = match.group(5)!.trim();
+        targetUrl = match.group(3) ?? match.group(4) ?? displayText;
+      } else if (match.group(6) != null) {
+        // Raw URL
+        displayText = match.group(6)!.trim();
+        targetUrl = displayText;
+      }
+
+      if (!targetUrl.contains('://')) {
+        targetUrl = 'https://$targetUrl';
+      }
+
+      final recognizer = TapGestureRecognizer()
+        ..onTap = () => AppHelperFunctions.openUrl(targetUrl);
+      _recognizers.add(recognizer);
+
+      spans.add(
+        TextSpan(
+          text: displayText,
+          style: linkStyle,
+          recognizer: recognizer,
+          mouseCursor: SystemMouseCursors.click,
+        ),
+      );
+
+      cursor = match.end;
+    }
+
+    if (cursor < raw.length) {
+      spans.add(TextSpan(
+        text: raw.substring(cursor),
+        style: widget.style,
+      ));
+    }
+
+    return SelectionArea(
+      child: Text.rich(
+        TextSpan(children: spans),
       ),
     );
   }
