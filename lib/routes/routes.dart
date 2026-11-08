@@ -46,5 +46,6 @@ class AdminRoutes {
   static const auditLog = '/audit-log';
 
   static const sessions = '/sessions';
+  static const tipsAndNews = '/tips-and-news';
   static const settings = '/settings';
 }

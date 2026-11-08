@@ -37,7 +37,8 @@ abstract final class AdminNavPage {
   static const int reportedQuestions = 8;
   static const int challenges = 9;
   static const int sessions = 10;
-  static const int settings = 11;
+  static const int tipsAndNews = 11;
+  static const int settings = 12;
 }
 
 /// Drives the shell's sidebar and its lazy tab container.
@@ -75,6 +76,7 @@ class AdminNavController extends GetxController {
     ),
     AdminNavItem(label: 'Challenges', icon: Iconsax.cup_copy),
     AdminNavItem(label: 'Sessions', icon: Iconsax.mobile_copy),
+    AdminNavItem(label: 'Tips & News', icon: Iconsax.lamp_charge_copy),
     AdminNavItem(label: 'Settings', icon: Iconsax.setting_2_copy),
   ];
 

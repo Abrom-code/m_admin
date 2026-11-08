@@ -20,6 +20,7 @@ import 'package:m_admin/features/security/controllers/app_lock_controller.dart';
 import 'package:m_admin/features/security/screens/passcode_setup_dialog.dart';
 import 'package:m_admin/features/sessions/screens/sessions_screen.dart';
 import 'package:m_admin/features/settings/screens/settings_screen.dart';
+import 'package:m_admin/features/tips_and_news/screens/tips_and_news_screen.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/shell/screens/widgets/admin_sidebar.dart';
 import 'package:m_admin/features/users/screens/users_screen.dart';
@@ -373,6 +374,7 @@ class _PagesState extends State<_Pages> {
       AdminNavPage.reportedQuestions => const QuestionReportsScreen(),
       AdminNavPage.challenges => const ChallengesListScreen(),
       AdminNavPage.sessions => const SessionsScreen(),
+      AdminNavPage.tipsAndNews => const TipsAndNewsScreen(),
       AdminNavPage.settings => const SettingsScreen(),
       _ => const SizedBox.shrink(),
     };

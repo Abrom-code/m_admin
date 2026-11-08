@@ -202,6 +202,7 @@ class SettingsController extends GetxController {
         'pilot_exams',
         'leaderboard_challenges',
         'question_reports',
+        'tips_and_news',
       ];
 
       final futures = tables.map((t) async {
@@ -1020,6 +1021,12 @@ class _DatabaseOverviewSection extends StatelessWidget {
                   count: counts['question_reports'],
                   icon: Iconsax.flag_copy,
                   color: const Color(0xFFDC3545),
+                ),
+                _TableCountPill(
+                  label: 'Tips & News',
+                  count: counts['tips_and_news'],
+                  icon: Iconsax.lamp_charge_copy,
+                  color: const Color(0xFF6366F1),
                 ),
               ],
             );

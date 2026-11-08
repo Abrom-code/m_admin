@@ -35,6 +35,7 @@ import 'package:m_admin/features/notifications/screens/notification_compose_scre
 import 'package:m_admin/features/pilot_exams/models/admin_pilot_exam_model.dart';
 import 'package:m_admin/features/pilot_exams/screens/pilot_exam_editor_screen.dart';
 import 'package:m_admin/features/pilot_exams/screens/pilot_exams_screen.dart';
+import 'package:m_admin/features/tips_and_news/screens/tips_and_news_screen.dart';
 import 'package:m_admin/routes/admin_middleware.dart';
 import 'package:m_admin/routes/routes.dart';
 
@@ -322,6 +323,11 @@ class AdminAppRoutes {
     GetPage(
       name: AdminRoutes.sessions,
       page: () => const SessionsScreen(),
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.tipsAndNews,
+      page: () => const TipsAndNewsScreen(),
       middlewares: [AdminAuthMiddleware()],
     ),
     GetPage(
