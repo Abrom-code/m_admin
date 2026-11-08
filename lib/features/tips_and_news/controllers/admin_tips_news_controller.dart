@@ -296,4 +296,59 @@ class AdminTipsNewsController extends GetxController {
       SnackbarHelper.error('Batch Delete Failed', appEx.message);
     }
   }
+
+  // ── Batch Pin Selected Items ─────────────────────────────────────────────
+  Future<void> batchPinSelected(bool isPinned) async {
+    final ids = selectedIds.toList();
+    if (ids.isEmpty) return;
+    try {
+      for (final id in ids) {
+        final idx = items.indexWhere((i) => i.id == id);
+        if (idx != -1) {
+          items[idx] = items[idx].copyWith(isPinned: isPinned);
+        }
+      }
+      items.sort((a, b) {
+        if (a.isPinned != b.isPinned) {
+          return b.isPinned ? 1 : -1;
+        }
+        return b.createdAt.compareTo(a.createdAt);
+      });
+      for (final id in ids) {
+        await repo.togglePin(id, isPinned);
+      }
+      SnackbarHelper.success(
+        'Updated',
+        '${ids.length} item(s) ${isPinned ? "pinned to top" : "unpinned"}.',
+      );
+    } catch (e) {
+      final appEx = AppExceptionHandler.handle(e);
+      SnackbarHelper.error('Batch Pin Failed', appEx.message);
+    }
+  }
+
+  // ── Batch Publish Selected Items ─────────────────────────────────────────
+  Future<void> batchPublishSelected(bool isPublished) async {
+    final ids = selectedIds.toList();
+    if (ids.isEmpty) return;
+    try {
+      for (final id in ids) {
+        final idx = items.indexWhere((i) => i.id == id);
+        if (idx != -1) {
+          items[idx] = items[idx].copyWith(isPublished: isPublished);
+        }
+      }
+      for (final id in ids) {
+        await repo.togglePublish(id, isPublished);
+      }
+      SnackbarHelper.success(
+        'Updated',
+        '${ids.length} item(s) ${isPublished ? "published" : "moved to draft"}.',
+      );
+    } catch (e) {
+      final appEx = AppExceptionHandler.handle(e);
+      SnackbarHelper.error('Batch Publish Failed', appEx.message);
+    }
+  }
 }
+

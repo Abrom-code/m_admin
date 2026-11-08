@@ -60,6 +60,15 @@ class _TipNewsFormDialogState extends State<TipNewsFormDialog> {
     _imageUrlController.addListener(() {
       setState(() {});
     });
+    _contentController.addListener(() {
+      setState(() {});
+    });
+  }
+
+  int get _wordCount {
+    final text = _contentController.text.trim();
+    if (text.isEmpty) return 0;
+    return text.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).length;
   }
 
   @override
@@ -110,9 +119,12 @@ class _TipNewsFormDialogState extends State<TipNewsFormDialog> {
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusLg),
       ),
       backgroundColor: dark ? AppColors.darkSurface : AppColors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620, maxHeight: 850),
+        constraints: BoxConstraints(
+          maxWidth: 620,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -208,6 +220,7 @@ class _TipNewsFormDialogState extends State<TipNewsFormDialog> {
                             subtitle: 'Updates, events & alerts',
                             icon: Iconsax.document_copy,
                             isSelected: _category == 'news',
+                            activeColor: const Color(0xFF2563EB),
                             onTap: () => setState(() => _category = 'news'),
                           );
                           final tipTile = _CategorySelectorTile(
@@ -215,6 +228,7 @@ class _TipNewsFormDialogState extends State<TipNewsFormDialog> {
                             subtitle: 'Techniques & strategies',
                             icon: Iconsax.lamp_on_copy,
                             isSelected: _category == 'tip',
+                            activeColor: const Color(0xFF8B5CF6),
                             onTap: () => setState(() => _category = 'tip'),
                           );
 
@@ -351,7 +365,20 @@ class _TipNewsFormDialogState extends State<TipNewsFormDialog> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '$_wordCount words',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: dark
+                                ? AppColors.darkGrey
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
 
                       // Switches: Pin & Publish
                       Container(
@@ -628,6 +655,32 @@ class _TipNewsFormDialogState extends State<TipNewsFormDialog> {
           ),
           Positioned(
             top: 6,
+            left: 6,
+            child: InkWell(
+              onTap: () => _imageUrlController.clear(),
+              borderRadius: BorderRadius.circular(4),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.close_rounded, size: 12, color: Colors.white),
+                    SizedBox(width: 3),
+                    Text(
+                      'Remove',
+                      style: TextStyle(fontSize: 10, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 6,
             right: 6,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -654,6 +707,7 @@ class _CategorySelectorTile extends StatelessWidget {
     required this.icon,
     required this.isSelected,
     required this.onTap,
+    this.activeColor = AppColors.primary,
   });
 
   final String label;
@@ -661,6 +715,7 @@ class _CategorySelectorTile extends StatelessWidget {
   final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
+  final Color activeColor;
 
   @override
   Widget build(BuildContext context) {
@@ -671,32 +726,32 @@ class _CategorySelectorTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.primary.withValues(alpha: dark ? 0.2 : 0.08)
+              ? activeColor.withValues(alpha: dark ? 0.22 : 0.08)
               : (dark ? AppColors.darkCard : const Color(0xFFF8FAFC)),
           borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
           border: Border.all(
             color: isSelected
-                ? AppColors.primary
+                ? activeColor
                 : (dark ? AppColors.darkBorder : AppColors.borderPrimary),
-            width: isSelected ? 1.5 : 1.0,
+            width: isSelected ? 1.8 : 1.0,
           ),
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AppColors.primary
+                    ? activeColor
                     : (dark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 icon,
-                size: 16,
+                size: 15,
                 color: isSelected ? Colors.white : (dark ? Colors.white70 : Colors.black87),
               ),
             ),
@@ -704,6 +759,7 @@ class _CategorySelectorTile extends StatelessWidget {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     label,
@@ -711,7 +767,7 @@ class _CategorySelectorTile extends StatelessWidget {
                       fontSize: 12.5,
                       fontWeight:
                           isSelected ? FontWeight.bold : FontWeight.w500,
-                      color: isSelected ? AppColors.primary : null,
+                      color: isSelected ? activeColor : null,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -728,6 +784,14 @@ class _CategorySelectorTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (isSelected) ...[
+              const SizedBox(width: 6),
+              Icon(
+                Iconsax.tick_circle_copy,
+                size: 16,
+                color: activeColor,
+              ),
+            ],
           ],
         ),
       ),

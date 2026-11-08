@@ -7,6 +7,7 @@ import 'package:m_admin/common/widgets/loaders/circular_loading.dart';
 import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/tips_and_news/controllers/admin_tips_news_controller.dart';
 import 'package:m_admin/features/tips_and_news/models/admin_tip_news_model.dart';
+import 'package:m_admin/features/tips_and_news/screens/widgets/tip_news_detail_dialog.dart';
 import 'package:m_admin/features/tips_and_news/screens/widgets/tip_news_form_dialog.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
@@ -312,6 +313,31 @@ class TipsAndNewsScreen extends StatelessWidget {
                 _filterChipContainer(dark, audienceDropdown),
                 _filterChipContainer(dark, categoryDropdown),
                 _filterChipContainer(dark, statusDropdown),
+                Obx(() {
+                  final hasFilters = ctrl.selectedCategory.value != 'all' ||
+                      ctrl.selectedAudience.value != 'all' ||
+                      ctrl.selectedPublishStatus.value != 'all' ||
+                      ctrl.searchQuery.value.isNotEmpty;
+                  if (!hasFilters) return const SizedBox.shrink();
+
+                  return TextButton.icon(
+                    onPressed: () {
+                      ctrl.selectedCategory.value = 'all';
+                      ctrl.selectedAudience.value = 'all';
+                      ctrl.selectedPublishStatus.value = 'all';
+                      ctrl.searchQuery.value = '';
+                    },
+                    icon: const Icon(Icons.refresh_rounded, size: 14),
+                    label:
+                        const Text('Reset', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  );
+                }),
               ],
             ),
             newButton,
@@ -339,7 +365,7 @@ class TipsAndNewsScreen extends StatelessWidget {
   Widget _buildBatchBar(
       BuildContext context, AdminTipsNewsController ctrl, bool dark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: dark ? 0.18 : 0.08),
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
@@ -347,51 +373,94 @@ class TipsAndNewsScreen extends StatelessWidget {
           color: AppColors.primary.withValues(alpha: 0.3),
         ),
       ),
-      child: Row(
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
+        runSpacing: 8,
         children: [
-          const Icon(Iconsax.tick_circle_copy,
-              size: 18, color: AppColors.primary),
-          const SizedBox(width: 8),
-          Text(
-            '${ctrl.selectedIds.length} item(s) selected',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primary,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Iconsax.tick_circle_copy,
+                  size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                '${ctrl.selectedIds.length} item(s) selected',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
           ),
-          const Spacer(),
-          TextButton(
-            onPressed: ctrl.selectAll,
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: const Text('Select All', style: TextStyle(fontSize: 12)),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: ctrl.deselectAll,
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: const Text('Clear', style: TextStyle(fontSize: 12)),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: ctrl.deleteSelected,
-            icon: const Icon(Iconsax.trash_copy, size: 14),
-            label: const Text('Delete Selected'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              TextButton(
+                onPressed: ctrl.selectAll,
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Select All', style: TextStyle(fontSize: 12)),
+              ),
+              TextButton(
+                onPressed: ctrl.deselectAll,
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Clear', style: TextStyle(fontSize: 12)),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => ctrl.batchPinSelected(true),
+                icon: const Icon(Iconsax.stickynote_copy,
+                    size: 13, color: Color(0xFFF59E0B)),
+                label:
+                    const Text('Pin All', style: TextStyle(fontSize: 11.5)),
+                style: OutlinedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => ctrl.batchPublishSelected(true),
+                icon: const Icon(Iconsax.eye_copy,
+                    size: 13, color: AppColors.success),
+                label:
+                    const Text('Publish All', style: TextStyle(fontSize: 11.5)),
+                style: OutlinedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: ctrl.deleteSelected,
+                icon: const Icon(Iconsax.trash_copy, size: 13),
+                label: const Text('Delete Selected',
+                    style: TextStyle(fontSize: 11.5)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -598,18 +667,26 @@ class _TipNewsCard extends StatelessWidget {
 
       return Container(
         decoration: BoxDecoration(
-          color: dark ? AppColors.darkSurface : AppColors.white,
+          color: isSelected
+              ? AppColors.primary.withValues(alpha: dark ? 0.18 : 0.08)
+              : (dark ? AppColors.darkSurface : AppColors.white),
           borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
           border: Border.all(
             color: isSelected
                 ? AppColors.primary
                 : (item.isPinned
-                    ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
+                    ? const Color(0xFFF59E0B).withValues(alpha: 0.45)
                     : (dark ? AppColors.darkBorder : AppColors.borderPrimary)),
-            width: isSelected || item.isPinned ? 1.5 : 1.0,
+            width: isSelected ? 2.0 : (item.isPinned ? 1.5 : 1.0),
           ),
           boxShadow: [
-            if (item.isPinned)
+            if (isSelected)
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              )
+            else if (item.isPinned)
               BoxShadow(
                 color: const Color(0xFFF59E0B).withValues(alpha: 0.05),
                 blurRadius: 8,
@@ -622,7 +699,7 @@ class _TipNewsCard extends StatelessWidget {
             if (ctrl.isSelectionMode) {
               ctrl.toggleSelection(item.id);
             } else {
-              TipNewsFormDialog.show(context, item: item);
+              TipNewsDetailDialog.show(context, item: item);
             }
           },
           borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
@@ -743,29 +820,17 @@ class _TipNewsCard extends StatelessWidget {
                           ? AppColors.darkGrey
                           : AppColors.textSecondary),
                   const SizedBox(width: 4),
-                  Text(
-                    item.author,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: dark
-                          ? AppColors.darkGrey
-                          : AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Icon(Iconsax.clock_copy,
-                      size: 13,
-                      color: dark
-                          ? AppColors.darkGrey
-                          : AppColors.textSecondary),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${item.readingTimeMinutes} min read',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: dark
-                          ? AppColors.darkGrey
-                          : AppColors.textSecondary,
+                  Flexible(
+                    child: Text(
+                      item.author,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: dark
+                            ? AppColors.darkGrey
+                            : AppColors.textSecondary,
+                      ),
                     ),
                   ),
                 ],
@@ -780,6 +845,13 @@ class _TipNewsCard extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // View Details
+            IconButton(
+              icon: const Icon(Iconsax.eye_copy, size: 18),
+              tooltip: 'View Details',
+              onPressed: () => TipNewsDetailDialog.show(context, item: item),
+            ),
+
             // Pin Toggle
             IconButton(
               icon: Icon(
@@ -903,23 +975,21 @@ class _TipNewsCard extends StatelessWidget {
           spacing: 8,
           runSpacing: 6,
           children: [
+            _publishBadge(item.isPublished),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _publishBadge(item.isPublished),
-                const SizedBox(width: 6),
-                Text(
-                  '${item.readingTimeMinutes}m read',
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    color: dark ? AppColors.darkGrey : AppColors.textSecondary,
+                // View Button
+                InkWell(
+                  onTap: () => TipNewsDetailDialog.show(context, item: item),
+                  borderRadius: BorderRadius.circular(4),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Iconsax.eye_copy, size: 16),
                   ),
                 ),
-              ],
-            ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+                const SizedBox(width: 6),
+
                 // Pin Button
                 InkWell(
                   onTap: () => ctrl.togglePin(item),

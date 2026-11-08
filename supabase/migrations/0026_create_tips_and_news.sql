@@ -42,3 +42,4 @@ CREATE POLICY "Allow admins full management of tips and news"
     TO authenticated
     USING (public.is_admin())
     WITH CHECK (public.is_admin());
+

@@ -6,6 +6,7 @@ import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/features/tips_and_news/controllers/admin_tips_news_controller.dart';
 import 'package:m_admin/features/tips_and_news/models/admin_tip_news_model.dart';
 import 'package:m_admin/features/tips_and_news/screens/tips_and_news_screen.dart';
+import 'package:m_admin/features/tips_and_news/screens/widgets/tip_news_detail_dialog.dart';
 import 'package:m_admin/features/tips_and_news/screens/widgets/tip_news_form_dialog.dart';
 
 /// In-memory mock repository for Tips & News testing.
@@ -172,7 +173,7 @@ void main() {
       expect(payload.containsKey('updated_at'), isTrue);
     });
 
-    test('Snippet and reading time calculation behave accurately', () {
+    test('Snippet behaves accurately', () {
       final shortModel = AdminTipNewsModel(
         id: 1,
         title: 'Short',
@@ -183,7 +184,6 @@ void main() {
       );
 
       expect(shortModel.snippet, equals('This is a short message.'));
-      expect(shortModel.readingTimeMinutes, equals(1));
 
       final words = List.generate(300, (i) => 'word$i').join(' ');
       final longModel = AdminTipNewsModel(
@@ -197,7 +197,6 @@ void main() {
 
       expect(longModel.snippet.length, lessThanOrEqualTo(100));
       expect(longModel.snippet.endsWith('...'), isTrue);
-      expect(longModel.readingTimeMinutes, equals(3));
     });
 
     test('copyWith creates new instances with modified values', () {
@@ -410,6 +409,17 @@ void main() {
       expect(updated.isPublished, isTrue);
       expect(controller.publishedCount, equals(4));
     });
+
+    test('batchPinSelected and batchPublishSelected update multiple selected items', () async {
+      controller.selectedIds.addAll([2, 3]);
+
+      await controller.batchPinSelected(true);
+      expect(controller.items.firstWhere((i) => i.id == 2).isPinned, isTrue);
+      expect(controller.items.firstWhere((i) => i.id == 3).isPinned, isTrue);
+
+      await controller.batchPublishSelected(true);
+      expect(controller.items.firstWhere((i) => i.id == 3).isPublished, isTrue);
+    });
   });
 
   group('Widget & Overflow Layout Tests', () {
@@ -465,6 +475,7 @@ void main() {
       ];
 
       final mockRepo = MockTipsNewsRepository(initialItems: sampleItems);
+      Get.put(AdminNavController());
       final ctrl = AdminTipsNewsController(repository: mockRepo);
       Get.put(ctrl);
       await ctrl.loadItems();
@@ -509,6 +520,7 @@ void main() {
       ];
 
       final mockRepo = MockTipsNewsRepository(initialItems: sampleItems);
+      Get.put(AdminNavController());
       final ctrl = AdminTipsNewsController(repository: mockRepo);
       Get.put(ctrl);
       await ctrl.loadItems();
@@ -526,6 +538,47 @@ void main() {
       expect(find.text('TIP'), findsOneWidget);
       expect(find.text('Natural'), findsOneWidget);
       expect(find.text('New Broadcast'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('TipNewsDetailDialog renders cleanly with zero overflow on mobile (320x480)', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 480);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final mockRepo = MockTipsNewsRepository();
+      Get.put(AdminTipsNewsController(repository: mockRepo));
+
+      final testItem = AdminTipNewsModel(
+        id: 99,
+        title: 'የ2019 ዓ.ም የፈተና መመሪያ',
+        content: 'ለተፈጥሮ እና ማህበራዊ ሳይንስ ተማሪዎች የተዘጋጀ አጠቃላይ መመሪያ እና ስትራቴጂ።',
+        category: 'tip',
+        author: 'MatricMate Lead',
+        audience: 'both',
+        isPinned: true,
+        isPublished: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: TipNewsDetailDialog(item: testItem),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Study Tip Broadcast'), findsOneWidget);
+      expect(find.text('የ2019 ዓ.ም የፈተና መመሪያ'), findsOneWidget);
+      expect(find.text('Edit Broadcast'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

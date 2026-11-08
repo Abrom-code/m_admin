@@ -45,12 +45,6 @@ class AdminTipNewsModel {
     }
   }
 
-  int get readingTimeMinutes {
-    final words = content.trim().split(RegExp(r'\s+')).length;
-    final mins = (words / 140).ceil();
-    return mins < 1 ? 1 : mins;
-  }
-
   String get snippet {
     final clean = content.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (clean.length <= 100) return clean;
@@ -160,3 +154,4 @@ class AdminTipNewsModel {
     );
   }
 }
+
