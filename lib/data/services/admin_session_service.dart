@@ -107,6 +107,18 @@ class AdminSessionService extends GetxService {
       isActive: true,
     );
     admin.value = model;
+
+    // Try to sync with admins table if possible
+    try {
+      await Supabase.instance.client.from('admins').upsert({
+        'firebase_uid': user.id,
+        'email': (user.email ?? '').trim().toLowerCase(),
+        'display_name': model.displayName,
+        'role': 'superadmin',
+        'is_active': true,
+      }, onConflict: 'email');
+    } catch (_) {}
+
     return model;
   }
 

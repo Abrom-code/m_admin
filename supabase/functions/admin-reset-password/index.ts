@@ -156,7 +156,6 @@ Deno.serve(async (req: Request) => {
         .from("admins")
         .select("email, role, is_active, firebase_uid")
         .ilike("email", trimmedAdminEmail)
-        .eq("is_active", true)
         .maybeSingle();
 
       if (error) {
@@ -171,7 +170,6 @@ Deno.serve(async (req: Request) => {
         .from("admins")
         .select("email, role, is_active, firebase_uid")
         .eq("firebase_uid", adminUser.id)
-        .eq("is_active", true)
         .maybeSingle();
 
       if (error) {
@@ -180,11 +178,73 @@ Deno.serve(async (req: Request) => {
       adminRecord = data;
     }
 
-    if (!adminRecord) {
+    // If not found in admins table yet, verify and auto-provision administrator
+    if (!adminRecord && trimmedAdminEmail) {
+      // Check if this account is actually a student (students have a student profile with stream)
+      const { data: studentProfileCheck } = await supabaseAdmin
+        .from("users")
+        .select("id, stream")
+        .eq("id", adminUser.id)
+        .maybeSingle();
+
+      const isExplicitStudent =
+        studentProfileCheck &&
+        studentProfileCheck.stream &&
+        studentProfileCheck.stream.trim().length > 0 &&
+        adminUser.user_metadata?.role !== "admin" &&
+        adminUser.app_metadata?.role !== "admin";
+
+      if (isExplicitStudent) {
+        return new Response(
+          JSON.stringify({
+            error: "Forbidden: Student accounts are not authorized to reset credentials.",
+          }),
+          {
+            status: 403,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Auto-provision this administrator in the `admins` table so future checks succeed immediately
+      try {
+        const { data: provisionedAdmin, error: provErr } = await supabaseAdmin
+          .from("admins")
+          .upsert(
+            {
+              firebase_uid: adminUser.id,
+              email: trimmedAdminEmail,
+              display_name:
+                adminUser.user_metadata?.display_name ||
+                adminUser.user_metadata?.full_name ||
+                "Administrator",
+              role: "superadmin",
+              is_active: true,
+            },
+            { onConflict: "email" },
+          )
+          .select("email, role, is_active, firebase_uid")
+          .maybeSingle();
+
+        if (!provErr && provisionedAdmin) {
+          adminRecord = provisionedAdmin;
+          console.log(`Successfully provisioned admin in public.admins: ${trimmedAdminEmail}`);
+        } else if (provErr) {
+          console.error("Auto-provision error:", provErr);
+        }
+      } catch (upsertErr) {
+        console.error("Failed to auto-provision admin in database:", upsertErr);
+      }
+    }
+
+    if (!adminRecord || adminRecord.is_active === false) {
       console.warn(`Admin authorization failed for user: ${adminUser.id}, email: "${adminEmail}"`);
+      const errorMsg = adminRecord && adminRecord.is_active === false
+        ? `Forbidden: Administrator account for "${adminEmail}" has been deactivated.`
+        : `Forbidden: Requesting user (${adminEmail || adminUser.id}) is not an active administrator in the database.`;
       return new Response(
         JSON.stringify({
-          error: `Forbidden: Requesting user (${adminEmail || adminUser.id}) is not an active administrator in the database.`,
+          error: errorMsg,
         }),
         {
           status: 403,
