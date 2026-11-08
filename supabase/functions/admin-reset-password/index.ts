@@ -148,16 +148,44 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false },
     });
 
-    const { data: adminRecord, error: adminQueryErr } = await supabaseAdmin
-      .from("admins")
-      .select("email, role, is_active, firebase_uid")
-      .or(`email.ilike.${adminEmail},firebase_uid.eq.${adminUser.id}`)
-      .eq("is_active", true)
-      .maybeSingle();
+    const trimmedAdminEmail = adminEmail.trim().toLowerCase();
+    let adminRecord = null;
 
-    if (adminQueryErr || !adminRecord) {
+    if (trimmedAdminEmail) {
+      const { data, error } = await supabaseAdmin
+        .from("admins")
+        .select("email, role, is_active, firebase_uid")
+        .ilike("email", trimmedAdminEmail)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Admin query error by email:", error);
+      }
+      adminRecord = data;
+    }
+
+    // Fallback: check by firebase_uid if not found by email
+    if (!adminRecord && adminUser.id) {
+      const { data, error } = await supabaseAdmin
+        .from("admins")
+        .select("email, role, is_active, firebase_uid")
+        .eq("firebase_uid", adminUser.id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Admin query error by uid:", error);
+      }
+      adminRecord = data;
+    }
+
+    if (!adminRecord) {
+      console.warn(`Admin authorization failed for user: ${adminUser.id}, email: "${adminEmail}"`);
       return new Response(
-        JSON.stringify({ error: "Forbidden: Requesting user is not an active administrator." }),
+        JSON.stringify({
+          error: `Forbidden: Requesting user (${adminEmail || adminUser.id}) is not an active administrator in the database.`,
+        }),
         {
           status: 403,
           headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
@@ -194,8 +222,8 @@ Deno.serve(async (req: Request) => {
 
     // Guard: Prevent resetting self or other administrators
     if (
-      targetUserId === adminUser.id ||
-      (targetEmail && targetEmail.toLowerCase() === adminEmail.toLowerCase())
+      (targetUserId && targetUserId === adminUser.id) ||
+      (targetEmail && adminEmail && targetEmail.toLowerCase() === adminEmail.toLowerCase())
     ) {
       return new Response(
         JSON.stringify({ error: "Cannot reset your own administrator password via this endpoint." }),
@@ -207,16 +235,24 @@ Deno.serve(async (req: Request) => {
     }
 
     // Check if target is an administrator in `admins` table
-    let adminCheck = supabaseAdmin.from("admins").select("email, is_active");
-    if (targetUserId && targetEmail) {
-      adminCheck = adminCheck.or(`firebase_uid.eq.${targetUserId},email.ilike.${targetEmail}`);
-    } else if (targetUserId) {
-      adminCheck = adminCheck.eq("firebase_uid", targetUserId);
-    } else {
-      adminCheck = adminCheck.ilike("email", targetEmail);
+    let targetAdmin = null;
+    if (targetEmail) {
+      const { data } = await supabaseAdmin
+        .from("admins")
+        .select("email, is_active")
+        .ilike("email", targetEmail.trim().toLowerCase())
+        .maybeSingle();
+      targetAdmin = data;
+    }
+    if (!targetAdmin && targetUserId) {
+      const { data } = await supabaseAdmin
+        .from("admins")
+        .select("email, is_active")
+        .eq("firebase_uid", targetUserId)
+        .maybeSingle();
+      targetAdmin = data;
     }
 
-    const { data: targetAdmin } = await adminCheck.maybeSingle();
     if (targetAdmin) {
       return new Response(
         JSON.stringify({ error: "Cannot reset an administrator account via student reset." }),
