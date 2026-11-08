@@ -109,6 +109,50 @@ class SettingsController extends GetxController {
   final privacyPolicyUrl =
       TextEditingController(text: 'https://matricet-privacy.vercel.app/');
 
+  // Student App Version & Update Control
+  final isSavingVersion = false.obs;
+  final isUpdateCheckEnabled = true.obs;
+  final isForceUpdate = false.obs;
+  final targetAppVersion = TextEditingController(text: '1.0.9');
+  final targetAppBuild = TextEditingController(text: '10');
+  final appUpdateNotes = TextEditingController(text: '');
+  final appUpdateUrl = TextEditingController(
+      text: 'https://play.google.com/store/apps/details?id=com.abopia.matricet');
+
+  // Baseline student version in production (for inconsistency comparison)
+  static const String studentBaselineVersion = '1.0.9';
+  static const int studentBaselineBuild = 10;
+
+  static int compareVersions(String v1, String v2) {
+    final clean1 = v1.replaceAll(RegExp(r'[^0-9.]'), '');
+    final clean2 = v2.replaceAll(RegExp(r'[^0-9.]'), '');
+    final parts1 = clean1
+        .split('.')
+        .where((s) => s.isNotEmpty)
+        .map((s) => int.tryParse(s) ?? 0)
+        .toList();
+    final parts2 = clean2
+        .split('.')
+        .where((s) => s.isNotEmpty)
+        .map((s) => int.tryParse(s) ?? 0)
+        .toList();
+    final maxLen =
+        parts1.length > parts2.length ? parts1.length : parts2.length;
+    for (int i = 0; i < maxLen; i++) {
+      final p1 = i < parts1.length ? parts1[i] : 0;
+      final p2 = i < parts2.length ? parts2[i] : 0;
+      if (p1 != p2) return p1.compareTo(p2);
+    }
+    return 0;
+  }
+
+  bool get hasVersionUpdate {
+    final targetVer = targetAppVersion.text.trim();
+    final targetBld = int.tryParse(targetAppBuild.text.trim()) ?? 0;
+    final cmp = compareVersions(targetVer, studentBaselineVersion);
+    return cmp > 0 || (cmp == 0 && targetBld > studentBaselineBuild);
+  }
+
   @override
   void onInit() {
     super.onInit();
@@ -131,6 +175,10 @@ class SettingsController extends GetxController {
     shareLink.dispose();
     supportEmail.dispose();
     privacyPolicyUrl.dispose();
+    targetAppVersion.dispose();
+    targetAppBuild.dispose();
+    appUpdateNotes.dispose();
+    appUpdateUrl.dispose();
     super.onClose();
   }
 
@@ -243,6 +291,27 @@ class SettingsController extends GetxController {
         privacyPolicyUrl.text = cfg['privacy_policy_url']!;
       }
 
+      // App Version & Update settings
+      if (cfg['update_check_enabled']?.isNotEmpty == true) {
+        isUpdateCheckEnabled.value =
+            cfg['update_check_enabled']!.toLowerCase() != 'false';
+      }
+      if (cfg['force_update']?.isNotEmpty == true) {
+        isForceUpdate.value = cfg['force_update']!.toLowerCase() == 'true';
+      }
+      if (cfg['latest_version']?.isNotEmpty == true) {
+        targetAppVersion.text = cfg['latest_version']!;
+      }
+      if (cfg['latest_build']?.isNotEmpty == true) {
+        targetAppBuild.text = cfg['latest_build']!;
+      }
+      if (cfg['update_notes']?.isNotEmpty == true) {
+        appUpdateNotes.text = cfg['update_notes']!;
+      }
+      if (cfg['update_url']?.isNotEmpty == true) {
+        appUpdateUrl.text = cfg['update_url']!;
+      }
+
       _parseExtraAccounts(cfg['payment_extra_accounts'] ?? '');
       PaymentMethodInfo.loadFromConfig(cfg);
     } catch (e) {
@@ -338,6 +407,32 @@ class SettingsController extends GetxController {
     }
   }
 
+  Future<void> saveVersionConfig() async {
+    try {
+      isSavingVersion.value = true;
+      await _upsertMany({
+        'update_check_enabled': isUpdateCheckEnabled.value.toString(),
+        'force_update': isForceUpdate.value.toString(),
+        'latest_version': targetAppVersion.text.trim().isNotEmpty
+            ? targetAppVersion.text.trim()
+            : studentBaselineVersion,
+        'latest_build': targetAppBuild.text.trim().isNotEmpty
+            ? targetAppBuild.text.trim()
+            : studentBaselineBuild.toString(),
+        'update_notes': appUpdateNotes.text.trim(),
+        'update_url': appUpdateUrl.text.trim().isNotEmpty
+            ? appUpdateUrl.text.trim()
+            : 'https://play.google.com/store/apps/details?id=com.abopia.matricet',
+      });
+      SnackbarHelper.success(
+          'Saved', 'Student app version settings updated in Supabase.');
+    } catch (e) {
+      AppExceptionHandler.handleResponse(e);
+    } finally {
+      isSavingVersion.value = false;
+    }
+  }
+
   void addExtraAccount() {
     extraAccounts.add(ExtraPaymentAccount(
       key: 'method_${DateTime.now().millisecondsSinceEpoch}',
@@ -386,6 +481,8 @@ class SettingsScreen extends StatelessWidget {
           const _ReceiptStorageCleanupSection(),
           const SizedBox(height: AppSizes.spaceBtwSections),
           _StudentAppSection(controller),
+          const SizedBox(height: AppSizes.spaceBtwSections),
+          _AppVersionSection(controller),
           const SizedBox(height: AppSizes.spaceBtwSections),
           _PaymentSection(controller),
           const SizedBox(height: AppSizes.spaceBtwSections),
@@ -1357,6 +1454,321 @@ class _AppInfoBadge extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── App Version & Update Management Section ──────────────────────────
+
+class _AppVersionSection extends StatelessWidget {
+  const _AppVersionSection(this.c);
+  final SettingsController c;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppHelperFunctions.isDark(context);
+    final borderColor = dark ? AppColors.darkBorder : AppColors.borderPrimary;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSizes.md),
+      decoration: BoxDecoration(
+        color: dark ? AppColors.darkSurface : AppColors.white,
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                ),
+                child: const Icon(Icons.system_update_rounded,
+                    size: 16, color: AppColors.primary),
+              ),
+              const SizedBox(width: AppSizes.sm),
+              const Expanded(
+                child: Text(
+                  'Student App Version & Updates',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+              ),
+              Obx(() {
+                final isEnabled = c.isUpdateCheckEnabled.value;
+                final hasUpdate = c.hasVersionUpdate;
+                final targetVer = c.targetAppVersion.text.trim();
+
+                if (!isEnabled) {
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Disabled',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey),
+                    ),
+                  );
+                }
+
+                if (hasUpdate) {
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: const Color(0xFFF59E0B)
+                              .withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      'Broadcast Active: v$targetVer',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFD97706)),
+                    ),
+                  );
+                }
+
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: AppColors.success.withValues(alpha: 0.4)),
+                  ),
+                  child: const Text(
+                    'Up to date (v1.0.9+10)',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success),
+                  ),
+                );
+              }),
+            ],
+          ),
+          const SizedBox(height: AppSizes.sm),
+          Text(
+            'Control whether students are notified of updates on their Profile tab. Supabase is queried only when students refresh, avoiding unnecessary requests.',
+            style: TextStyle(
+                fontSize: 12,
+                color: dark ? AppColors.darkGrey : AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSizes.md),
+
+          // Inconsistency check info card
+          Obx(() {
+            final isEnabled = c.isUpdateCheckEnabled.value;
+            final hasUpdate = c.hasVersionUpdate;
+            final targetVer = c.targetAppVersion.text.trim();
+            final targetBld = c.targetAppBuild.text.trim();
+
+            Color cardBg;
+            Color cardBorder;
+            IconData cardIcon;
+            String statusTitle;
+            String statusDesc;
+
+            if (!isEnabled) {
+              cardBg = dark
+                  ? Colors.white.withValues(alpha: 0.04)
+                  : const Color(0xFFF1F5F9);
+              cardBorder =
+                  dark ? AppColors.darkBorder : const Color(0xFFE2E8F0);
+              cardIcon = Icons.pause_circle_outline_rounded;
+              statusTitle = 'Update Prompt Disabled';
+              statusDesc =
+                  'Students will see "You\'re Up to Date" even if a higher version is configured.';
+            } else if (hasUpdate) {
+              cardBg = const Color(0xFFF59E0B)
+                  .withValues(alpha: dark ? 0.15 : 0.08);
+              cardBorder =
+                  const Color(0xFFF59E0B).withValues(alpha: 0.35);
+              cardIcon = Icons.notification_important_rounded;
+              statusTitle =
+                  'Update Inconsistency Detected (Update Available)';
+              statusDesc =
+                  'Configured target (v$targetVer+$targetBld) is newer than student production baseline (v${SettingsController.studentBaselineVersion}+${SettingsController.studentBaselineBuild}). Students on v1.0.9 will see the amber update badge on their Profile tab when they refresh.';
+            } else {
+              cardBg =
+                  AppColors.success.withValues(alpha: dark ? 0.15 : 0.08);
+              cardBorder = AppColors.success.withValues(alpha: 0.35);
+              cardIcon = Icons.check_circle_outline_rounded;
+              statusTitle = 'Version Synchronized';
+              statusDesc =
+                  'Configured target matches production baseline (v1.0.9+10). Students will see their app is up-to-date.';
+            }
+
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                border: Border.all(color: cardBorder),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(cardIcon,
+                      size: 20,
+                      color: hasUpdate
+                          ? const Color(0xFFD97706)
+                          : (isEnabled ? AppColors.success : Colors.grey)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          statusTitle,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.bold,
+                            color: hasUpdate
+                                ? const Color(0xFFD97706)
+                                : (isEnabled
+                                    ? AppColors.success
+                                    : (dark
+                                        ? AppColors.white
+                                        : Colors.black87)),
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          statusDesc,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: dark
+                                ? AppColors.darkGrey
+                                : AppColors.textSecondary,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: AppSizes.md),
+
+          // Toggles
+          Obx(() => SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('Enable Update Check & Badging',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: const Text(
+                    'Broadcast update alerts to students upon refresh',
+                    style: TextStyle(fontSize: 11)),
+                value: c.isUpdateCheckEnabled.value,
+                activeTrackColor: AppColors.primary,
+                onChanged: (val) => c.isUpdateCheckEnabled.value = val,
+              )),
+          Obx(() => SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('Force Update Required',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: const Text(
+                    'Prevent students from bypassing the update dialog',
+                    style: TextStyle(fontSize: 11)),
+                value: c.isForceUpdate.value,
+                activeTrackColor: AppColors.error,
+                onChanged: (val) => c.isForceUpdate.value = val,
+              )),
+          const SizedBox(height: AppSizes.sm),
+
+          // Inputs
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: c.targetAppVersion,
+                  decoration: const InputDecoration(
+                    labelText: 'Target Version',
+                    hintText: 'e.g. 1.0.10',
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSizes.md),
+              Expanded(
+                child: TextField(
+                  controller: c.targetAppBuild,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Build Number',
+                    hintText: 'e.g. 11',
+                    isDense: true,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSizes.sm),
+          TextField(
+            controller: c.appUpdateUrl,
+            decoration: const InputDecoration(
+              labelText: 'Update / Download URL',
+              hintText:
+                  'https://play.google.com/store/apps/details?id=com.abopia.matricet',
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: AppSizes.sm),
+          TextField(
+            controller: c.appUpdateNotes,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Release Notes (Changelog)',
+              hintText: 'What is new in this update...',
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: AppSizes.md),
+
+          // Save button
+          Align(
+            alignment: Alignment.centerRight,
+            child: Obx(
+              () => FilledButton.icon(
+                onPressed:
+                    c.isSavingVersion.value ? null : c.saveVersionConfig,
+                icon: c.isSavingVersion.value
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.save_rounded, size: 16),
+                label: Text(c.isSavingVersion.value
+                    ? 'Saving...'
+                    : 'Save Version Settings'),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
