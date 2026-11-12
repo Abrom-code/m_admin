@@ -977,6 +977,36 @@ x Recents Completed ETB200.61 transfer From Adisu Solomon Shenfana to Abrham Ter
       expect(tester.takeException(), isNull);
     });
 
+    test('VerifyEtResult parses official Bank of Abyssinia not_found response for FT26299DNGRD', () {
+      final boaNotFoundJson = {
+        'success': false,
+        'message': 'No BOA transaction found.',
+        'data': [
+          {
+            'bank': 'boa',
+            'status': 'not_found',
+            'verified': false,
+            'accountSuffix': '93089',
+            'referenceNumber': 'FT26299DNGRD',
+          }
+        ],
+        'error': {
+          'code': 'not_found',
+          'message': 'No BOA transaction found.',
+          'retryable': false,
+        },
+        'requestId': '05c8d081-9ffc-4682-ab41-bd2e1bfc02d8',
+      };
+
+      final result = LinksEtResult.fromJson(boaNotFoundJson);
+      expect(result.ok, isFalse);
+      expect(result.verified, isFalse);
+      expect(result.bank, equals('boa'));
+      expect(result.referenceNumber, equals('FT26299DNGRD'));
+      expect(result.userFriendlyErrorMessage, contains('93089'));
+      expect(result.userFriendlyErrorMessage, contains('CBE'));
+    });
+
     testWidgets('VerifyEtView renders on 320px narrow mobile without overflow', (tester) async {
       tester.view.physicalSize = const Size(320, 640);
       tester.view.devicePixelRatio = 1.0;

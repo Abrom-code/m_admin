@@ -56,6 +56,18 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
   final _service = VerifyEtService.instance;
   final _scannedStorage = ScannedReceiptStorage.instance;
 
+  static const List<Map<String, String>> supportedBankOptions = [
+    {'id': 'telebirr', 'name': 'Telebirr', 'icon': '📱'},
+    {'id': 'cbe', 'name': 'CBE', 'icon': '🏦'},
+    {'id': 'boa', 'name': 'Abyssinia', 'icon': '🦁'},
+    {'id': 'awash', 'name': 'Awash Bank', 'icon': '🌊'},
+    {'id': 'cbebirr', 'name': 'CBE Birr', 'icon': '💳'},
+    {'id': 'mpesa', 'name': 'M-Pesa', 'icon': '📲'},
+    {'id': 'dashen', 'name': 'Dashen Bank', 'icon': '🏛️'},
+    {'id': 'zemen', 'name': 'Zemen Bank', 'icon': '🏛️'},
+  ];
+
+  late String _currentBank;
   late final TextEditingController _refCtrl;
   late final TextEditingController _suffixCtrl;
   late final TextEditingController _phoneCtrl;
@@ -72,7 +84,9 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
   void initState() {
     super.initState();
     final initialText = widget.review.verificationUrl.trim();
-    final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
+    final resolvedBank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod) ?? 'telebirr';
+    _currentBank = resolvedBank;
+    final bank = _currentBank;
     String cleanInitial = initialText;
     if (bank == 'telebirr' && initialText.isNotEmpty) {
       final sanitized = VerifyEtService.sanitizeTelebirrReference(initialText);
@@ -86,7 +100,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     _refCtrl = TextEditingController(text: cleanInitial);
     _refCtrl.addListener(_onRefChanged);
 
-    final initialSuffix = VerifyEtService.resolveDefaultAccountSuffix(bank ?? '');
+    final initialSuffix = VerifyEtService.resolveDefaultAccountSuffix(bank);
     _suffixCtrl = TextEditingController(text: initialSuffix);
     _phoneCtrl = TextEditingController();
 
@@ -98,11 +112,27 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     });
   }
 
+  void _switchBank(String newBank, {bool autoVerify = false}) {
+    if (_currentBank == newBank && !autoVerify) return;
+    setState(() {
+      _currentBank = newBank;
+      final newSuffix = VerifyEtService.resolveDefaultAccountSuffix(newBank);
+      _suffixCtrl.text = newSuffix;
+      _result = null;
+      _errorMessage = null;
+    });
+    if (autoVerify) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _check();
+      });
+    }
+  }
+
   void _onRefChanged() {
     _checkPreviousRecord();
     final text = _refCtrl.text.trim();
     if (text.isNotEmpty) {
-      final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
+      final bank = _currentBank;
       var clean = text;
       if (bank == 'telebirr' && text.contains('transactioninfo.ethiotelecom.et')) {
         final sanitized = VerifyEtService.sanitizeTelebirrReference(text);
@@ -149,7 +179,8 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.review.id != widget.review.id) {
       final raw = widget.review.verificationUrl.trim();
-      final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
+      final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod) ?? 'telebirr';
+      _currentBank = bank;
       String cleanText = raw;
       if (bank == 'telebirr' && raw.isNotEmpty) {
         final sanitized = VerifyEtService.sanitizeTelebirrReference(raw);
@@ -161,7 +192,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
         cleanText = raw.toUpperCase();
       }
       _refCtrl.text = cleanText;
-      _suffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix(bank ?? '');
+      _suffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix(bank);
       _phoneCtrl.clear();
       _result = null;
       _errorMessage = null;
@@ -173,7 +204,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
   }
 
   Future<void> _extractFromReceipt({bool manual = false}) async {
-    final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
+    final bank = _currentBank;
     if (!widget.review.hasScreenshot) {
       if (manual) {
         SnackbarHelper.warning('No Image', 'This receipt does not have an uploaded screenshot.');
@@ -331,8 +362,8 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
   }
 
   Future<void> _check() async {
-    final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
-    if (bank == null) return;
+    final bank = _currentBank;
+    if (bank.isEmpty) return;
 
     if (!_service.hasApiKey) {
       VerifyEtSettingsDialog.show(context);
@@ -416,8 +447,9 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
 
   @override
   Widget build(BuildContext context) {
-    final bank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
-    if (bank == null) return const SizedBox.shrink();
+    final initialBank = PaymentVerifyChecker.resolveSupportedBank(widget.review.paymentMethod);
+    if (initialBank == null && _currentBank.isEmpty) return const SizedBox.shrink();
+    final bank = _currentBank;
 
     final dark = AppHelperFunctions.isDark(context);
 
@@ -529,11 +561,43 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Flexible(
-                          child: Text(
-                            '$bankIcon Verify with $bankName',
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          child: PopupMenuButton<String>(
+                            tooltip: 'Switch bank engine',
+                            onSelected: (selected) => _switchBank(selected),
+                            itemBuilder: (context) => supportedBankOptions.map((b) => PopupMenuItem(
+                              value: b['id'] ?? '',
+                              height: 36,
+                              child: Row(
+                                children: [
+                                  Text(b['icon'] ?? '', style: const TextStyle(fontSize: 14)),
+                                  const SizedBox(width: 8),
+                                  Text(b['name'] ?? '', style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: b['id'] == _currentBank ? FontWeight.bold : FontWeight.normal,
+                                    color: b['id'] == _currentBank ? const Color(0xFF6366F1) : null,
+                                  )),
+                                  if (b['id'] == _currentBank) ...[
+                                    const Spacer(),
+                                    const Icon(Icons.check, size: 14, color: Color(0xFF6366F1)),
+                                  ],
+                                ],
+                              ),
+                            )).toList(),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    '$bankIcon Verify with $bankName',
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                const Icon(Icons.arrow_drop_down, size: 16, color: Color(0xFF6366F1)),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -1046,6 +1110,113 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
                     res.userFriendlyErrorMessage,
                     style: TextStyle(fontSize: 10.5, color: dark ? Colors.white70 : Colors.black87),
                   ),
+
+                  // Cross-bank smart diagnosis & 1-tap switcher for FT... references
+                  if (refVal.toUpperCase().startsWith('FT')) ...[
+                    if (_currentBank == 'boa' || _currentBank == 'abyssinia') ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.lightbulb_outline, size: 14, color: Colors.amber),
+                                SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Possible CBE-to-Abyssinia Interbank Transfer',
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Reference "$refVal" uses CBE format (FT...). If the student paid via CBE Mobile/Birr to Abyssinia, the transaction was recorded on CBE. Try verifying with CBE instead, or verify the receiver account suffix on the slip.',
+                              style: TextStyle(fontSize: 10.5, color: dark ? Colors.white70 : Colors.black87),
+                            ),
+                            const SizedBox(height: 8),
+                            InkWell(
+                              onTap: () => _switchBank('cbe', autoVerify: true),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF6366F1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.swap_horiz_rounded, size: 13, color: Colors.white),
+                                    SizedBox(width: 4),
+                                    Text('🏦 Switch & Verify with CBE', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (_currentBank == 'cbe') ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.lightbulb_outline, size: 14, color: Colors.amber),
+                                SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Transferred from Bank of Abyssinia?',
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'If this transfer was executed directly from Bank of Abyssinia (BOA), try verifying with Abyssinia using account suffix 93089.',
+                              style: TextStyle(fontSize: 10.5, color: dark ? Colors.white70 : Colors.black87),
+                            ),
+                            const SizedBox(height: 8),
+                            InkWell(
+                              onTap: () => _switchBank('boa', autoVerify: true),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF6366F1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.swap_horiz_rounded, size: 13, color: Colors.white),
+                                    SizedBox(width: 4),
+                                    Text('🦁 Switch & Verify with Abyssinia', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                   if ((res.upstreamInspectionUrl ?? res.telebirrPortalUrl) != null) ...[
                     () {
                       final inspectionUrl = (res.upstreamInspectionUrl ?? res.telebirrPortalUrl)!;

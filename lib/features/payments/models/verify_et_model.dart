@@ -541,6 +541,9 @@ class LinksEtResult {
       return 'QR code and receipt text could not be recognized by Verify.ET. Please send a clearer screenshot or enter the reference number.';
     }
     if (code == 'NOT_FOUND') {
+      if (lowerProv.contains('boa') || lowerProv.contains('abyssinia')) {
+        return 'Bank of Abyssinia reported no transaction found with account suffix 93089. Please check if the receiver account suffix on the slip matches 93089, or if this payment was transferred from CBE (interbank).';
+      }
       return 'The bank reported that this transaction was not found on their records.';
     }
 
@@ -552,15 +555,15 @@ class LinksEtResult {
         return 'CBE upstream could not validate this receipt. Mobile Banking transfers require the receipt link from the confirmation SMS (e.g. mbreciept.cbe.com.et/...).';
       }
       if (lowerProv.contains('boa') || lowerProv.contains('abyssinia')) {
-        return 'Bank of Abyssinia could not find a completed transaction for this token. Please check the transaction reference.';
+        return 'Bank of Abyssinia reported no transaction found for this token with suffix 93089. Please check if the receiver account on the slip ends with 93089, or if this was an interbank transfer from CBE.';
       }
       return 'Receipt document was fetched upstream but did not contain valid completed transaction details.';
     }
 
     if (error != null && error!.isNotEmpty) {
       if (lowerErr.contains('receipt not found upstream') || lowerErr.contains('not found')) {
-        if (lowerProv.contains('boa')) {
-          return 'Bank of Abyssinia reported receipt not found for this slip token. Please check the FT reference.';
+        if (lowerProv.contains('boa') || lowerProv.contains('abyssinia')) {
+          return 'Bank of Abyssinia reported no transaction found for this reference under suffix 93089. Please verify the 5-digit account suffix or check if it originated from CBE.';
         }
         return 'The bank reported that this receipt was not found on their records.';
       }
