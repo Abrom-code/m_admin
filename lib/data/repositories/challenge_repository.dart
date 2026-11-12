@@ -7,7 +7,7 @@ import 'package:m_admin/features/challenges/models/challenge_question_model.dart
 import 'package:m_admin/features/challenges/models/challenge_reward_model.dart';
 
 class ChallengeRepository {
-  final _sb = Supabase.instance.client;
+  SupabaseClient get _sb => Supabase.instance.client;
 
   String? get _adminUid => AdminSessionService.instance.adminUid;
 

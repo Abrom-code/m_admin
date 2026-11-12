@@ -9,7 +9,7 @@ class WeeklySubjectTarget {
     required this.audience,
     required this.icon,
     required this.color,
-    required this.description,
+    this.description = '',
   });
 
   final String name;
@@ -19,26 +19,38 @@ class WeeklySubjectTarget {
   final Color color;
   final String description;
 
-  /// Matches the database subject ID from the loaded subjects list.
-  int? resolveSubjectId(List<Map<String, dynamic>> subjects) {
+  /// Matches the database subject map from the loaded subjects list.
+  Map<String, dynamic>? resolveSubject(List<Map<String, dynamic>> subjects) {
     final clean = name.toLowerCase().trim();
-    final match = subjects.cast<Map<String, dynamic>?>().firstWhere(
+
+    // First pass: stream-specific match for Mathematics and specific subject names
+    final specificMatch = subjects.cast<Map<String, dynamic>?>().firstWhere(
       (s) {
         if (s == null) return false;
         final sName = (s['name']?.toString() ?? '').toLowerCase().trim();
-        if (sName == clean) return true;
-        if (clean == 'mathematics' &&
-            (sName == 'math' || sName == 'maths' || sName.contains('math'))) {
-          return true;
+        final isNat = s['is_natural'] == true || s['is_natural'] == 1 || s['is_natural'] == 'true';
+        final isCom = s['is_common'] == true || s['is_common'] == 1 || s['is_common'] == 'true';
+
+        if (clean.contains('math')) {
+          if (audience == 'natural') {
+            if (sName.contains('natural') && sName.contains('math')) return true;
+            if (isNat && !isCom && sName.contains('math')) return true;
+          } else if (audience == 'social') {
+            if (sName.contains('social') && sName.contains('math')) return true;
+            if (!isNat && !isCom && sName.contains('math')) return true;
+          }
+          return false;
         }
-        if (clean == 'english' && sName.contains('english')) return true;
-        if (clean == 'biology' && sName.contains('bio')) return true;
-        if (clean == 'economics' && sName.contains('econ')) return true;
-        if (clean == 'chemistry' && sName.contains('chem')) return true;
-        if (clean == 'geography' && sName.contains('geo')) return true;
-        if (clean == 'physics' && sName.contains('phys')) return true;
-        if (clean == 'history' && sName.contains('hist')) return true;
-        if (clean == 'aptitude' &&
+
+        if (sName == clean) return true;
+        if (clean.contains('english') && sName.contains('english')) return true;
+        if (clean.contains('biology') && sName.contains('bio')) return true;
+        if (clean.contains('economics') && sName.contains('econ')) return true;
+        if (clean.contains('chemistry') && sName.contains('chem')) return true;
+        if (clean.contains('geography') && sName.contains('geo')) return true;
+        if (clean.contains('physics') && sName.contains('phys')) return true;
+        if (clean.contains('history') && sName.contains('hist')) return true;
+        if (clean.contains('aptitude') &&
             (sName.contains('aptitude') || sName.contains('sat'))) {
           return true;
         }
@@ -46,6 +58,27 @@ class WeeklySubjectTarget {
       },
       orElse: () => null,
     );
+
+    if (specificMatch != null) return specificMatch;
+
+    // Second pass: fallback for generic Mathematics when stream-specific subject is not configured in DB
+    if (clean.contains('math')) {
+      return subjects.cast<Map<String, dynamic>?>().firstWhere(
+        (s) {
+          if (s == null) return false;
+          final sName = (s['name']?.toString() ?? '').toLowerCase().trim();
+          return sName.contains('math');
+        },
+        orElse: () => null,
+      );
+    }
+
+    return null;
+  }
+
+  /// Matches the database subject ID from the loaded subjects list.
+  int? resolveSubjectId(List<Map<String, dynamic>> subjects) {
+    final match = resolveSubject(subjects);
     if (match == null) return null;
     return (match['id'] as num?)?.toInt() ?? int.tryParse(match['id']?.toString() ?? '');
   }
@@ -80,8 +113,7 @@ class WeeklyDaySchedule {
               audience: 'both',
               icon: Iconsax.book_1_copy,
               color: Color(0xFF3B82F6),
-              description:
-                  'Grammar, vocabulary, reading comprehension & communication skills.',
+              description: 'Grammar, reading comprehension & vocabulary.',
             ),
           ],
         ),
@@ -91,13 +123,20 @@ class WeeklyDaySchedule {
           shortName: 'Tue',
           subjects: [
             WeeklySubjectTarget(
-              name: 'Mathematics',
-              stream: 'Common (Both Streams)',
-              audience: 'both',
+              name: 'Mathematics (Natural)',
+              stream: 'Natural Science',
+              audience: 'natural',
               icon: Icons.calculate_rounded,
               color: Color(0xFF8B5CF6),
-              description:
-                  'Core algebra, calculus, trigonometry, coordinate geometry & quantitative logic.',
+              description: 'Algebra, calculus, vectors & coordinate geometry.',
+            ),
+            WeeklySubjectTarget(
+              name: 'Mathematics (Social)',
+              stream: 'Social Science',
+              audience: 'social',
+              icon: Icons.functions_rounded,
+              color: Color(0xFFA855F7),
+              description: 'Commercial maths, statistics & financial logic.',
             ),
           ],
         ),
@@ -112,8 +151,7 @@ class WeeklyDaySchedule {
               audience: 'natural',
               icon: Icons.biotech_rounded,
               color: Color(0xFF10B981),
-              description:
-                  'Cell biology, genetics, human physiology, biotechnology & ecology.',
+              description: 'Cell biology, genetics, physiology & ecology.',
             ),
             WeeklySubjectTarget(
               name: 'Economics',
@@ -121,8 +159,7 @@ class WeeklyDaySchedule {
               audience: 'social',
               icon: Icons.trending_up_rounded,
               color: Color(0xFFF59E0B),
-              description:
-                  'Microeconomics, macroeconomics, fiscal monetary policy & economic development.',
+              description: 'Microeconomics, macroeconomics & fiscal policy.',
             ),
           ],
         ),
@@ -137,8 +174,7 @@ class WeeklyDaySchedule {
               audience: 'natural',
               icon: Icons.science_rounded,
               color: Color(0xFF06B6D4),
-              description:
-                  'Atomic theory, chemical bonding, organic compounds, thermodynamics & equilibrium.',
+              description: 'Atomic theory, organic chemistry & thermodynamics.',
             ),
             WeeklySubjectTarget(
               name: 'Geography',
@@ -146,8 +182,7 @@ class WeeklyDaySchedule {
               audience: 'social',
               icon: Icons.public_rounded,
               color: Color(0xFF84CC16),
-              description:
-                  'Physical geography, cartography, climate zones, population & natural resources.',
+              description: 'Physical geography, cartography & resources.',
             ),
           ],
         ),
@@ -162,8 +197,7 @@ class WeeklyDaySchedule {
               audience: 'natural',
               icon: Icons.bolt_rounded,
               color: Color(0xFFEF4444),
-              description:
-                  'Mechanics, electromagnetism, wave physics, optics & modern physical concepts.',
+              description: 'Mechanics, electromagnetism & wave physics.',
             ),
             WeeklySubjectTarget(
               name: 'History',
@@ -171,8 +205,7 @@ class WeeklyDaySchedule {
               audience: 'social',
               icon: Icons.history_edu_rounded,
               color: Color(0xFFD97706),
-              description:
-                  'Ethiopian history, ancient and medieval civilizations & major world events.',
+              description: 'Ethiopian history & world civilizations.',
             ),
           ],
         ),
@@ -187,8 +220,7 @@ class WeeklyDaySchedule {
               audience: 'both',
               icon: Icons.psychology_rounded,
               color: Color(0xFFEAB308),
-              description:
-                  'Scholastic aptitude, analytical reasoning, numerical logic & verbal acumen.',
+              description: 'Analytical reasoning & quantitative logic.',
             ),
           ],
         ),
@@ -204,8 +236,7 @@ class WeeklyDaySchedule {
               audience: 'both',
               icon: Iconsax.cup_copy,
               color: Color(0xFF64748B),
-              description:
-                  'Review weekly leaderboard standings, question explanations and exam preparation.',
+              description: 'Weekly recap & leaderboard standings review.',
             ),
           ],
         ),
@@ -219,4 +250,3 @@ class WeeklyDaySchedule {
     );
   }
 }
-

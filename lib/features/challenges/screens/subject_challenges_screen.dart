@@ -21,12 +21,14 @@ class SubjectChallengesScreen extends StatefulWidget {
     required this.subjectName,
     required this.isNatural,
     required this.isCommon,
+    this.initialStatusFilter = 'all',
   });
 
   final int subjectId;
   final String subjectName;
   final bool isNatural;
   final bool isCommon;
+  final String initialStatusFilter;
 
   @override
   State<SubjectChallengesScreen> createState() => _SubjectChallengesScreenState();
@@ -38,7 +40,7 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
   final _scrollCtrl = ScrollController();
   final _searchCtrl = TextEditingController();
   final _searchQuery = ''.obs;
-  final _statusFilter = 'all'.obs; // 'all', 'live', 'scheduled', 'closed', 'draft'
+  late final RxString _statusFilter; // 'all', 'live', 'scheduled', 'closed', 'draft'
 
   final _challengeRepo = ChallengeRepository();
   final _questionSets = <ChallengeQuestionSetModel>[].obs;
@@ -49,6 +51,7 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
   @override
   void initState() {
     super.initState();
+    _statusFilter = widget.initialStatusFilter.obs;
     if (Get.isRegistered<ChallengesListController>()) {
       _ctrl = Get.find<ChallengesListController>();
     } else {
@@ -170,13 +173,29 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
   }
 
   bool _matchesSubject(LeaderboardChallengeModel c) {
-    if (widget.subjectId == 0) return true;
-    if (c.subjectId == widget.subjectId) return true;
-    if (widget.subjectName.isNotEmpty &&
-        c.subjectName?.trim().toLowerCase() == widget.subjectName.trim().toLowerCase()) {
-      return true;
+    if (widget.subjectId != 0 && c.subjectId == widget.subjectId) return true;
+    if (widget.subjectName.isNotEmpty) {
+      final cleanTarget = widget.subjectName.toLowerCase().replaceAll(RegExp(r'\(.*?\)'), '').trim();
+      final cSub = (c.subjectName ?? '').toLowerCase().trim();
+      if (cSub.isNotEmpty && (cSub == cleanTarget || cSub.contains(cleanTarget) || cleanTarget.contains(cSub))) {
+        if (widget.isNatural && c.audience == 'natural') return true;
+        if (!widget.isNatural && !widget.isCommon && c.audience == 'social') return true;
+        if (widget.isCommon && c.audience == 'both') return true;
+        return true;
+      }
     }
+    if (widget.subjectId == 0) return true;
     return false;
+  }
+
+  void _createNewChallenge() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final targetAudience = widget.isCommon ? 'both' : (widget.isNatural ? 'natural' : 'social');
+    await Get.to(() => ChallengeEditorScreen(
+          initialSubjectId: widget.subjectId == 0 ? null : widget.subjectId,
+          initialAudience: targetAudience,
+        ));
+    _ctrl.loadAll(showLoading: false);
   }
 
   List<LeaderboardChallengeModel> get _subjectChallenges {
@@ -429,17 +448,9 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   visualDensity: VisualDensity.compact,
                 ),
-                onPressed: () async {
-                  FocusManager.instance.primaryFocus?.unfocus();
-                  final targetAudience = widget.isCommon ? 'both' : (widget.isNatural ? 'natural' : 'social');
-                  await Get.to(() => ChallengeEditorScreen(
-                        initialSubjectId: widget.subjectId == 0 ? null : widget.subjectId,
-                        initialAudience: widget.subjectId == 0 ? null : targetAudience,
-                      ));
-                  _ctrl.loadAll(showLoading: false);
-                },
+                onPressed: _createNewChallenge,
                 icon: const Icon(Iconsax.add_circle_copy, size: 14),
-                label: const Text('Create', style: TextStyle(fontSize: 12)),
+                label: const Text('Create Challenge', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(width: 6),
               IconButton(
@@ -594,6 +605,57 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
 
               const SizedBox(height: 12),
 
+              // ── Draft Filter Header Banner with additional Create Challenge button ──
+              Obx(() {
+                if (_statusFilter.value != 'draft') return const SizedBox.shrink();
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: streamColor.withValues(alpha: dark ? 0.12 : 0.08),
+                    borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                    border: Border.all(color: streamColor.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Iconsax.edit_2_copy, size: 18, color: streamColor),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${widget.subjectName} Draft Challenges',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              'Draft challenges saved for ${widget.subjectName}.',
+                              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: streamColor,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: _createNewChallenge,
+                        icon: const Icon(Iconsax.add_circle_copy, size: 14),
+                        label: const Text(
+                          'Create Challenge',
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+
               // ── Challenges Grid ──
               Expanded(
                 child: Obx(() {
@@ -604,6 +666,7 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                   final list = _subjectChallenges;
 
                   if (list.isEmpty) {
+                    final isDraft = _statusFilter.value == 'draft';
                     return Center(
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
@@ -628,15 +691,19 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              'No challenges found for ${widget.subjectName}',
+                              isDraft
+                                  ? 'No draft challenges for ${widget.subjectName}'
+                                  : 'No challenges found for ${widget.subjectName}',
                               textAlign: TextAlign.center,
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                             ),
                             const SizedBox(height: 4),
-                            const Text(
-                              'Create a new challenge or adjust your status/search filters.',
+                            Text(
+                              isDraft
+                                  ? 'Ready to create a new challenge for ${widget.subjectName}? Click below to start.'
+                                  : 'Create a new challenge or adjust your status/search filters.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                             ),
                             const SizedBox(height: 16),
                             FilledButton.icon(
@@ -644,17 +711,9 @@ class _SubjectChallengesScreenState extends State<SubjectChallengesScreen> {
                                 backgroundColor: streamColor,
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                               ),
-                              onPressed: () async {
-                                FocusManager.instance.primaryFocus?.unfocus();
-                                final targetAudience = widget.isCommon ? 'both' : (widget.isNatural ? 'natural' : 'social');
-                  await Get.to(() => ChallengeEditorScreen(
-                        initialSubjectId: widget.subjectId == 0 ? null : widget.subjectId,
-                        initialAudience: widget.subjectId == 0 ? null : targetAudience,
-                      ));
-                                _ctrl.loadAll(showLoading: false);
-                              },
+                              onPressed: _createNewChallenge,
                               icon: const Icon(Iconsax.add_circle_copy, size: 16),
-                              label: const Text('Create Challenge', style: TextStyle(fontSize: 12)),
+                              label: const Text('Create Challenge', style: TextStyle(fontWeight: FontWeight.bold)),
                             ),
                           ],
                         ),

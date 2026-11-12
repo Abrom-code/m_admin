@@ -10,7 +10,7 @@ class ChallengesListController extends GetxController {
   static ChallengesListController get instance => Get.find();
 
   final _repo = ChallengeRepository();
-  final _sb = Supabase.instance.client;
+  SupabaseClient get _sb => Supabase.instance.client;
 
   final isLoading = false.obs;
   final isRefreshing = false.obs;
@@ -166,7 +166,7 @@ class ChallengesListController extends GetxController {
   void onClose() {
     searchCtrl.dispose();
     if (_realtimeChannel != null) {
-      _sb.removeChannel(_realtimeChannel!);
+      try { _sb.removeChannel(_realtimeChannel!); } catch (_) {}
     }
     super.onClose();
   }
@@ -227,7 +227,9 @@ class ChallengesListController extends GetxController {
       challenges.value = rows;
       hasMore.value = false;
     } catch (e) {
-      SnackbarHelper.error('Error loading challenges', AppExceptionHandler.handle(e).message);
+      try {
+        SnackbarHelper.error('Error loading challenges', AppExceptionHandler.handle(e).message);
+      } catch (_) {}
     }
   }
 

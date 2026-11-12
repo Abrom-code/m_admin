@@ -4,18 +4,17 @@ import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:m_admin/data/repositories/challenge_repository.dart';
 import 'package:m_admin/features/challenges/controllers/challenges_list_controller.dart';
 import 'package:m_admin/features/challenges/models/weekly_challenge_schedule_model.dart';
-import 'package:m_admin/features/challenges/screens/challenge_editor_screen.dart';
+import 'package:m_admin/features/challenges/screens/subject_challenges_screen.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
 import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
-import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
-/// Screen displaying the official weekly challenge timetable for MatricMate.
+/// Screen displaying the clean weekly challenge timetable for MatricMate.
 ///
 /// Timetable:
 /// - Monday: English (Common)
-/// - Tuesday: Maths (Common)
+/// - Tuesday: Mathematics (Natural) & Mathematics (Social)
 /// - Wednesday: Biology (Natural) & Economics (Social)
 /// - Thursday: Chemistry (Natural) & Geography (Social)
 /// - Friday: Physics (Natural) & History (Social)
@@ -53,7 +52,6 @@ class _WeeklyChallengeScheduleScreenState
   }
 
   Future<void> _loadSubjects() async {
-    // Re-use already loaded subjects from controller if present
     if (Get.isRegistered<ChallengesListController>()) {
       final ctrl = Get.find<ChallengesListController>();
       if (ctrl.subjects.isNotEmpty) {
@@ -70,23 +68,30 @@ class _WeeklyChallengeScheduleScreenState
         _subjects.assignAll(fetched);
       }
     } catch (_) {
-      // Graceful fallback to name matching (e.g. offline or test environment)
+      // Graceful fallback
     } finally {
       _isLoadingSubjects.value = false;
     }
   }
 
-  void _createChallengeForSubject(WeeklySubjectTarget target, String dayName) {
-    final subId = target.resolveSubjectId(_subjects);
+  /// Redirects to the list of draft challenges for that subject with an additional Create Challenge button.
+  void _openDraftChallengesForSubject(WeeklySubjectTarget target, String dayName) {
+    final match = target.resolveSubject(_subjects);
+    final subId = match != null
+        ? ((match['id'] as num?)?.toInt() ?? int.tryParse(match['id']?.toString() ?? '') ?? 0)
+        : 0;
+    final subName = match != null ? (match['name']?.toString() ?? target.name) : target.name;
+    final isNat = target.audience == 'natural' || (match?['is_natural'] == true);
+    final isCom = target.audience == 'both' || (match?['is_common'] == true);
+
     Get.to(
-      () => ChallengeEditorScreen(
-        initialSubjectId: subId,
-        initialAudience: target.audience,
+      () => SubjectChallengesScreen(
+        subjectId: subId,
+        subjectName: subName,
+        isNatural: isNat,
+        isCommon: isCom,
+        initialStatusFilter: 'draft',
       ),
-    );
-    SnackbarHelper.info(
-      'Drafting Challenge',
-      'Creating $dayName ${target.name} Challenge (${target.stream})',
     );
   }
 
@@ -101,7 +106,7 @@ class _WeeklyChallengeScheduleScreenState
     return Scaffold(
       backgroundColor: dark ? AppColors.dark : AppColors.light,
       appBar: AppBar(
-        title: const Text('Weekly Challenge Schedule'),
+        title: const Text('Challenge Schedule'),
         leading: IconButton(
           icon: const Icon(Iconsax.arrow_left_copy, size: 20),
           tooltip: 'Back',
@@ -122,39 +127,39 @@ class _WeeklyChallengeScheduleScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Today Highlight Banner ──────────────────────────────
+            // ── Today Highlight Banner (Clean & Concise) ──────────────
             _buildTodayBanner(context, todaySchedule, dark),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
-            // ── Stream Tracks Overview ──────────────────────────────
+            // ── Stream Tracks Overview (Clean) ───────────────────────
             _buildStreamTracksCard(context, dark),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             // ── Section Header ──────────────────────────────────────
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(6),
+                  padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Icon(
                     Iconsax.calendar_tick_copy,
-                    size: 15,
+                    size: 14,
                     color: AppColors.primary,
                   ),
                 ),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'Full Weekly Competition Timetable',
+                    'Weekly Competition Timetable',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13.5,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -167,7 +172,6 @@ class _WeeklyChallengeScheduleScreenState
             // ── 7-Day Timetable Cards ───────────────────────────────
             LayoutBuilder(
               builder: (context, constraints) {
-                // Wide screens (>= 900) use a 2-column masonry; narrow screens use single column
                 final isWide = constraints.maxWidth >= 900;
                 if (isWide) {
                   final leftCol = <WeeklyDaySchedule>[];
@@ -235,43 +239,26 @@ class _WeeklyChallengeScheduleScreenState
               },
             ),
 
-            const SizedBox(height: 20),
-
-            // ── Helpful Notes & Competition Guidelines ───────────────
-            _buildGuidelinesCard(context, dark),
-
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 
-  /// Highlight banner for the current day's competition schedule.
+  /// Clean highlight banner for today's scheduled challenge subject(s).
   Widget _buildTodayBanner(
     BuildContext context,
     WeeklyDaySchedule today,
     bool dark,
   ) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: dark
-              ? [
-                  const Color(0xFF0F766E).withValues(alpha: 0.45),
-                  const Color(0xFF0D9488).withValues(alpha: 0.20),
-                ]
-              : [
-                  const Color(0xFFCCFBF1),
-                  const Color(0xFFE0F2FE),
-                ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: dark ? AppColors.darkCard : AppColors.white,
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
         border: Border.all(
-          color: AppColors.primary.withValues(alpha: dark ? 0.4 : 0.6),
+          color: AppColors.primary.withValues(alpha: dark ? 0.35 : 0.45),
           width: 1.2,
         ),
       ),
@@ -281,20 +268,20 @@ class _WeeklyChallengeScheduleScreenState
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(
                   color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.bolt_rounded, size: 12, color: Colors.white),
-                    SizedBox(width: 3),
+                    Icon(Icons.bolt_rounded, size: 11, color: Colors.white),
+                    SizedBox(width: 2),
                     Text(
                       'TODAY',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 9.5,
                         fontWeight: FontWeight.w900,
                         color: Colors.white,
                         letterSpacing: 0.5,
@@ -306,11 +293,11 @@ class _WeeklyChallengeScheduleScreenState
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '${today.dayName} Competition Schedule',
+                  '${today.dayName} Scheduled Challenges',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 13.5,
+                    fontSize: 13,
                     fontWeight: FontWeight.bold,
                     color: dark ? Colors.white : AppColors.textPrimary,
                   ),
@@ -318,49 +305,56 @@ class _WeeklyChallengeScheduleScreenState
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            today.isRestDay
-                ? 'Sunday is designated for weekly review, leaderboard standings analysis, and student rest.'
-                : 'Today’s scheduled challenge subject${today.subjects.length > 1 ? 's' : ''}: '
-                    '${today.subjects.map((s) => '${s.name} (${s.stream})').join(' and ')}.',
-            style: TextStyle(
-              fontSize: 11.5,
-              height: 1.35,
-              color: dark ? Colors.white70 : AppColors.textSecondary,
-            ),
-          ),
-          if (!today.isRestDay) ...[
-            const SizedBox(height: 10),
+          const SizedBox(height: 10),
+          if (today.isRestDay)
+            Row(
+              children: [
+                const Icon(Iconsax.cup_copy, size: 16, color: Color(0xFF64748B)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Weekly Review & Rest Day',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: dark ? Colors.white70 : AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
             Wrap(
               spacing: 8,
-              runSpacing: 6,
+              runSpacing: 8,
               children: today.subjects.map((sub) {
-                return FilledButton.icon(
+                return FilledButton.tonalIcon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: sub.color,
+                    backgroundColor: sub.color.withValues(alpha: dark ? 0.22 : 0.12),
+                    foregroundColor: sub.color,
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     visualDensity: VisualDensity.compact,
                   ),
-                  onPressed: () => _createChallengeForSubject(sub, today.dayName),
+                  onPressed: () => _openDraftChallengesForSubject(sub, today.dayName),
                   icon: Icon(sub.icon, size: 13),
                   label: Text(
-                    'Schedule ${sub.name}',
+                    'Create ${sub.name} Challenge',
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                   ),
                 );
               }).toList(),
             ),
-          ],
         ],
       ),
     );
   }
 
-  /// Displays the Natural & Social tracks side by side.
+  /// Clean stream track breakdown without verbose paragraph text.
   Widget _buildStreamTracksCard(BuildContext context, bool dark) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: dark ? AppColors.darkCard : AppColors.white,
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
@@ -371,32 +365,17 @@ class _WeeklyChallengeScheduleScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(Iconsax.routing_copy, size: 14, color: Color(0xFF0284C7)),
-              SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Stream Schedules at a Glance',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
           _buildTrackRow(
-            trackName: 'Natural Science',
+            trackName: 'Natural',
             badgeColor: AppColors.primary,
-            subjects: 'English (Mon) → Maths (Tue) → Biology (Wed) → Chemistry (Thu) → Physics (Fri) → Aptitude (Sat)',
+            subjects: 'English (Mon) • Maths (Tue) • Biology (Wed) • Chemistry (Thu) • Physics (Fri) • Aptitude (Sat)',
             dark: dark,
           ),
           const SizedBox(height: 6),
           _buildTrackRow(
-            trackName: 'Social Science',
+            trackName: 'Social',
             badgeColor: AppColors.secondary,
-            subjects: 'English (Mon) → Maths (Tue) → Economics (Wed) → Geography (Thu) → History (Fri) → Aptitude (Sat)',
+            subjects: 'English (Mon) • Maths (Tue) • Economics (Wed) • Geography (Thu) • History (Fri) • Aptitude (Sat)',
             dark: dark,
           ),
         ],
@@ -411,25 +390,25 @@ class _WeeklyChallengeScheduleScreenState
     required bool dark,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: dark ? 0.08 : 0.05),
+        color: badgeColor.withValues(alpha: dark ? 0.08 : 0.04),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.2)),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.18)),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
             decoration: BoxDecoration(
-              color: badgeColor.withValues(alpha: 0.18),
+              color: badgeColor.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               trackName,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 9.5,
                 fontWeight: FontWeight.bold,
                 color: badgeColor,
               ),
@@ -439,9 +418,11 @@ class _WeeklyChallengeScheduleScreenState
           Expanded(
             child: Text(
               subjects,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 11,
-                height: 1.3,
+                fontSize: 10.5,
+                height: 1.25,
                 color: dark ? Colors.white70 : AppColors.textSecondary,
               ),
             ),
@@ -451,7 +432,7 @@ class _WeeklyChallengeScheduleScreenState
     );
   }
 
-  /// Day card showing the subjects assigned to that day.
+  /// Day card showing the subjects assigned to that day in a clean, minimalist layout.
   Widget _buildDayCard(
     BuildContext context,
     WeeklyDaySchedule day,
@@ -472,8 +453,8 @@ class _WeeklyChallengeScheduleScreenState
         boxShadow: isToday
             ? [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  blurRadius: 8,
+                  color: AppColors.primary.withValues(alpha: 0.10),
+                  blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
               ]
@@ -524,14 +505,21 @@ class _WeeklyChallengeScheduleScreenState
                 ),
               ),
               const SizedBox(width: 6),
-              Text(
-                day.isRestDay
-                    ? 'Rest & Recap'
-                    : '${day.subjects.length} ${day.subjects.length == 1 ? 'Subject' : 'Subjects'}',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: isToday ? AppColors.primary : AppColors.textSecondary,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: (isToday ? AppColors.primary : AppColors.grey).withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  day.isRestDay
+                      ? 'Rest Day'
+                      : '${day.subjects.length} ${day.subjects.length == 1 ? 'Subject' : 'Subjects'}',
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                    color: isToday ? AppColors.primary : AppColors.textSecondary,
+                  ),
                 ),
               ),
             ],
@@ -541,194 +529,197 @@ class _WeeklyChallengeScheduleScreenState
           const Divider(height: 1),
           const SizedBox(height: 8),
 
-          // Subject Rows
-          ...day.subjects.map((sub) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: sub.color.withValues(alpha: dark ? 0.08 : 0.04),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: sub.color.withValues(alpha: 0.22),
-                  ),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Icon
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: sub.color.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(sub.icon, size: 16, color: sub.color),
+          // Rest Day row
+          if (day.isRestDay)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF64748B).withValues(alpha: dark ? 0.08 : 0.05),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Iconsax.cup_copy, size: 16, color: Color(0xFF64748B)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Weekly Review & Rest',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                     ),
-                    const SizedBox(width: 8),
-
-                    // Name + Stream + Description
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Wrap(
-                            spacing: 5,
-                            runSpacing: 2,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              Text(
-                                sub.name,
-                                style: const TextStyle(
-                                  fontSize: 12,
+                  ),
+                ],
+              ),
+            )
+          else
+            // Subject Rows with responsive LayoutBuilder (Zero overflow on any screen!)
+            ...day.subjects.map((sub) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: sub.color.withValues(alpha: dark ? 0.08 : 0.04),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: sub.color.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, cardConstraints) {
+                      final isCompact = cardConstraints.maxWidth < 450;
+                      if (isCompact) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 26,
+                                  height: 26,
+                                  decoration: BoxDecoration(
+                                    color: sub.color.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Icon(sub.icon, size: 14, color: sub.color),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          sub.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 5,
+                                          vertical: 1.5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: sub.color.withValues(alpha: 0.14),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          sub.stream,
+                                          style: TextStyle(
+                                            fontSize: 8.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: sub.color,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            FilledButton.tonalIcon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: sub.color.withValues(alpha: dark ? 0.22 : 0.12),
+                                foregroundColor: sub.color,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              onPressed: () => _openDraftChallengesForSubject(sub, day.dayName),
+                              icon: const Icon(Iconsax.add_circle_copy, size: 13),
+                              label: const Text(
+                                'Create Challenge',
+                                style: TextStyle(
+                                  fontSize: 10.5,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 5,
-                                  vertical: 1.5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: sub.color.withValues(alpha: 0.14),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  sub.stream,
-                                  style: TextStyle(
-                                    fontSize: 8.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: sub.color,
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: sub.color.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Icon(sub.icon, size: 14, color: sub.color),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    sub.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 1.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: sub.color.withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    sub.stream,
+                                    style: TextStyle(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: sub.color,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            sub.description,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: dark ? Colors.white60 : AppColors.textSecondary,
+                          const SizedBox(width: 8),
+                          FilledButton.tonalIcon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: sub.color.withValues(alpha: dark ? 0.22 : 0.12),
+                              foregroundColor: sub.color,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            onPressed: () => _openDraftChallengesForSubject(sub, day.dayName),
+                            icon: const Icon(Iconsax.add_circle_copy, size: 13),
+                            label: const Text(
+                              'Create Challenge',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
-                      ),
-                    ),
-
-                    // Quick Schedule Button
-                    if (!day.isRestDay) ...[
-                      const SizedBox(width: 8),
-                      Tooltip(
-                        message: 'Create challenge for ${sub.name}',
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: sub.color.withValues(alpha: 0.5)),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          onPressed: () => _createChallengeForSubject(sub, day.dayName),
-                          child: Text(
-                            '+ Schedule',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: sub.color,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                      );
+                    },
+                  ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
         ],
       ),
-    );
-  }
-
-  /// Bottom guidance card explaining the scheduling rules.
-  Widget _buildGuidelinesCard(BuildContext context, bool dark) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: dark ? AppColors.darkCard : AppColors.white,
-        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
-        border: Border.all(
-          color: dark ? AppColors.darkBorder : AppColors.borderPrimary,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Iconsax.info_circle_copy, size: 14, color: AppColors.primary),
-              SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Competition Rules & Publishing Guidelines',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _buildBullet(
-            'Common Subjects (Monday, Tuesday, Saturday)',
-            'English, Mathematics, and Aptitude challenges are open to all students across Natural and Social streams.',
-            dark,
-          ),
-          const SizedBox(height: 4),
-          _buildBullet(
-            'Stream Subjects (Wednesday, Thursday, Friday)',
-            'Natural students compete in Biology, Chemistry, and Physics. Social students compete in Economics, Geography, and History.',
-            dark,
-          ),
-          const SizedBox(height: 4),
-          _buildBullet(
-            'Standard Launch Window',
-            'Rounds typically start at 8:00 PM (2:00 PM Ethiopian local time) in East Africa Time (UTC+3) and run for 48 hours before closing.',
-            dark,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBullet(String title, String body, bool dark) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('• ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: TextStyle(
-                fontSize: 10.5,
-                height: 1.35,
-                color: dark ? Colors.white70 : AppColors.textSecondary,
-              ),
-              children: [
-                TextSpan(
-                  text: '$title: ',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                TextSpan(text: body),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

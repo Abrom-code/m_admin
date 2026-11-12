@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:m_admin/features/challenges/models/weekly_challenge_schedule_model.dart';
+import 'package:m_admin/features/challenges/screens/subject_challenges_screen.dart';
 import 'package:m_admin/features/challenges/screens/weekly_challenge_schedule_screen.dart';
 import 'package:m_admin/routes/app_routes.dart';
 import 'package:m_admin/routes/routes.dart';
@@ -54,12 +55,18 @@ void main() {
       expect(mon.subjects.first.stream, contains('Common'));
     });
 
-    test('Tuesday is Maths / Mathematics for all students (Common / both)', () {
+    test('Tuesday has both Mathematics (Natural) and Mathematics (Social)', () {
       final tue = WeeklyDaySchedule.forWeekday(DateTime.tuesday);
       expect(tue.dayName, equals('Tuesday'));
-      expect(tue.subjects.length, equals(1));
-      expect(tue.subjects.first.name, equals('Mathematics'));
-      expect(tue.subjects.first.audience, equals('both'));
+      expect(tue.subjects.length, equals(2));
+
+      final natMath = tue.subjects.firstWhere((s) => s.name == 'Mathematics (Natural)');
+      expect(natMath.audience, equals('natural'));
+      expect(natMath.stream, contains('Natural'));
+
+      final socMath = tue.subjects.firstWhere((s) => s.name == 'Mathematics (Social)');
+      expect(socMath.audience, equals('social'));
+      expect(socMath.stream, contains('Social'));
     });
 
     test('Wednesday is Biology (Natural) and Economics (Social)', () {
@@ -118,10 +125,11 @@ void main() {
       expect(sun.isRestDay, isTrue);
     });
 
-    test('resolveSubjectId correctly matches database subjects for all days', () {
+    test('resolveSubjectId correctly matches database subjects for all days including Natural and Social Maths', () {
       final mockSubjects = [
         {'id': 101, 'name': 'English Language', 'is_common': true},
-        {'id': 102, 'name': 'Mathematics (Maths)', 'is_common': true},
+        {'id': 102, 'name': 'Mathematics (Natural)', 'is_natural': true, 'is_common': false},
+        {'id': 110, 'name': 'Mathematics (Social)', 'is_natural': false, 'is_common': false},
         {'id': 103, 'name': 'General Biology', 'is_natural': true},
         {'id': 104, 'name': 'Economics', 'is_natural': false},
         {'id': 105, 'name': 'Chemistry', 'is_natural': true},
@@ -135,7 +143,8 @@ void main() {
       expect(mon.subjects.first.resolveSubjectId(mockSubjects), equals(101));
 
       final tue = WeeklyDaySchedule.forWeekday(DateTime.tuesday);
-      expect(tue.subjects.first.resolveSubjectId(mockSubjects), equals(102));
+      expect(tue.subjects[0].resolveSubjectId(mockSubjects), equals(102));
+      expect(tue.subjects[1].resolveSubjectId(mockSubjects), equals(110));
 
       final wed = WeeklyDaySchedule.forWeekday(DateTime.wednesday);
       expect(wed.subjects[0].resolveSubjectId(mockSubjects), equals(103)); // Bio
@@ -175,9 +184,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Weekly Challenge Schedule'), findsOneWidget);
-      expect(find.text('Full Weekly Competition Timetable'), findsOneWidget);
-      expect(find.text('Stream Schedules at a Glance'), findsOneWidget);
+      expect(find.text('Challenge Schedule'), findsOneWidget);
+      expect(find.text('Weekly Competition Timetable'), findsOneWidget);
       expect(find.text('Monday'), findsWidgets);
       expect(find.text('Tuesday'), findsWidgets);
       expect(find.text('Wednesday'), findsWidgets);
@@ -187,7 +195,8 @@ void main() {
       expect(find.text('Sunday'), findsWidgets);
 
       expect(find.text('English'), findsWidgets);
-      expect(find.text('Mathematics'), findsWidgets);
+      expect(find.text('Mathematics (Natural)'), findsWidgets);
+      expect(find.text('Mathematics (Social)'), findsWidgets);
       expect(find.text('Biology'), findsWidgets);
       expect(find.text('Economics'), findsWidgets);
       expect(find.text('Chemistry'), findsWidgets);
@@ -195,6 +204,7 @@ void main() {
       expect(find.text('Physics'), findsWidgets);
       expect(find.text('History'), findsWidgets);
       expect(find.text('Aptitude'), findsWidgets);
+      expect(find.text('Create Challenge'), findsWidgets);
 
       expect(tester.takeException(), isNull);
     });
@@ -211,7 +221,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Weekly Challenge Schedule'), findsOneWidget);
+      expect(find.text('Challenge Schedule'), findsOneWidget);
       expect(find.text('TODAY'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
@@ -228,8 +238,32 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Weekly Challenge Schedule'), findsOneWidget);
+      expect(find.text('Challenge Schedule'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Clicking Create Challenge redirects to SubjectChallengesScreen with draft filter', (tester) async {
+      tester.view.physicalSize = const Size(600, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        const GetMaterialApp(
+          home: WeeklyChallengeScheduleScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Find all Create Challenge buttons
+      final createBtns = find.widgetWithText(FilledButton, 'Create Challenge');
+      expect(createBtns, findsWidgets);
+
+      // Tap first Create Challenge button
+      await tester.tap(createBtns.first);
+      await tester.pumpAndSettle();
+
+      // Verify redirected to SubjectChallengesScreen
+      expect(find.byType(SubjectChallengesScreen), findsOneWidget);
     });
   });
 }
