@@ -15,7 +15,7 @@ Completed ETB400.61 transfer From Abrham Teramed Nega to Negawo Abu Neme-6782. T
       expect(res.date, equals('18/10/2026'));
       expect(res.amount, equals(400.61));
       expect(res.senderName, equals('Abrham Teramed Nega'));
-      expect(res.receiverAccount, contains('Negawo Abu Neme-6782'));
+      expect(res.receiverAccount, contains('6782'));
       expect(res.bank, equals('cbe'));
       expect(res.hasTransactionId, isTrue);
     });

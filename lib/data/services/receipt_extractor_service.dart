@@ -198,13 +198,28 @@ class ReceiptTextParser {
     final normalizedHint = bankHint?.toLowerCase().trim() ?? '';
 
     // 1. Detect Bank: prioritize strong text indicators from image over an inaccurate hint
-    final hasBoaIndicators = clean.contains('165093089') ||
-        clean.contains('93089') ||
-        clean.toLowerCase().contains('self done via mobile') ||
+    final hasCoopIndicators = clean.contains('receipt.ebirr.com') ||
+        clean.contains('coopay') ||
+        clean.contains('Cooperative Bank of Oromia') ||
+        clean.contains('Baankii Hojii Gamtaa Oromiyaa') ||
+        clean.contains('Oromia Bank') ||
+        clean.contains('Baankii Oromiyaa') ||
+        clean.contains('CBO');
+
+    final hasTelebirrIndicators = !hasCoopIndicators &&
+        (clean.toLowerCase().contains('telebirr') ||
+         clean.toLowerCase().contains('transactioninfo') ||
+         clean.contains("Milkaa'eera") ||
+         clean.contains('Mala kaffaltii') ||
+         clean.contains('Lakkoofsa Kaffaltii') ||
+         clean.contains('የግብይት ቁጥር'));
+
+    final hasBoaIndicators = clean.toLowerCase().contains('self done via mobile') ||
         clean.toLowerCase().contains('bankofabyssinia') ||
         clean.contains('Abyssinia') ||
         clean.contains('Absiiniyaa') ||
-        clean.contains('አቢሲኒያ');
+        clean.contains('አቢሲኒያ') ||
+        (!hasTelebirrIndicators && (clean.contains('165093089') || clean.contains('93089')));
 
     final hasCbeIndicators = clean.contains('4455') ||
         clean.contains('-1237') ||
@@ -217,20 +232,15 @@ class ReceiptTextParser {
         clean.contains('CBE') ||
         RegExp(r'Completed\s+ETB', caseSensitive: false).hasMatch(clean);
 
-    final hasTelebirrIndicators = clean.toLowerCase().contains('telebirr') ||
-        clean.toLowerCase().contains('transactioninfo') ||
-        clean.contains("Milkaa'eera") ||
-        clean.contains('Mala kaffaltii') ||
-        clean.contains('Lakkoofsa Kaffaltii') ||
-        clean.contains('የግብይት ቁጥር');
-
     final isUssd = clean.toLowerCase().contains('self done via mobile') ||
         (clean.contains('4455') && clean.contains('Completed'));
 
     String detectedBank = normalizedHint;
-    if (hasTelebirrIndicators && !hasCbeIndicators && !hasBoaIndicators) {
+    if (hasCoopIndicators) {
+      detectedBank = 'coopayebirr';
+    } else if (hasTelebirrIndicators && !hasCbeIndicators) {
       detectedBank = 'telebirr';
-    } else if (hasBoaIndicators && !hasCbeIndicators) {
+    } else if (hasBoaIndicators && !hasCbeIndicators && !hasTelebirrIndicators) {
       detectedBank = 'boa';
     } else if (hasCbeIndicators && !hasBoaIndicators) {
       detectedBank = 'cbe';
@@ -252,14 +262,6 @@ class ReceiptTextParser {
           clean.contains('ዳሽን') ||
           clean.contains('DASHEN')) {
         detectedBank = 'dashen';
-      } else if (clean.contains('receipt.ebirr.com') ||
-          clean.contains('coopay') ||
-          clean.contains('Cooperative Bank of Oromia') ||
-          clean.contains('Baankii Hojii Gamtaa Oromiyaa') ||
-          clean.contains('Oromia Bank') ||
-          clean.contains('Baankii Oromiyaa') ||
-          clean.contains('CBO')) {
-        detectedBank = 'coopayebirr';
       } else if (clean.contains('FT') ||
           RegExp(r'(?:FT|\bFT)[\s\-_]*[0-9A-Za-z|]{10,14}', caseSensitive: false).hasMatch(clean)) {
         detectedBank = 'cbe';
@@ -617,12 +619,23 @@ class ReceiptTextParser {
         txId = normalizeCbeFtReference(boaUssdMatch.group(1)!);
       }
 
+      // Pattern A0.5: CBE USSD dialog: "To 4455 on 12/11/2026 FT26316C1JMB" or "on <date> FT..."
+      if (txId == null || txId == receiptUrl) {
+        final cbeUssdMatch = RegExp(
+          r'(?:To\s+4455\s+on|on)\s+\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+((?:FT|ET|TT|PT|FI|FL|F1|F\||F7|IT|1T|LT)?[\s\-_.:/]*[0-9IILOQSBZ|!]{5}[\s\-_.:/]*[0-9A-Za-z|!]{4,8})',
+          caseSensitive: false,
+        ).firstMatch(clean);
+        if (cbeUssdMatch != null) {
+          txId = normalizeCbeFtReference(cbeUssdMatch.group(1)!);
+        }
+      }
+
       // Pattern A: CBE & BOA Funds Transfer format: FT + 2-digit Year + 3-digit Julian Day + 4-8 char suffix
       // e.g. FT26316C1JMB, FT26315BLDHF, FT26291KVDWY, FT26299DNGRD
       // Handles loose word boundaries, spaces, dashes, or OCR misrecognitions
       if (txId == null || txId == receiptUrl) {
         final cbeFtRegex = RegExp(
-          r'(?:^|[^A-Za-z0-9])((?:FT|F1|FI|FL|F\|)[\s\-_.:/]*[0-9IILOQSBZ|!]{5}[\s\-_.:/]*[0-9A-Za-z|!]{4,8})(?:$|[^A-Za-z0-9])',
+          r'(?:^|[^A-Za-z0-9])((?:FT|ET|TT|PT|FI|FL|F1|F\||F7|IT|1T|LT)[\s\-_.:/]*[0-9IILOQSBZ|!]{5}[\s\-_.:/]*[0-9A-Za-z|!]{4,8})(?:$|[^A-Za-z0-9])',
           caseSensitive: false,
         );
         final cbeFtMatch = cbeFtRegex.firstMatch(clean);
@@ -634,7 +647,7 @@ class ReceiptTextParser {
       // Pattern A2: Date followed by transaction code (e.g. "12/11/2026 FT26316CIJMB" or "on 12/11/2026 FT...")
       if (txId == null || txId == receiptUrl) {
         final dateFtMatch = RegExp(
-          r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+((?:FT|F1|FI|FL|F\|)?[\s\-_.:/]*[0-9IILOQSBZ|!]{5}[\s\-_.:/]*[0-9A-Za-z|!]{4,8})',
+          r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+((?:FT|ET|TT|PT|FI|FL|F1|F\||F7|IT|1T|LT)?[\s\-_.:/]*[0-9IILOQSBZ|!]{5}[\s\-_.:/]*[0-9A-Za-z|!]{4,8})',
           caseSensitive: false,
         ).firstMatch(clean);
         if (dateFtMatch != null) {
@@ -1023,8 +1036,8 @@ class ReceiptExtractorService {
           imageBytes: bytes,
           fileName: fileName,
           bankHint: bankHint,
-          autoPoll:
-              false, // Return detected reference immediately without waiting 10-20s for bank polling loops
+          autoPoll: true,
+          waitMs: 12000,
         );
 
         final rawTxId = vRes.referenceNumber ?? vRes.receiptNumber;

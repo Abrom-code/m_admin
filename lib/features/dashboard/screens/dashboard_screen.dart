@@ -226,6 +226,59 @@ class _DashboardTopBar extends StatelessWidget {
         final actionsRow = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Eye Toggle Icon Button (Numbers & Totals Hidden by Default)
+            Obx(() {
+              final c = DashboardController.instance;
+              final isHidden = c.isNumbersHidden.value;
+              return Tooltip(
+                message: isHidden ? 'Show Student Counts' : 'Hide Student Counts',
+                child: InkWell(
+                  onTap: c.toggleNumbersVisibility,
+                  borderRadius: BorderRadius.circular(AppSizes.borderRadiusSm),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: (isHidden ? AppColors.primary : AppColors.darkGrey)
+                          .withValues(alpha: 0.12),
+                      borderRadius:
+                          BorderRadius.circular(AppSizes.borderRadiusSm),
+                      border: Border.all(
+                        color: (isHidden ? AppColors.primary : AppColors.darkGrey)
+                            .withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isHidden
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 14,
+                          color: isHidden
+                              ? AppColors.primary
+                              : (dark ? AppColors.white : AppColors.textPrimary),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          isHidden ? 'Hidden' : 'Visible',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isHidden
+                                ? AppColors.primary
+                                : (dark ? AppColors.white : AppColors.textPrimary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+            if (pendingCount > 0 || pendingReportsCount > 0)
+              const SizedBox(width: 8),
             if (pendingCount > 0)
               InkWell(
                 onTap: () => AdminNavController.instance.changePage(AdminNavPage.payments),
@@ -308,10 +361,8 @@ class _DashboardTopBar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               titleRow,
-              if (pendingCount > 0 || pendingReportsCount > 0) ...[
-                const SizedBox(height: 6),
-                actionsRow,
-              ],
+              const SizedBox(height: 6),
+              actionsRow,
             ],
           );
         }
@@ -353,17 +404,21 @@ class _ContentKpiGrid extends StatelessWidget {
           shrinkWrap: true,
           primary: false,
           children: [
-            _ContentKpiCard(
-              title: 'TOTAL STUDENTS',
-              value: NumberFormat('#,##0').format(stats.totalUsers),
-              tag: 'All Time',
-              tagColor: AppColors.primary,
-              subtext: '${stats.newUsersThisWeek} new this week',
-              onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
-            ),
             Obx(() {
-              final natural = DashboardController.instance.naturalStudentsCount;
-              final social = DashboardController.instance.socialStudentsCount;
+              final c = DashboardController.instance;
+              return _ContentKpiCard(
+                title: 'TOTAL STUDENTS',
+                value: c.maskIfHidden(NumberFormat('#,##0').format(stats.totalUsers)),
+                tag: 'All Time',
+                tagColor: AppColors.primary,
+                subtext: c.maskIfHidden('${stats.newUsersThisWeek} new this week', mask: '•••• new this week'),
+                onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
+              );
+            }),
+            Obx(() {
+              final c = DashboardController.instance;
+              final natural = c.naturalStudentsCount;
+              final social = c.socialStudentsCount;
               final total = natural + social;
               final natPct = total > 0
                   ? (natural / total * 100).toStringAsFixed(0)
@@ -374,10 +429,16 @@ class _ContentKpiGrid extends StatelessWidget {
 
               return _ContentKpiCard(
                 title: 'NATURAL / SOCIAL',
-                value: '${NumberFormat('#,##0').format(natural)} / ${NumberFormat('#,##0').format(social)}',
-                tag: '$natPct% / $socPct%',
+                value: c.maskIfHidden(
+                  '${NumberFormat('#,##0').format(natural)} / ${NumberFormat('#,##0').format(social)}',
+                  mask: '•••• / ••••',
+                ),
+                tag: c.maskIfHidden('$natPct% / $socPct%', mask: '••% / ••%'),
                 tagColor: AppColors.primary,
-                subtext: 'Nat: ${NumberFormat('#,##0').format(natural)} • Soc: ${NumberFormat('#,##0').format(social)}',
+                subtext: c.maskIfHidden(
+                  'Nat: ${NumberFormat('#,##0').format(natural)} • Soc: ${NumberFormat('#,##0').format(social)}',
+                  mask: 'Nat: •••• • Soc: ••••',
+                ),
                 onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
               );
             }),
@@ -404,7 +465,8 @@ class _ContentKpiGrid extends StatelessWidget {
               onTap: () => AdminNavController.instance.changePage(AdminNavPage.users),
             ),
             Obx(() {
-              final reportedCount = DashboardController.instance.pendingQuestionReportsCount.value;
+              final reportedCount =
+                  DashboardController.instance.pendingQuestionReportsCount.value;
               return _ContentKpiCard(
                 title: 'REPORTED QUESTIONS',
                 value: NumberFormat('#,##0').format(reportedCount),
@@ -417,8 +479,10 @@ class _ContentKpiGrid extends StatelessWidget {
               );
             }),
             Obx(() {
-              final reviewers = DashboardController.instance.noteReviewersCount.value;
-              final reviews = DashboardController.instance.noteReviewsCount.value;
+              final reviewers =
+                  DashboardController.instance.noteReviewersCount.value;
+              final reviews =
+                  DashboardController.instance.noteReviewsCount.value;
               return _ContentKpiCard(
                 title: 'NOTE REVIEWERS',
                 value: NumberFormat('#,##0').format(reviewers),

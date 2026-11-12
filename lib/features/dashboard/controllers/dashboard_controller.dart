@@ -11,9 +11,7 @@ import 'package:m_admin/utils/helpers/toast_helper.dart';
 class DashboardController extends GetxController {
   static DashboardController get instance => Get.find();
 
-  static const _activeHiddenKey = 'dashboard_active_hidden';
   final _storage = GetStorage();
-
   final _repo = DashboardRepository();
   final _reportsRepo = QuestionReportsRepository();
 
@@ -38,12 +36,30 @@ class DashboardController extends GetxController {
   final noteReviewsCount = 0.obs;
   final isReportsLoading = false.obs;
 
-  // ── Sensitive KPI Visibility Toggles ─────────────────────────────
+  // ── Student Counts KPI Visibility Toggle (Hidden by Default) ──
+  static const _numbersHiddenKey = 'dashboard_numbers_hidden';
+  static const _activeHiddenKey = 'dashboard_active_hidden';
+
+  /// Whether total students and stream breakdown KPI numbers are hidden (default: true).
+  final isNumbersHidden = true.obs;
   final isActiveHidden = true.obs;
+
+  void toggleNumbersVisibility() {
+    isNumbersHidden.value = !isNumbersHidden.value;
+    _storage.write(_numbersHiddenKey, isNumbersHidden.value);
+  }
 
   void toggleActiveVisibility() {
     isActiveHidden.value = !isActiveHidden.value;
     _storage.write(_activeHiddenKey, isActiveHidden.value);
+  }
+
+  /// Returns masked string if [isNumbersHidden] is true, or [value] otherwise.
+  String maskIfHidden(dynamic value, {String mask = '••••'}) {
+    if (isNumbersHidden.value) {
+      return mask;
+    }
+    return value?.toString() ?? '';
   }
 
   // ── Chart Controls ───────────────────────────────────────────────
@@ -93,6 +109,9 @@ class DashboardController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    final savedHidden = _storage.read<bool>(_numbersHiddenKey);
+    // Default to true (numbers hidden by default)
+    isNumbersHidden.value = savedHidden ?? true;
     final savedActive = _storage.read<bool>(_activeHiddenKey);
     if (savedActive != null) {
       isActiveHidden.value = savedActive;
