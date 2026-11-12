@@ -513,9 +513,17 @@ class AdminPaymentRepository {
               'file_key': clean,
             },
           );
-          final data = res.data;
-          if (data is Map && data['view_url'] != null) {
-            return data['view_url'].toString();
+          var data = res.data;
+          if (data is String) {
+            try {
+              data = jsonDecode(data);
+            } catch (_) {}
+          }
+          if (data is Map) {
+            final viewUrl = data['view_url'] ?? data['url'];
+            if (viewUrl != null && viewUrl.toString().isNotEmpty) {
+              return viewUrl.toString();
+            }
           }
         } catch (_) {}
       }

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:m_admin/data/services/receipt_extractor_service.dart';
 import 'package:m_admin/data/services/scanned_receipt_storage.dart';
 import 'package:m_admin/data/services/verify_et_service.dart';
 import 'package:m_admin/features/payments/models/payment_review.dart';
@@ -108,6 +109,35 @@ class VerifyEtController extends GetxController {
         final bytes = await file.readAsBytes();
         selectedImageBytes.value = bytes;
         selectedImageName.value = file.name;
+
+        // Perform fast on-device OCR extraction immediately so the user doesn't hit
+        // the "Image Processing is disabled on your Verify.ET account" wall!
+        try {
+          final res = await ReceiptExtractorService.instance.extractFromBytes(
+            bytes,
+            bankHint: selectedBank.value,
+            fileName: file.name,
+          );
+
+          if (res != null && res.hasTransactionId) {
+            final targetRef = res.receiptUrl ?? res.transactionId!;
+            referenceCtrl.text = targetRef;
+            if (res.bank != null && res.bank!.isNotEmpty) {
+              selectBank(res.bank!);
+            }
+            if (res.receiverAccount != null && res.receiverAccount!.isNotEmpty) {
+              final bank = selectedBank.value;
+              accountSuffixCtrl.text = VerifyEtService.sanitizeAccountSuffix(res.receiverAccount!, bank);
+            }
+            _onInputChanged();
+            SnackbarHelper.success(
+              'Extracted from Image',
+              'Found ${res.bank?.toUpperCase() ?? 'Bank'} reference: $targetRef',
+            );
+          }
+        } catch (ocrErr) {
+          debugPrint('[VerifyEtController] On-device OCR notice: $ocrErr');
+        }
       }
     } catch (e) {
       SnackbarHelper.error('File Error', 'Could not select receipt image: $e');
@@ -274,7 +304,7 @@ class VerifyEtController extends GetxController {
         pollingStatusMessage.value = 'Checking upstream bank confirmation ($attempt/$maxAttempts)...';
       }
 
-      if (hasImage) {
+      if (hasImage && inputVal.isEmpty) {
         res = await _service.verifyScreenshot(
           imageBytes: selectedImageBytes.value!,
           fileName: selectedImageName.value,
@@ -288,7 +318,11 @@ class VerifyEtController extends GetxController {
           onPollTick: onTick,
         );
       } else {
-        final r = resolved!;
+        final r = resolved ??
+            LinksEtService.resolveReceiptInput(
+              input: inputVal,
+              bank: bank,
+            );
         final rawSuffix = accountSuffixCtrl.text.trim().isNotEmpty
             ? accountSuffixCtrl.text.trim()
             : r.accountSuffix;

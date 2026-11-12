@@ -240,6 +240,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
         imageUrl,
         bankHint: bank,
         cacheKey: cacheKey,
+        force: manual,
       );
 
       if (mounted) {
@@ -247,14 +248,14 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
           _isExtracting = false;
           _extractedInfo = res;
           if (res != null && res.hasTransactionId) {
-            final isCbe = (res.bank?.toLowerCase() == 'cbe') ||
-                (bank == 'cbe') ||
-                widget.review.paymentMethod.toLowerCase().contains('cbe') ||
-                (res.transactionId != null && res.transactionId!.toUpperCase().startsWith('FT'));
-            final isTelebirr = !isCbe &&
-                ((bank == 'telebirr') ||
-                    widget.review.paymentMethod.toLowerCase().contains('telebirr') ||
-                    (res.bank?.toLowerCase() == 'telebirr'));
+            // 1. Auto-switch bank engine if detected bank from receipt differs from current
+            if (res.bank != null && res.bank!.isNotEmpty && res.bank != _currentBank) {
+              _switchBank(res.bank!);
+            }
+
+            final isCbe = _currentBank == 'cbe';
+            final isTelebirr = _currentBank == 'telebirr';
+            final isBoa = _currentBank == 'boa';
 
             String targetRef;
             if (isTelebirr) {
@@ -262,7 +263,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
               final raw = res.transactionId ?? res.receiptUrl ?? '';
               final cleanRef = VerifyEtService.sanitizeTelebirrReference(raw);
               targetRef = cleanRef.isNotEmpty && !cleanRef.startsWith('http') ? cleanRef : raw;
-            } else if (isCbe) {
+            } else if (isCbe || isBoa) {
               final raw = res.receiptUrl ?? res.transactionId!;
               targetRef = raw.toUpperCase().startsWith('FT')
                   ? ReceiptTextParser.normalizeCbeFtReference(raw)
@@ -272,13 +273,14 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
             }
 
             _refCtrl.text = targetRef;
-            if (bank == 'boa' && _suffixCtrl.text.isEmpty) {
+
+            if (_currentBank == 'boa') {
               if (res.receiverAccount != null && res.receiverAccount!.length >= 5) {
                 _suffixCtrl.text = res.receiverAccount!.substring(res.receiverAccount!.length - 5);
               } else {
                 _suffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix('boa');
               }
-            } else if ((bank == 'cbe' || isCbe) && _suffixCtrl.text.isEmpty) {
+            } else if (_currentBank == 'cbe') {
               if (targetRef.contains('-')) {
                 _suffixCtrl.text = VerifyEtService.sanitizeAccountSuffix(targetRef.split('-').last, 'cbe');
               } else {
@@ -943,6 +945,79 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
                       child: const Text('Use Link', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ),
+                ],
+              ),
+            ),
+          ],
+
+          // USSD Receipt Indicator
+          if (_extractedInfo != null && _extractedInfo!.isUssdReceipt) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.35)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.flash_on_rounded, size: 14, color: Color(0xFF6366F1)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _currentBank == 'boa'
+                              ? '📱 Abyssinia USSD (*815#) Slip Detected'
+                              : '📱 CBE USSD (*445# / 4455) Dialog Detected',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF6366F1)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _currentBank == 'boa'
+                        ? 'USSD transactions ("self done via Mobile" to 165093089) are not published to online web slips by Bank of Abyssinia. All details below were extracted directly from the user slip.'
+                        : 'Interactive USSD dialog transfer directly to Abrham Teramed Nega (1237). Reference and amount were extracted from the dialog.',
+                    style: TextStyle(fontSize: 10.5, color: dark ? Colors.white70 : Colors.black87),
+                  ),
+                  if (_extractedInfo!.amount != null || _extractedInfo!.receiverAccount != null) ...[
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        if (_extractedInfo!.amount != null)
+                          Text('• Amount: ETB ${_extractedInfo!.amount!.toStringAsFixed(2)}',
+                              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                        if (_extractedInfo!.receiverAccount != null)
+                          Text('• To: ${_extractedInfo!.receiverAccount}',
+                              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                        if (_extractedInfo!.date != null)
+                          Text('• Date: ${_extractedInfo!.date}',
+                              style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ],
+                  if (_currentBank == 'boa' && widget.onApproveWithAmount != null && _extractedInfo!.amount != null) ...[
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      onPressed: () {
+                        widget.onApproveWithAmount!(_extractedInfo!.amount!);
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                      ),
+                      icon: const Icon(Icons.check, size: 14),
+                      label: Text('Approve Extracted ETB ${_extractedInfo!.amount!.toStringAsFixed(0)}',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ],
               ),
             ),

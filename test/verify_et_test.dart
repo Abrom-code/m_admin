@@ -918,6 +918,32 @@ x Recents Completed ETB200.61 transfer From Adisu Solomon Shenfana to Abrham Ter
       expect(res.receiverAccount, equals('1237'));
       expect(res.date, equals('12/11/2026'));
       expect(res.hasTransactionId, isTrue);
+      expect(res.isUssdReceipt, isTrue);
+    });
+
+    test('ReceiptTextParser parses Bank of Abyssinia USSD (*815#) text correctly', () {
+      const boaUssd = '''
+Complete ETB 200.00 debited from 268305246 for 165093089 (self done via Mobile) on 11/11/2026 with transaction ID: FT26315BLDHF.
+''';
+      final res = ReceiptTextParser.parse(boaUssd);
+      expect(res.transactionId, equals('FT26315BLDHF'));
+      expect(res.bank, equals('boa'));
+      expect(res.amount, equals(200.0));
+      expect(res.receiverAccount, equals('165093089'));
+      expect(res.date, equals('11/11/2026'));
+      expect(res.isUssdReceipt, isTrue);
+    });
+
+    test('ReceiptTextParser parses CBE USSD popup with internal spacing in FT code', () {
+      const cbeSpaced = '''
+Completed ETB200.61 transfer From Adisu Solomon to Abrham Teramed Nega-1237. To 4455 on 12/11/2026 FT 26316 C1JMB Service Charge #:Next
+''';
+      final res = ReceiptTextParser.parse(cbeSpaced);
+      expect(res.transactionId, equals('FT26316C1JMB'));
+      expect(res.bank, equals('cbe'));
+      expect(res.amount, equals(200.61));
+      expect(res.receiverAccount, equals('1237'));
+      expect(res.isUssdReceipt, isTrue);
     });
 
     test('ReceiptExtractorService extracts FT26316C1JMB directly from user uploaded image bytes', () async {
