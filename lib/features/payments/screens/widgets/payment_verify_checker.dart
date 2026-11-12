@@ -44,6 +44,7 @@ class PaymentVerifyChecker extends StatefulWidget {
     if (clean.contains('dashen')) return 'dashen';
     if (clean.contains('cbebirr') || clean.contains('cbe_birr')) return 'cbebirr';
     if (clean.contains('mpesa') || clean.contains('m-pesa')) return 'mpesa';
+    if (clean.contains('bank') || clean.contains('transfer') || clean.contains('manual')) return 'cbe';
     return null;
   }
 
@@ -215,9 +216,14 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
           _isExtracting = false;
           _extractedInfo = res;
           if (res != null && res.hasTransactionId) {
-            final isTelebirr = (bank == 'telebirr') ||
-                widget.review.paymentMethod.toLowerCase().contains('telebirr') ||
-                (res.bank?.toLowerCase() == 'telebirr');
+            final isCbe = (res.bank?.toLowerCase() == 'cbe') ||
+                (bank == 'cbe') ||
+                widget.review.paymentMethod.toLowerCase().contains('cbe') ||
+                (res.transactionId != null && res.transactionId!.toUpperCase().startsWith('FT'));
+            final isTelebirr = !isCbe &&
+                ((bank == 'telebirr') ||
+                    widget.review.paymentMethod.toLowerCase().contains('telebirr') ||
+                    (res.bank?.toLowerCase() == 'telebirr'));
 
             String targetRef;
             if (isTelebirr) {
@@ -225,6 +231,11 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
               final raw = res.transactionId ?? res.receiptUrl ?? '';
               final cleanRef = VerifyEtService.sanitizeTelebirrReference(raw);
               targetRef = cleanRef.isNotEmpty && !cleanRef.startsWith('http') ? cleanRef : raw;
+            } else if (isCbe) {
+              final raw = res.receiptUrl ?? res.transactionId!;
+              targetRef = raw.toUpperCase().startsWith('FT')
+                  ? ReceiptTextParser.normalizeCbeFtReference(raw)
+                  : raw;
             } else {
               targetRef = res.receiptUrl ?? res.transactionId!;
             }
@@ -236,7 +247,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
               } else {
                 _suffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix('boa');
               }
-            } else if (bank == 'cbe' && _suffixCtrl.text.isEmpty) {
+            } else if ((bank == 'cbe' || isCbe) && _suffixCtrl.text.isEmpty) {
               if (targetRef.contains('-')) {
                 _suffixCtrl.text = VerifyEtService.sanitizeAccountSuffix(targetRef.split('-').last, 'cbe');
               } else {

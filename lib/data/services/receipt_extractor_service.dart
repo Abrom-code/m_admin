@@ -115,6 +115,61 @@ class ReceiptExtractionResult {
 class ReceiptTextParser {
   ReceiptTextParser._();
 
+  /// Normalizes and cleans a CBE Funds Transfer (FT) code that may have OCR misrecognitions
+  /// (e.g. 'FT26316CIJMB' -> 'FT26316C1JMB', where digit 1 is read as letter I/l/|, or 0 as O).
+  static String normalizeCbeFtReference(String raw) {
+    var s = raw.trim().toUpperCase().replaceAll(RegExp(r'[\s\-_]'), '');
+    if (!s.startsWith('FT') &&
+        (s.startsWith('ET') || s.startsWith('TT') || s.startsWith('PT') || s.startsWith('FI') || s.startsWith('FL')) &&
+        s.length >= 12) {
+      s = 'FT${s.substring(2)}';
+    }
+    // Remove punctuation like periods or colons
+    s = s.replaceAll(RegExp(r'[^A-Z0-9|]'), '');
+    if (!s.startsWith('FT')) return raw.trim();
+
+    // CBE FT format:
+    // Chars 0..1: 'FT'
+    // Chars 2..3: 2-digit Year (e.g. '26')
+    // Chars 4..6: 3-digit Julian Day (e.g. '316')
+    // Chars 7..end: 5-6 alphanumeric characters (e.g. 'C1JMB')
+    if (s.length >= 12) {
+      final chars = s.substring(2).split('');
+
+      // Positions 0..4 in 'chars' (chars 2..6 of FT code) MUST BE DIGITS:
+      for (int i = 0; i < 5 && i < chars.length; i++) {
+        final c = chars[i];
+        if (c == 'I' || c == 'L' || c == '|') {
+          chars[i] = '1';
+        } else if (c == 'O' || c == 'Q') {
+          chars[i] = '0';
+        } else if (c == 'S') {
+          chars[i] = '5';
+        } else if (c == 'B') {
+          chars[i] = '8';
+        } else if (c == 'Z') {
+          chars[i] = '2';
+        }
+      }
+
+      // Positions 5..end (the alphanumeric suffix):
+      // In CBE T24 system, 'I' (capital i) and 'O' (capital o) are NOT used in reference generation
+      // to prevent confusion with digits 1 and 0.
+      // Therefore, any OCR 'I', 'L', '|' in suffix is digit '1', and 'O' is digit '0'.
+      for (int i = 5; i < chars.length; i++) {
+        final c = chars[i];
+        if (c == 'I' || c == 'L' || c == '|') {
+          chars[i] = '1';
+        } else if (c == 'O') {
+          chars[i] = '0';
+        }
+      }
+
+      return 'FT${chars.join('')}';
+    }
+    return s;
+  }
+
   /// Parses raw OCR or SMS text to extract Transaction ID, Date, Amount, Sender, and Receiver.
   static ReceiptExtractionResult parse(String rawText, {String? bankHint}) {
     // Pre-process: stitch wrapped URL lines commonly split across newlines in mobile SMS receipts
@@ -124,21 +179,26 @@ class ReceiptTextParser {
     }
 
     final normalizedHint = bankHint?.toLowerCase().trim() ?? '';
-    final isTelebirrHint = normalizedHint.contains('telebirr');
-    final isCbeHint =
-        normalizedHint.contains('cbe') || normalizedHint.contains('commercial');
-    final isBoaHint =
-        normalizedHint.contains('abyssinia') || normalizedHint.contains('boa');
-    final isAwashHint = normalizedHint.contains('awash');
-    final isOromiaHint =
-        normalizedHint.contains('oromia') ||
-        normalizedHint.contains('coop') ||
-        normalizedHint.contains('cbo') ||
-        normalizedHint.contains('ebirr');
 
-    // 1. Detect Bank
+    // 1. Detect Bank: prioritize strong text indicators from image over an inaccurate hint
+    final hasCbeIndicators = clean.contains('FT') ||
+        clean.contains('CBE') ||
+        clean.contains('Commercial Bank') ||
+        clean.contains('cbe.com.et') ||
+        RegExp(r'(?:FT|\bFT)[\s\-_]*[0-9A-Za-z|]{10,14}', caseSensitive: false).hasMatch(clean);
+    final hasTelebirrIndicators = clean.toLowerCase().contains('telebirr') ||
+        clean.toLowerCase().contains('transactioninfo') ||
+        clean.contains("Milkaa'eera") ||
+        clean.contains('Mala kaffaltii') ||
+        clean.contains('Lakkoofsa Kaffaltii') ||
+        clean.contains('የግብይት ቁጥር');
+
     String detectedBank = normalizedHint;
-    if (detectedBank.isEmpty) {
+    if (hasCbeIndicators && !hasTelebirrIndicators) {
+      detectedBank = 'cbe';
+    } else if (hasTelebirrIndicators && !hasCbeIndicators) {
+      detectedBank = 'telebirr';
+    } else if (detectedBank.isEmpty) {
       if (clean.contains('awashpay') ||
           clean.contains('Awash Bank') ||
           clean.contains('awashbank') ||
@@ -158,23 +218,6 @@ class ReceiptTextParser {
           clean.contains('Baankii Oromiyaa') ||
           clean.contains('CBO')) {
         detectedBank = 'coopayebirr';
-      } else if (clean.toLowerCase().contains('telebirr') ||
-          clean.toLowerCase().contains('ethiotelecom') ||
-          clean.toLowerCase().contains('transactioninfo') ||
-          clean.contains("Milkaa'eera") ||
-          clean.contains('Mala kaffaltii') ||
-          clean.contains('yeroo daddabarsaa') ||
-          clean.contains('የግብይት ቁጥር')) {
-        detectedBank = 'telebirr';
-      } else if (clean.contains('FT') ||
-          clean.contains('CBE') ||
-          clean.contains('Commercial Bank') ||
-          clean.contains('Commercial Bank of Ethiopia') ||
-          clean.contains('CBEBirr') ||
-          clean.contains('mreciept.cbe.com.et') ||
-          clean.contains('mreceipt.cbe.com.et') ||
-          clean.contains('cbe.com.et')) {
-        detectedBank = 'cbe';
       } else if (clean.contains('Abyssinia') ||
           clean.contains('Absiiniyaa') ||
           clean.contains('bankofabyssinia') ||
@@ -184,6 +227,12 @@ class ReceiptTextParser {
         detectedBank = 'telebirr';
       }
     }
+
+    final isTelebirrHint = detectedBank == 'telebirr';
+    final isCbeHint = detectedBank == 'cbe';
+    final isBoaHint = detectedBank == 'boa';
+    final isAwashHint = detectedBank == 'awash';
+    final isOromiaHint = detectedBank == 'coopayebirr';
 
     String? txId;
     String? receiptUrl;
@@ -521,14 +570,29 @@ class ReceiptTextParser {
         }
       }
 
-      // Pattern A: CBE Funds Transfer format: FT + 10-14 alphanumeric (e.g. FT26291KVDWY)
+      // Pattern A: CBE Funds Transfer format: FT + 10-14 alphanumeric (e.g. FT26291KVDWY, FT26316C1JMB)
+      // Handles loose word boundaries, spaces, dashes, or OCR misrecognitions
       final cbeFtRegex = RegExp(
-        r'\b(FT[0-9A-Za-z]{10,14})\b',
+        r'(?:^|[^A-Za-z0-9])((?:FT|ET|TT|PT)[\s\-_]*[0-9A-Za-z|]{10,14})(?:$|[^A-Za-z0-9])',
         caseSensitive: false,
       );
       final cbeFtMatch = cbeFtRegex.firstMatch(clean);
       if (cbeFtMatch != null) {
-        txId = cbeFtMatch.group(1)?.toUpperCase();
+        txId = normalizeCbeFtReference(cbeFtMatch.group(1)!);
+      }
+
+      // Pattern A2: Date followed by transaction code (e.g. "12/11/2026 FT26316CIJMB")
+      if (txId == null || txId == receiptUrl) {
+        final dateFtMatch = RegExp(
+          r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+([A-Za-z0-9|]{10,16})',
+          caseSensitive: false,
+        ).firstMatch(clean);
+        if (dateFtMatch != null) {
+          final cand = dateFtMatch.group(1)!.trim();
+          if (cand.toUpperCase().startsWith('FT') || cand.length >= 10) {
+            txId = normalizeCbeFtReference(cand);
+          }
+        }
       }
 
       // Pattern B: Labeled Txn ID / Reference (e.g. "Txn ID: FT26...", "Ref: fHCxy...")
@@ -539,7 +603,12 @@ class ReceiptTextParser {
         );
         final m = cbeLabeledRegex.firstMatch(clean);
         if (m != null) {
-          txId = m.group(1)?.trim();
+          final candidate = m.group(1)?.trim();
+          if (candidate != null && candidate.toUpperCase().startsWith('FT')) {
+            txId = normalizeCbeFtReference(candidate);
+          } else {
+            txId = candidate;
+          }
         }
       }
 
@@ -649,14 +718,17 @@ class ReceiptTextParser {
         }
       }
 
-      // Receiver Pattern B: Standard CBE receipt "to Negawo Abu Neme-6782"
+      // Receiver Pattern B: Standard CBE receipt or USSD dialog "to Abrham Teramed Nega-1237."
       if (receiverAcc == null) {
         final receiverMatch = RegExp(
-          r'to\s+([A-Za-z0-9\s-]+?)(?:\.|\s+To\b|\s+on\b|\s+FT)',
+          r'to\s+([A-Za-z\s]+?)(?:-(\d{4,8}))?(?:\.|\s+To\b|\s+on\b|\s+FT|$)',
           caseSensitive: false,
         ).firstMatch(clean);
         if (receiverMatch != null) {
-          receiverAcc = receiverMatch.group(1)?.trim();
+          final matchedName = receiverMatch.group(1)?.trim();
+          final matchedSuffix = receiverMatch.group(2)?.trim();
+          receiverName ??= matchedName;
+          receiverAcc = matchedSuffix ?? matchedName;
         }
       }
     }
@@ -849,7 +921,19 @@ class ReceiptExtractorService {
       }
     }
 
-    // 2. Fallback to Verify.ET Image Processing & upstream bank verification if API key is present
+    // 2. Try Windows On-Device Media OCR (Supported on Windows 10 & 11)
+    if (!kIsWeb && Platform.isWindows) {
+      try {
+        final result = await _extractViaWindowsOcr(bytes, bankHint: bankHint);
+        if (result != null && result.hasTransactionId) {
+          return result;
+        }
+      } catch (e) {
+        debugPrint('[ReceiptExtractorService] Windows OCR error: $e');
+      }
+    }
+
+    // 3. Fallback to Verify.ET Image Processing & upstream bank verification if API key is present
     final verifyService = VerifyEtService.instance;
     if (verifyService.hasApiKey) {
       try {
@@ -861,7 +945,10 @@ class ReceiptExtractorService {
               false, // Return detected reference immediately without waiting 10-20s for bank polling loops
         );
 
-        final txId = vRes.referenceNumber ?? vRes.receiptNumber;
+        final rawTxId = vRes.referenceNumber ?? vRes.receiptNumber;
+        final txId = (rawTxId != null && rawTxId.toUpperCase().startsWith('FT'))
+            ? ReceiptTextParser.normalizeCbeFtReference(rawTxId)
+            : rawTxId;
         final dateStr = vRes.timestamp != null
             ? '${DateFormat('d MMM yyyy, h:mm a').format(EthiopianTimeHelper.toEastAfricaTime(vRes.timestamp!))} EAT'
             : null;
@@ -887,6 +974,98 @@ class ReceiptExtractorService {
       }
     }
 
+    return null;
+  }
+
+  Future<ReceiptExtractionResult?> _extractViaWindowsOcr(
+    Uint8List bytes, {
+    String? bankHint,
+  }) async {
+    Directory? tempDir;
+    try {
+      tempDir = Directory.systemTemp.createTempSync('win_ocr_');
+      final tempFile = File(
+        '${tempDir.path}/receipt_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+      await tempFile.writeAsBytes(bytes, flush: true);
+
+      final scriptFile = File('${tempDir.path}/ocr.ps1');
+      await scriptFile.writeAsString('''
+param([string]\$ImagePath)
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+\$asTaskGeneric = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+    \$_.Name -eq 'AsTask' -and \$_.IsGenericMethod -and \$_.GetParameters().Length -eq 1
+} | Select-Object -First 1
+
+function AwaitTask(\$asyncOp, \$resultType) {
+    \$genericMethod = \$asTaskGeneric.MakeGenericMethod(\$resultType)
+    \$task = \$genericMethod.Invoke(\$null, @(\$asyncOp))
+    \$task.Wait(-1) | Out-Null
+    return \$task.Result
+}
+
+[Windows.Globalization.Language, Windows.Globalization, ContentType = WindowsRuntime] | Out-Null
+[Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime] | Out-Null
+[Windows.Graphics.Imaging.BitmapDecoder, Windows.Foundation, ContentType = WindowsRuntime] | Out-Null
+[Windows.Storage.StorageFile, Windows.Foundation, ContentType = WindowsRuntime] | Out-Null
+
+\$resolvedPath = (Resolve-Path \$ImagePath).Path
+\$fileOp = [Windows.Storage.StorageFile]::GetFileFromPathAsync(\$resolvedPath)
+\$file = AwaitTask \$fileOp ([Windows.Storage.StorageFile])
+
+\$streamOp = \$file.OpenAsync([Windows.Storage.FileAccessMode]::Read)
+\$stream = AwaitTask \$streamOp ([Windows.Storage.Streams.IRandomAccessStream])
+
+\$decoderOp = [Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync(\$stream)
+\$decoder = AwaitTask \$decoderOp ([Windows.Graphics.Imaging.BitmapDecoder])
+
+\$bitmapOp = \$decoder.GetSoftwareBitmapAsync()
+\$bitmap = AwaitTask \$bitmapOp ([Windows.Graphics.Imaging.SoftwareBitmap])
+
+\$engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
+if (\$null -eq \$engine) {
+    \$engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage([Windows.Globalization.Language]::new('en-US'))
+}
+\$ocrOp = \$engine.RecognizeAsync(\$bitmap)
+\$result = AwaitTask \$ocrOp ([Windows.Media.Ocr.OcrResult])
+
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::Out.Write(\$result.Text)
+''');
+
+      final res = await Process.run(
+        'powershell',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          scriptFile.path,
+          '-ImagePath',
+          tempFile.path,
+        ],
+      );
+
+      if (res.exitCode == 0) {
+        final recognizedText = res.stdout.toString().trim();
+        if (recognizedText.isNotEmpty) {
+          final parsed = ReceiptTextParser.parse(
+            recognizedText,
+            bankHint: bankHint,
+          );
+          return parsed.copyWith(source: 'windows_ocr');
+        }
+      } else {
+        debugPrint('[ReceiptExtractorService] Windows OCR process error: ${res.stderr}');
+      }
+    } catch (e) {
+      debugPrint('[ReceiptExtractorService] Windows OCR error: $e');
+    } finally {
+      try {
+        tempDir?.deleteSync(recursive: true);
+      } catch (_) {}
+    }
     return null;
   }
 

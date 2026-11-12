@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -875,6 +876,64 @@ void main() {
       expect(result.verified, isFalse);
       expect(result.userFriendlyErrorMessage, contains('taking longer than expected to respond'));
       expect(result.userFriendlyErrorMessage, contains('CBE'));
+    });
+
+    test('ReceiptTextParser.normalizeCbeFtReference corrects OCR letter I to digit 1 and handles formatting', () {
+      // 1. OCR letter I instead of digit 1 in suffix
+      expect(
+        ReceiptTextParser.normalizeCbeFtReference('FT26316CIJMB'),
+        equals('FT26316C1JMB'),
+      );
+
+      // 2. OCR pipe symbol | instead of digit 1
+      expect(
+        ReceiptTextParser.normalizeCbeFtReference('FT26316C|JMB'),
+        equals('FT26316C1JMB'),
+      );
+
+      // 3. Lowercase with spaces and hyphens
+      expect(
+        ReceiptTextParser.normalizeCbeFtReference('ft 26316-c1jmb'),
+        equals('FT26316C1JMB'),
+      );
+
+      // 4. Julian day has letter I instead of 1
+      expect(
+        ReceiptTextParser.normalizeCbeFtReference('FT263I6C1JMB'),
+        equals('FT26316C1JMB'),
+      );
+    });
+
+    test('ReceiptTextParser parses USSD confirmation popup screenshot text accurately', () {
+      const ussdText = '''
+x Recents Completed ETB200.61 transfer From Adisu Solomon Shenfana to Abrham Teramed Nega-1237. To 4455 on 12/11/2026 FT26316CIJMB Service Charge #:Next Cancel 23 4 1 a k O 567 Send fF Z 890 q rs 1m nop tuv w x AB English
+''';
+
+      final res = ReceiptTextParser.parse(ussdText, bankHint: 'cbe');
+      expect(res.transactionId, equals('FT26316C1JMB'));
+      expect(res.bank, equals('cbe'));
+      expect(res.amount, equals(200.61));
+      expect(res.senderName, equals('Adisu Solomon Shenfana'));
+      expect(res.receiverName, equals('Abrham Teramed Nega'));
+      expect(res.receiverAccount, equals('1237'));
+      expect(res.date, equals('12/11/2026'));
+      expect(res.hasTransactionId, isTrue);
+    });
+
+    test('ReceiptExtractorService extracts FT26316C1JMB directly from user uploaded image bytes', () async {
+      final imageFile = File('C:/Users/HP/.gemini/antigravity/brain/b835c9a1-dc89-4e78-8640-2e73f07e8058/.user_uploaded/media_1794490679267_c2e0e950.jpg');
+      if (await imageFile.exists()) {
+        final bytes = await imageFile.readAsBytes();
+        final res = await ReceiptExtractorService.instance.extractFromBytes(
+          bytes,
+          bankHint: 'cbe',
+        );
+
+        expect(res, isNotNull);
+        expect(res!.hasTransactionId, isTrue);
+        expect(res.transactionId, equals('FT26316C1JMB'));
+        expect(res.bank, equals('cbe'));
+      }
     });
 
     testWidgets('PaymentVerifyChecker displays Account Suffix field for Bank of Abyssinia without overflow on 320px screen', (tester) async {
