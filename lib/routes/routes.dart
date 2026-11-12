@@ -35,6 +35,7 @@ class AdminRoutes {
   static const challengeEditor = '/challenges/editor';
   static const challengeScheduler = '/challenges/scheduler';
   static const challengeLeaderboard = '/challenges/leaderboard';
+  static const challengeWeeklySchedule = '/challenges/weekly-schedule';
 
   static const notes = '/notes';
   static const noteEditor = '/notes/editor';

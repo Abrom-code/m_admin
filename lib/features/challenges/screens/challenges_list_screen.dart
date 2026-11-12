@@ -7,13 +7,16 @@ import 'package:m_admin/features/shell/controllers/admin_nav_controller.dart';
 import 'package:m_admin/common/widgets/dialogs/confirm_dialog_box.dart';
 import 'package:m_admin/features/challenges/controllers/challenges_list_controller.dart';
 import 'package:m_admin/features/challenges/models/challenge_model.dart';
+import 'package:m_admin/features/challenges/models/weekly_challenge_schedule_model.dart';
 import 'package:m_admin/features/challenges/screens/challenge_editor_screen.dart';
 import 'package:m_admin/features/challenges/screens/challenge_leaderboard_screen.dart';
 import 'package:m_admin/features/challenges/screens/subject_challenges_screen.dart';
+import 'package:m_admin/features/challenges/screens/weekly_challenge_schedule_screen.dart';
 import 'package:m_admin/features/challenges/screens/widgets/challenge_card.dart';
 import 'package:m_admin/features/challenges/screens/widgets/notify_challenge_dialog.dart';
 import 'package:m_admin/utils/constants/colors.dart';
 import 'package:m_admin/utils/constants/sizes.dart';
+import 'package:m_admin/utils/helpers/ethiopian_time_helper.dart';
 import 'package:m_admin/utils/helpers/helper_functions.dart';
 import 'package:m_admin/utils/helpers/snackbar_helper.dart';
 
@@ -94,6 +97,22 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                       },
                       icon: const Icon(Iconsax.ranking_copy, size: 15, color: Color(0xFF0284C7)),
                       label: const Text('Leaderboard', style: TextStyle(fontSize: 12)),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    // Weekly Schedule Button
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        Get.to(() => const WeeklyChallengeScheduleScreen());
+                      },
+                      icon: const Icon(Iconsax.calendar_1_copy, size: 15, color: Color(0xFF10B981)),
+                      label: const Text('Schedule', style: TextStyle(fontSize: 12)),
                     ),
 
                     const SizedBox(width: 8),
@@ -247,6 +266,10 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // ── TODAY'S SCHEDULE BANNER ──────────────────────────
+                        _buildTodayScheduleBanner(context, dark),
+                        const SizedBox(height: 12),
+
                         // ── SECTION 1: LIVE, SCHEDULED & DRAFT CHALLENGES ─────
                         Row(
                           children: [
@@ -515,6 +538,135 @@ class _ChallengesListScreenState extends State<ChallengesListScreen> {
         Navigator.pop(context);
         _ctrl.deleteChallenge(challenge.id);
       },
+    );
+  }
+
+  Widget _buildTodayScheduleBanner(BuildContext context, bool dark) {
+    final nowEat = EthiopianTimeHelper.nowInEastAfrica();
+    final today = WeeklyDaySchedule.forWeekday(nowEat.weekday);
+    final subjectSummary = today.isRestDay
+        ? 'Rest & Weekly Recap Day'
+        : today.subjects.map((s) => s.name).join(' & ');
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+        onTap: () {
+          FocusManager.instance.primaryFocus?.unfocus();
+          Get.to(() => const WeeklyChallengeScheduleScreen());
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: dark
+                  ? [
+                      const Color(0xFF0F766E).withValues(alpha: 0.35),
+                      const Color(0xFF065F46).withValues(alpha: 0.20),
+                    ]
+                  : [
+                      const Color(0xFFF0FDF4),
+                      const Color(0xFFE0F2FE),
+                    ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: dark ? 0.35 : 0.45),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(
+                  Iconsax.calendar_tick_copy,
+                  size: 15,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: const Text(
+                            'TODAY',
+                            style: TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            '${today.dayName}: $subjectSummary',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 1.5),
+                    Text(
+                      today.isRestDay
+                          ? 'Review rankings and past challenges.'
+                          : 'Weekly Timetable • ${today.subjects.map((s) => '${s.name} (${s.stream})').join(' • ')}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: dark ? Colors.white60 : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Timetable',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  SizedBox(width: 3),
+                  Icon(
+                    Iconsax.arrow_right_3_copy,
+                    size: 12,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

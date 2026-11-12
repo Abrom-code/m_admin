@@ -8,6 +8,7 @@ import 'package:m_admin/features/challenges/screens/challenge_leaderboard_screen
 import 'package:m_admin/features/challenges/screens/challenge_scheduler_screen.dart';
 import 'package:m_admin/features/challenges/screens/challenges_list_screen.dart';
 import 'package:m_admin/features/challenges/screens/subject_challenges_screen.dart';
+import 'package:m_admin/features/challenges/screens/weekly_challenge_schedule_screen.dart';
 import 'package:m_admin/features/content/screens/content_screen.dart';
 import 'package:m_admin/features/content/screens/subject_chapters_screen.dart';
 import 'package:m_admin/features/content/screens/subject_tests_screen.dart';
@@ -256,6 +257,11 @@ class AdminAppRoutes {
           challengeTitle: args['title']?.toString(),
         );
       },
+      middlewares: [AdminAuthMiddleware()],
+    ),
+    GetPage(
+      name: AdminRoutes.challengeWeeklySchedule,
+      page: () => const WeeklyChallengeScheduleScreen(),
       middlewares: [AdminAuthMiddleware()],
     ),
 
