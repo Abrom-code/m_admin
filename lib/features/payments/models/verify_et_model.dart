@@ -724,7 +724,10 @@ class LinksEtResult {
     final isVerifyEtEnvelope = json.containsKey('success') || verificationMap != null;
     final isExplicitSuccess = json['success'] == true;
     final isVerifiedFlag = itemData?['verified'] == true ||
+        itemData?['status']?.toString().toLowerCase() == 'success' ||
+        itemData?['status']?.toString().toLowerCase() == 'completed' ||
         verificationMap?['verified'] == true ||
+        verificationMap?['status']?.toString().toLowerCase() == 'success' ||
         json['verified'] == true ||
         json['ok'] == true;
 

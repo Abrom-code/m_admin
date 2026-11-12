@@ -146,6 +146,10 @@ class ReceiptTextParser {
           clean.contains('Awaash') ||
           clean.contains('አዋሽ')) {
         detectedBank = 'awash';
+      } else if (clean.toLowerCase().contains('dashen') ||
+          clean.contains('ዳሽን') ||
+          clean.contains('DASHEN')) {
+        detectedBank = 'dashen';
       } else if (clean.contains('receipt.ebirr.com') ||
           clean.contains('coopay') ||
           clean.contains('Cooperative Bank of Oromia') ||
@@ -171,7 +175,10 @@ class ReceiptTextParser {
           clean.contains('mreceipt.cbe.com.et') ||
           clean.contains('cbe.com.et')) {
         detectedBank = 'cbe';
-      } else if (clean.contains('Abyssinia') || clean.contains('Absiiniyaa')) {
+      } else if (clean.contains('Abyssinia') ||
+          clean.contains('Absiiniyaa') ||
+          clean.contains('bankofabyssinia') ||
+          clean.contains('አቢሲኒያ')) {
         detectedBank = 'boa';
       } else if (clean.contains('Lakkoofsa Kaffaltii')) {
         detectedBank = 'telebirr';
@@ -488,10 +495,23 @@ class ReceiptTextParser {
         }
       }
 
-      // Layer D: Any standalone URL in the text containing cbe or reciept/receipt
+      // Layer D: Bank of Abyssinia slip URL (https://cs.bankofabyssinia.com/slip/?trx=...)
+      if (receiptUrl == null) {
+        final boaUrlMatch = RegExp(
+          r'(https?:\/\/cs\.bankofabyssinia\.com\/slip\/[^\s]+)',
+          caseSensitive: false,
+        ).firstMatch(clean);
+        if (boaUrlMatch != null) {
+          receiptUrl = boaUrlMatch.group(1);
+          final trm = RegExp(r'[?&]trx=([A-Za-z0-9]+)').firstMatch(receiptUrl!);
+          txId = trm?.group(1) ?? receiptUrl;
+        }
+      }
+
+      // Layer E: Any standalone URL in the text containing cbe, reciept/receipt, or dashen
       if (receiptUrl == null) {
         final genericCbeUrl = RegExp(
-          r'(https?:\/\/[^\s]+(?:cbe|mreciept|mreceipt)[^\s]*)',
+          r'(https?:\/\/[^\s]+(?:cbe|mreciept|mreceipt|dashen)[^\s]*)',
           caseSensitive: false,
         );
         final m = genericCbeUrl.firstMatch(clean);
@@ -541,11 +561,11 @@ class ReceiptTextParser {
         }
       }
 
-      // Ensure txId is always the clean reference number, never a URL
-      if (txId != null && txId.contains('http')) {
+      // Ensure txId has a clean reference number if it is a Telebirr URL
+      if (txId != null && (txId.startsWith('http://') || txId.startsWith('https://'))) {
+        receiptUrl ??= txId;
         final cleanTok = VerifyEtService.sanitizeTelebirrReference(txId);
         if (cleanTok.isNotEmpty && !cleanTok.startsWith('http')) {
-          receiptUrl ??= txId;
           txId = cleanTok;
         }
       }

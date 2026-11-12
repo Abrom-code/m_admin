@@ -10,6 +10,7 @@ import 'package:m_admin/features/payments/models/payment_review.dart';
 import 'package:m_admin/features/payments/models/verify_et_model.dart';
 import 'package:m_admin/features/payments/controllers/verify_et_controller.dart';
 import 'package:m_admin/features/payments/screens/widgets/payment_verify_checker.dart';
+import 'package:m_admin/features/payments/screens/widgets/verify_et_view.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -724,6 +725,149 @@ void main() {
       final res = LinksEtResult.fromJson(telebirrWithUrlJson);
       expect(res.referenceNumber, equals(cleanToken));
       expect(res.resolvedUrl, equals(fullUrl));
+    });
+
+    test('VerifyEtService resolves default settlement accounts and account suffixes for bank verification', () {
+      // Settlement accounts
+      expect(VerifyEtService.resolveDefaultSettlementAccount('telebirr'), equals('0960586811'));
+      expect(VerifyEtService.resolveDefaultSettlementAccount('cbe'), equals('1000435011237'));
+      expect(VerifyEtService.resolveDefaultSettlementAccount('boa'), equals('165093089'));
+      expect(VerifyEtService.resolveDefaultSettlementAccount('abyssinia'), equals('165093089'));
+
+      // Account suffixes
+      expect(VerifyEtService.resolveDefaultAccountSuffix('boa'), equals('93089'));
+      expect(VerifyEtService.resolveDefaultAccountSuffix('abyssinia'), equals('93089'));
+      expect(VerifyEtService.resolveDefaultAccountSuffix('cbe'), equals('435011237'));
+    });
+
+    test('LinksEtService.resolveReceiptInput resolves Awash and Dashen bank references', () {
+      // Awash labeled reference
+      final awash = LinksEtService.resolveReceiptInput(
+        input: 'Txn ID: AW987654321',
+        bank: 'awash',
+      );
+      expect(awash.reference, equals('AW987654321'));
+      expect(awash.resolvedBank, equals('awash'));
+
+      // Dashen labeled reference
+      final dashen = LinksEtService.resolveReceiptInput(
+        input: 'Ref: DA11223344',
+        bank: 'dashen',
+      );
+      expect(dashen.reference, equals('DA11223344'));
+      expect(dashen.resolvedBank, equals('dashen'));
+
+      // CBE Birr labeled reference
+      final cbebirr = LinksEtService.resolveReceiptInput(
+        input: 'Receipt No: CB88776655',
+        bank: 'cbebirr',
+      );
+      expect(cbebirr.reference, equals('CB88776655'));
+      expect(cbebirr.resolvedBank, equals('cbebirr'));
+    });
+
+    test('VerifyEtResult parses official Bank of Abyssinia (boa) verification response', () {
+      final boaJson = {
+        'success': true,
+        'message': 'Verification completed.',
+        'data': [
+          {
+            'bank': 'boa',
+            'amount': 500,
+            'status': 'success',
+            'currency': 'ETB',
+            'verified': true,
+            'timestamp': '2026-11-02T19:00:00.000Z',
+            'senderName': 'Yared Hagos',
+            'receiverName': 'MatricMate Platform',
+            'receiverAccount': '165093089',
+            'referenceNumber': 'FT24250000000000A',
+            'bankSpecific': {
+              'accountSuffix': '93089',
+              'amountValue': 500,
+            },
+          }
+        ],
+        'requestId': 'req-boa-12345',
+        'verification': {
+          'processingStatus': 'completed',
+          'status': 'success',
+          'verified': true,
+        },
+      };
+
+      final result = LinksEtResult.fromJson(boaJson);
+      expect(result.ok, isTrue);
+      expect(result.verified, isTrue);
+      expect(result.bank, equals('boa'));
+      expect(result.amount, equals(500.0));
+      expect(result.senderName, equals('Yared Hagos'));
+      expect(result.receiverName, equals('MatricMate Platform'));
+      expect(result.receiverAccount, equals('165093089'));
+      expect(result.referenceNumber, equals('FT24250000000000A'));
+      expect(result.upstreamInspectionUrl, contains('https://cs.bankofabyssinia.com/slip/?trx=FT24250000000000A'));
+    });
+
+    testWidgets('PaymentVerifyChecker displays Account Suffix field for Bank of Abyssinia without overflow on 320px screen', (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      const review = PaymentReview(
+        id: 'rev-boa-narrow',
+        userId: 'user-boa',
+        userName: 'Dawit Bekele',
+        userEmail: 'dawit@test.com',
+        userStream: 'natural',
+        subscriptionStatus: 'inactive',
+        receiptPath: 'receipts/boa.jpg',
+        receiptUrl: 'https://example.com/boa.jpg',
+        verificationUrl: 'FT24250000000000A',
+        paymentMethod: 'abyssinia',
+        status: 'pending',
+        amount: 300,
+        currency: 'ETB',
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: PaymentVerifyChecker(review: review),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('🦁 Verify with Abyssinia'), findsOneWidget);
+      expect(find.text('Account Suffix (5 digits for BOA) *'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate((w) => w is TextField && w.controller?.text == '93089'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('VerifyEtView renders on 320px narrow mobile without overflow', (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      Get.put(VerifyEtController());
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: VerifyEtView(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Instant Bank Verification'), findsOneWidget);
+      expect(find.textContaining('verify.et'), findsWidgets);
+      expect(tester.takeException(), isNull);
     });
   });
 }

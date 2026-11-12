@@ -22,6 +22,8 @@ class VerifyEtController extends GetxController {
   // ── Form State ────────────────────────────────────────────────────────────
   final selectedBank = 'universal'.obs;
   final referenceCtrl = TextEditingController();
+  final accountSuffixCtrl = TextEditingController();
+  final phoneCtrl = TextEditingController();
 
   // ── Settings State ────────────────────────────────────────────────────────
   final apiKeyCtrl = TextEditingController();
@@ -55,6 +57,8 @@ class VerifyEtController extends GetxController {
   void onClose() {
     referenceCtrl.removeListener(_onInputChanged);
     referenceCtrl.dispose();
+    accountSuffixCtrl.dispose();
+    phoneCtrl.dispose();
     apiKeyCtrl.dispose();
     super.onClose();
   }
@@ -103,11 +107,24 @@ class VerifyEtController extends GetxController {
 
   void resetForm() {
     referenceCtrl.clear();
+    accountSuffixCtrl.clear();
+    phoneCtrl.clear();
     clearImage();
     activeResult.value = null;
     errorMessage.value = null;
     pollingStatusMessage.value = '';
     previousScannedRecord.value = null;
+  }
+
+  void selectBank(String bankId) {
+    selectedBank.value = bankId;
+    if (accountSuffixCtrl.text.isEmpty) {
+      if (bankId == 'boa') {
+        accountSuffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix('boa');
+      } else if (bankId == 'cbe') {
+        accountSuffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix('cbe');
+      }
+    }
   }
 
   /// Pre-fills the verification form from a pending PaymentReview item.
@@ -136,6 +153,13 @@ class VerifyEtController extends GetxController {
       selectedBank.value = 'oromia';
     } else {
       selectedBank.value = 'universal';
+    }
+
+    // Auto-prefill account suffix if BOA or CBE
+    if (selectedBank.value == 'boa') {
+      accountSuffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix('boa');
+    } else if (selectedBank.value == 'cbe') {
+      accountSuffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix('cbe');
     }
 
     if (review.verificationUrl.isNotEmpty) {
@@ -238,13 +262,30 @@ class VerifyEtController extends GetxController {
           imageBytes: selectedImageBytes.value!,
           fileName: selectedImageName.value,
           bankHint: bank,
+          accountSuffix: accountSuffixCtrl.text.trim().isNotEmpty
+              ? accountSuffixCtrl.text.trim()
+              : null,
+          phone: phoneCtrl.text.trim().isNotEmpty
+              ? phoneCtrl.text.trim()
+              : null,
           onPollTick: onTick,
         );
       } else {
+        final r = resolved!;
+        final effSuffix = accountSuffixCtrl.text.trim().isNotEmpty
+            ? accountSuffixCtrl.text.trim()
+            : r.accountSuffix;
+        final effPhone = phoneCtrl.text.trim().isNotEmpty
+            ? phoneCtrl.text.trim()
+            : r.phone;
+
         res = await _service.verifyReceipt(
-          url: resolved!.url,
-          reference: resolved.reference,
-          bankHint: resolved.resolvedBank,
+          url: r.url,
+          reference: r.reference,
+          bankHint: r.resolvedBank,
+          accountSuffix: effSuffix,
+          phone: effPhone,
+          settlementAccount: VerifyEtService.resolveDefaultSettlementAccount(r.resolvedBank),
           onPollTick: onTick,
         );
       }

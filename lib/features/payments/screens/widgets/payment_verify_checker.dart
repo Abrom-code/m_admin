@@ -56,6 +56,8 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
   final _scannedStorage = ScannedReceiptStorage.instance;
 
   late final TextEditingController _refCtrl;
+  late final TextEditingController _suffixCtrl;
+  late final TextEditingController _phoneCtrl;
 
   bool _isLoading = false;
   bool _isExtracting = false;
@@ -79,6 +81,10 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
     }
     _refCtrl = TextEditingController(text: cleanInitial);
     _refCtrl.addListener(_onRefChanged);
+
+    final initialSuffix = VerifyEtService.resolveDefaultAccountSuffix(bank ?? '');
+    _suffixCtrl = TextEditingController(text: initialSuffix);
+    _phoneCtrl = TextEditingController();
 
     _checkPreviousRecord();
 
@@ -136,6 +142,8 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
         }
       }
       _refCtrl.text = cleanText;
+      _suffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix(bank ?? '');
+      _phoneCtrl.clear();
       _result = null;
       _errorMessage = null;
       _pollStatus = null;
@@ -204,6 +212,20 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
             }
 
             _refCtrl.text = targetRef;
+            if (bank == 'boa' && _suffixCtrl.text.isEmpty) {
+              if (res.receiverAccount != null && res.receiverAccount!.length >= 5) {
+                _suffixCtrl.text = res.receiverAccount!.substring(res.receiverAccount!.length - 5);
+              } else {
+                _suffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix('boa');
+              }
+            } else if (bank == 'cbe' && _suffixCtrl.text.isEmpty) {
+              if (targetRef.contains('-')) {
+                _suffixCtrl.text = targetRef.split('-').last;
+              } else {
+                _suffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix('cbe');
+              }
+            }
+
             _checkPreviousRecord();
             ReceiptExtractorService.instance.setCache(widget.review.id, res);
             widget.onTransactionExtracted?.call(targetRef);
@@ -244,6 +266,8 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
   void dispose() {
     _refCtrl.removeListener(_onRefChanged);
     _refCtrl.dispose();
+    _suffixCtrl.dispose();
+    _phoneCtrl.dispose();
     super.dispose();
   }
 
@@ -315,11 +339,21 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
           : null;
     });
 
+    final effSuffix = _suffixCtrl.text.trim().isNotEmpty
+        ? _suffixCtrl.text.trim()
+        : resolved.accountSuffix;
+    final effPhone = _phoneCtrl.text.trim().isNotEmpty
+        ? _phoneCtrl.text.trim()
+        : resolved.phone;
+
     try {
       final res = await _service.verifyReceipt(
         url: resolved.url,
         reference: resolved.reference,
         bankHint: resolved.resolvedBank,
+        accountSuffix: effSuffix,
+        phone: effPhone,
+        settlementAccount: VerifyEtService.resolveDefaultSettlementAccount(resolved.resolvedBank),
         onPollTick: (attempt, max) {
           if (mounted) {
             setState(() {
@@ -734,6 +768,49 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
               ),
             ],
           ),
+
+          // Contextual account suffix / phone inputs for bank verification
+          if (bank == 'boa' || bank == 'cbe' || bank == 'cbebirr') ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (bank == 'boa' || bank == 'cbe')
+                  Expanded(
+                    child: TextField(
+                      controller: _suffixCtrl,
+                      style: const TextStyle(fontSize: 12),
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: bank == 'boa'
+                            ? 'Account Suffix (5 digits for BOA) *'
+                            : 'Account Suffix (8 digits for CBE FT)',
+                        hintText: bank == 'boa' ? '93089' : '435011237',
+                        prefixIcon: const Icon(Iconsax.card_copy, size: 14),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ),
+                if (bank == 'cbebirr')
+                  Expanded(
+                    child: TextField(
+                      controller: _phoneCtrl,
+                      style: const TextStyle(fontSize: 12),
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: 'Payer Phone *',
+                        hintText: '0911223344',
+                        prefixIcon: const Icon(Iconsax.call_copy, size: 14),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
 
           // Quick Option Switcher if receipt link was extracted
           if (_extractedInfo != null && _extractedInfo!.receiptUrl != null) ...[

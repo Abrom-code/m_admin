@@ -88,7 +88,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
 
   Widget _buildHeaderBar(BuildContext context, bool dark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: dark ? AppColors.darkCard : AppColors.white,
         borderRadius: BorderRadius.circular(AppSizes.borderRadiusMd),
@@ -106,25 +106,20 @@ class _VerifyEtViewState extends State<VerifyEtView> {
           ),
           const SizedBox(width: 10),
           const Expanded(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'verify.et',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                SizedBox(width: 8),
-                _StatusTag(label: 'GATEWAY', color: AppColors.success),
-              ],
+            child: Text(
+              'verify.et Gateway',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
           ),
+          const SizedBox(width: 6),
           Obx(() {
             final hasKey = _ctrl.hasApiKey;
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     color: (hasKey ? AppColors.success : AppColors.warning).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
@@ -144,7 +139,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                       Text(
                         hasKey ? 'Ready' : 'Key Needed',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.bold,
                           color: hasKey ? AppColors.success : AppColors.warning,
                         ),
@@ -152,11 +147,11 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 IconButton(
                   tooltip: 'Verify.ET Configuration',
                   visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.all(6),
+                  padding: const EdgeInsets.all(4),
                   constraints: const BoxConstraints(),
                   icon: const Icon(Iconsax.setting_2_copy, size: 18),
                   onPressed: () => VerifyEtSettingsDialog.show(context),
@@ -183,15 +178,20 @@ class _VerifyEtViewState extends State<VerifyEtView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Iconsax.search_status_copy, size: 17, color: AppColors.primary),
-                  SizedBox(width: 8),
-                  Text(
-                    'Instant Bank Verification',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
-                  ),
-                ],
+              const Expanded(
+                child: Row(
+                  children: [
+                    Icon(Iconsax.search_status_copy, size: 17, color: AppColors.primary),
+                    SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Instant Bank Verification',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               TextButton.icon(
                 onPressed: _ctrl.resetForm,
@@ -233,7 +233,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                   ),
                   visualDensity: VisualDensity.compact,
                   onSelected: (val) {
-                    if (val) _ctrl.selectedBank.value = b['id']!;
+                    if (val) _ctrl.selectBank(b['id']!);
                   },
                 );
               }).toList(),
@@ -442,6 +442,59 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            );
+          }),
+          // ── Contextual Bank Account Suffix & Phone Inputs ─────────────────
+          Obx(() {
+            final bank = _ctrl.selectedBank.value;
+            final isBoa = bank == 'boa';
+            final isCbe = bank == 'cbe';
+            final isCbeBirr = bank == 'cbebirr';
+
+            if (!isBoa && !isCbe && !isCbeBirr) return const SizedBox.shrink();
+
+            return Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Row(
+                children: [
+                  if (isBoa || isCbe) ...[
+                    Expanded(
+                      child: TextField(
+                        controller: _ctrl.accountSuffixCtrl,
+                        style: const TextStyle(fontSize: 12.5),
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: isBoa
+                              ? 'Account Suffix (5 digits for BOA) *'
+                              : 'Account Suffix (8 digits for CBE FT)',
+                          hintText: isBoa ? 'e.g. 93089' : 'e.g. 435011237',
+                          prefixIcon: const Icon(Iconsax.card_copy, size: 16),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (isCbeBirr) ...[
+                    Expanded(
+                      child: TextField(
+                        controller: _ctrl.phoneCtrl,
+                        style: const TextStyle(fontSize: 12.5),
+                        keyboardType: TextInputType.phone,
+                        decoration: InputDecoration(
+                          labelText: 'Payer Phone Number *',
+                          hintText: 'e.g. 0911223344',
+                          prefixIcon: const Icon(Iconsax.call_copy, size: 16),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             );
           }),
@@ -935,15 +988,20 @@ class _VerifyEtViewState extends State<VerifyEtView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Iconsax.clock_copy, size: 17, color: AppColors.primary),
-                  SizedBox(width: 8),
-                  Text(
-                    'Scanned Receipts (Database)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
-                  ),
-                ],
+              const Expanded(
+                child: Row(
+                  children: [
+                    Icon(Iconsax.clock_copy, size: 17, color: AppColors.primary),
+                    SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Scanned Receipts (Database)',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               Row(
                 mainAxisSize: MainAxisSize.min,

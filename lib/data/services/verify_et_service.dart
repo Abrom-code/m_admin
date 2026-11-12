@@ -87,6 +87,26 @@ class VerifyEtService extends GetxService {
     };
   }
 
+  /// Resolves the default MatricMate settlement account for a given bank.
+  /// Telebirr: 0960586811, CBE: 1000435011237, Abyssinia: 165093089.
+  static String resolveDefaultSettlementAccount(String bank) {
+    final b = bank.toLowerCase().trim();
+    if (b.contains('telebirr')) return '0960586811';
+    if (b.contains('cbe') && !b.contains('cbebirr')) return '1000435011237';
+    if (b.contains('boa') || b.contains('abyssinia')) return '165093089';
+    return '';
+  }
+
+  /// Resolves the default account suffix for bank verification.
+  /// Bank of Abyssinia strictly requires 5 digits (93089).
+  /// CBE legacy FT references accept an 8-9 digit suffix (435011237).
+  static String resolveDefaultAccountSuffix(String bank) {
+    final b = bank.toLowerCase().trim();
+    if (b.contains('boa') || b.contains('abyssinia')) return '93089';
+    if (b.contains('cbe') && !b.contains('cbebirr')) return '435011237';
+    return '';
+  }
+
   /// Sanitizes Telebirr input by extracting a clean 10-char reference code or standard URL.
   static String sanitizeTelebirrReference(String input) {
     final clean = input.trim();
@@ -242,10 +262,14 @@ class VerifyEtService extends GetxService {
       if (raw.toLowerCase().contains('cs.bankofabyssinia.com')) {
         var cleanUrl = raw.startsWith('http') ? raw : 'https://$raw';
         cleanUrl = cleanUrl.replaceAll('/slip/?id=', '/slip/?trx=');
+        final m = RegExp(r'[?&]trx=([A-Za-z0-9]+)').firstMatch(cleanUrl);
+        final token = m?.group(1);
         return ResolvedReceiptInput(
           url: cleanUrl,
+          reference: token,
           resolvedBank: 'boa',
           displayUrl: cleanUrl,
+          accountSuffix: resolveDefaultAccountSuffix('boa'),
         );
       }
 
@@ -256,10 +280,12 @@ class VerifyEtService extends GetxService {
         final boaUrl = 'https://cs.bankofabyssinia.com/slip/?trx=$token';
         return ResolvedReceiptInput(
           url: boaUrl,
+          reference: token,
           resolvedBank: 'boa',
           displayUrl: boaUrl,
           isAutoConstructed: true,
           note: 'Auto-formatted to Bank of Abyssinia slip URL',
+          accountSuffix: resolveDefaultAccountSuffix('boa'),
         );
       }
 
@@ -273,10 +299,12 @@ class VerifyEtService extends GetxService {
         final boaUrl = 'https://cs.bankofabyssinia.com/slip/?trx=$cleanedToken';
         return ResolvedReceiptInput(
           url: boaUrl,
+          reference: cleanedToken,
           resolvedBank: 'boa',
           displayUrl: boaUrl,
           isAutoConstructed: true,
           note: 'Auto-formatted reference to Bank of Abyssinia slip URL ($cleanedToken)',
+          accountSuffix: resolveDefaultAccountSuffix('boa'),
         );
       }
     }
@@ -289,24 +317,31 @@ class VerifyEtService extends GetxService {
           raw.toLowerCase().startsWith('apps.cbe.com.et') ||
           raw.toLowerCase().startsWith('mb.cbe.com.et')) {
         final cleanUrl = 'https://$raw';
+        final token = cleanUrl.split('/').last;
         return ResolvedReceiptInput(
           url: cleanUrl,
+          reference: token,
           resolvedBank: 'cbe',
           displayUrl: cleanUrl,
+          accountSuffix: token.contains('-') ? token.split('-').last : null,
         );
       }
 
       // If dashed SMS token: e.g. FT26291KVDWY-10004350 or FT...-...
-      final dashedMatch = RegExp(r'\b(FT[0-9A-Za-z]+-\d+)\b', caseSensitive: false).firstMatch(raw);
+      final dashedMatch = RegExp(r'\b(FT[0-9A-Za-z]+)-(\d+)\b', caseSensitive: false).firstMatch(raw);
       if (dashedMatch != null) {
-        final dashedId = dashedMatch.group(1)!;
+        final dashedId = dashedMatch.group(0)!;
+        final ftRef = dashedMatch.group(1)!.toUpperCase();
+        final suffix = dashedMatch.group(2)!;
         final cbeUrl = 'https://mbreciept.cbe.com.et/$dashedId';
         return ResolvedReceiptInput(
           url: cbeUrl,
+          reference: ftRef,
           resolvedBank: 'cbe',
           displayUrl: cbeUrl,
           isAutoConstructed: true,
           note: 'Auto-formatted dashed SMS reference to CBE receipt URL',
+          accountSuffix: suffix,
         );
       }
 
@@ -319,6 +354,7 @@ class VerifyEtService extends GetxService {
         final cbeUrl = 'https://mbreciept.cbe.com.et/$token';
         return ResolvedReceiptInput(
           url: cbeUrl,
+          reference: token,
           resolvedBank: 'cbe',
           displayUrl: cbeUrl,
           isAutoConstructed: true,
@@ -333,10 +369,12 @@ class VerifyEtService extends GetxService {
         final cbeCandidateUrl = 'https://apps.cbe.com.et:100/?id=$cleanRef';
         return ResolvedReceiptInput(
           url: cbeCandidateUrl,
+          reference: cleanRef,
           resolvedBank: 'cbe',
           displayUrl: cbeCandidateUrl,
           isAutoConstructed: true,
           note: 'Attempting CBE branch receipt endpoint ($cleanRef). For mobile banking receipts, paste the confirmation SMS link.',
+          accountSuffix: resolveDefaultAccountSuffix('cbe'),
         );
       }
     }
@@ -364,14 +402,53 @@ class VerifyEtService extends GetxService {
         final cleanUrl = raw.startsWith('http') ? raw : 'https://$raw';
         return ResolvedReceiptInput(
           url: cleanUrl,
+          reference: cleanUrl.split('/').last,
           resolvedBank: 'awash',
           displayUrl: cleanUrl,
         );
       }
+      final cleanRef = raw
+          .replaceAll(RegExp(r'^(?:Ref(?:erence)?|Txn\s*(?:ID|No)|Transaction\s*(?:No|ID|Code)|የግብይት\s*ቁጥር)[\s:]*', caseSensitive: false), '')
+          .replaceAll(RegExp(r'\s+'), '')
+          .trim();
       return ResolvedReceiptInput(
-        reference: raw,
+        reference: cleanRef,
         resolvedBank: 'awash',
-        displayUrl: raw,
+        displayUrl: cleanRef,
+      );
+    }
+
+    // ── 6. Dashen Bank ───────────────────────────────────────────────────────
+    if (b == 'dashen') {
+      if (raw.startsWith('http://') || raw.startsWith('https://')) {
+        return ResolvedReceiptInput(
+          url: raw,
+          reference: raw.split('/').last,
+          resolvedBank: 'dashen',
+          displayUrl: raw,
+        );
+      }
+      final cleanRef = raw
+          .replaceAll(RegExp(r'^(?:Ref(?:erence)?|Txn\s*(?:ID|No)|Transaction\s*(?:No|ID|Code)|የግብይት\s*ቁጥር)[\s:]*', caseSensitive: false), '')
+          .replaceAll(RegExp(r'\s+'), '')
+          .trim();
+      return ResolvedReceiptInput(
+        reference: cleanRef,
+        resolvedBank: 'dashen',
+        displayUrl: cleanRef,
+      );
+    }
+
+    // ── 7. CBE Birr ──────────────────────────────────────────────────────────
+    if (b == 'cbebirr') {
+      final cleanRef = raw
+          .replaceAll(RegExp(r'^(?:Receipt\s*(?:No|Number)|Ref(?:erence)?|የደረሰኝ\s*ቁጥር)[\s:]*', caseSensitive: false), '')
+          .replaceAll(RegExp(r'\s+'), '')
+          .trim();
+      return ResolvedReceiptInput(
+        reference: cleanRef,
+        resolvedBank: 'cbebirr',
+        displayUrl: cleanRef,
       );
     }
 
@@ -450,34 +527,75 @@ class VerifyEtService extends GetxService {
         ? trimmedRef
         : (trimmedUrl ?? '');
 
+    // Set common reference keys for maximum API compatibility
+    payload['reference'] = targetRef;
+    payload['referenceNumber'] = targetRef;
+
+    // Filter out internal non-API URLs (like apps.cbe.com.et:100) from being sent as 'url'
+    final isOfficialWebReceiptUrl = trimmedUrl != null &&
+        trimmedUrl.isNotEmpty &&
+        !trimmedUrl.contains('apps.cbe.com.et:100');
+
+    if (isOfficialWebReceiptUrl) {
+      payload['url'] = trimmedUrl;
+    }
+
     if (cleanBank == 'telebirr' || cleanBank == 'mpesa') {
       final cleanTok = sanitizeTelebirrReference(targetRef);
-      payload['transactionNumber'] = cleanTok.isNotEmpty ? cleanTok : targetRef;
-      payload['reference'] = cleanTok.isNotEmpty ? cleanTok : targetRef;
+      final ref = cleanTok.isNotEmpty ? cleanTok : targetRef;
+      payload['transactionNumber'] = ref;
+      payload['reference'] = ref;
+      payload['referenceNumber'] = ref;
+      if (phone != null && phone.trim().isNotEmpty) {
+        payload['phone'] = phone.trim();
+        payload['phoneNumber'] = phone.trim();
+      }
     } else if (cleanBank == 'cbebirr') {
       payload['receiptNumber'] = targetRef;
       payload['reference'] = targetRef;
+      payload['referenceNumber'] = targetRef;
       if (phone != null && phone.trim().isNotEmpty) {
         payload['phone'] = phone.trim();
+        payload['phoneNumber'] = phone.trim();
       }
     } else if (cleanBank == 'boa') {
       payload['reference'] = targetRef;
       payload['referenceNumber'] = targetRef;
-      if (accountSuffix != null && accountSuffix.trim().isNotEmpty) {
-        payload['accountSuffix'] = accountSuffix.trim();
+      // BOA strictly requires 5-digit accountSuffix
+      final effSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
+          ? accountSuffix.trim()
+          : resolveDefaultAccountSuffix('boa');
+      if (effSuffix.isNotEmpty) {
+        payload['accountSuffix'] = effSuffix;
+        payload['suffix'] = effSuffix;
+      }
+    } else if (cleanBank == 'cbe') {
+      payload['reference'] = targetRef;
+      payload['referenceNumber'] = targetRef;
+      final effSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
+          ? accountSuffix.trim()
+          : (targetRef.toUpperCase().startsWith('FT') ? resolveDefaultAccountSuffix('cbe') : '');
+      if (effSuffix.isNotEmpty) {
+        payload['accountSuffix'] = effSuffix;
+        payload['suffix'] = effSuffix;
       }
     } else {
-      payload['reference'] = targetRef;
-      if (trimmedUrl != null && trimmedUrl.isNotEmpty) {
-        payload['url'] = trimmedUrl;
-      }
       if (accountSuffix != null && accountSuffix.trim().isNotEmpty) {
         payload['accountSuffix'] = accountSuffix.trim();
+        payload['suffix'] = accountSuffix.trim();
+      }
+      if (phone != null && phone.trim().isNotEmpty) {
+        payload['phone'] = phone.trim();
+        payload['phoneNumber'] = phone.trim();
       }
     }
 
-    if (settlementAccount != null && settlementAccount.trim().isNotEmpty) {
-      payload['settlementAccount'] = settlementAccount.trim();
+    // Default settlementAccount based on bank if not explicitly passed
+    final effSettlement = (settlementAccount != null && settlementAccount.trim().isNotEmpty)
+        ? settlementAccount.trim()
+        : resolveDefaultSettlementAccount(cleanBank);
+    if (effSettlement.isNotEmpty) {
+      payload['settlementAccount'] = effSettlement;
     }
 
     final idKey =
@@ -568,12 +686,22 @@ class VerifyEtService extends GetxService {
     }
     if (reference != null && reference.trim().isNotEmpty) {
       request.fields['reference'] = reference.trim();
+      request.fields['referenceNumber'] = reference.trim();
     }
-    if (accountSuffix != null && accountSuffix.trim().isNotEmpty) {
-      request.fields['accountSuffix'] = accountSuffix.trim();
+    final effSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
+        ? accountSuffix.trim()
+        : (cleanBank == 'boa' ? resolveDefaultAccountSuffix('boa') : '');
+    if (effSuffix.isNotEmpty) {
+      request.fields['accountSuffix'] = effSuffix;
+      request.fields['suffix'] = effSuffix;
     }
     if (phone != null && phone.trim().isNotEmpty) {
       request.fields['phone'] = phone.trim();
+      request.fields['phoneNumber'] = phone.trim();
+    }
+    final effSettlement = resolveDefaultSettlementAccount(cleanBank);
+    if (effSettlement.isNotEmpty) {
+      request.fields['settlementAccount'] = effSettlement;
     }
 
     final name = fileName ?? 'receipt.jpg';
@@ -920,10 +1048,10 @@ class ResolvedReceiptInput {
   /// The full receipt URL to submit to Verify.ET (if verifying by URL).
   final String? url;
 
-  /// The telebirr shorthand reference code (if verifying by Telebirr reference).
+  /// The reference code or token (if verifying by reference).
   final String? reference;
 
-  /// The resolved or normalized bank key ('telebirr', 'cbe', 'boa', 'awash', 'zemen', etc.).
+  /// The resolved or normalized bank key ('telebirr', 'cbe', 'boa', 'awash', 'dashen', 'zemen', etc.).
   final String resolvedBank;
 
   /// Whether the URL or reference was automatically constructed from a raw reference / token / SMS.
@@ -935,6 +1063,12 @@ class ResolvedReceiptInput {
   /// Helpful guidance or contextual note about the resolution.
   final String? note;
 
+  /// Optional account suffix required for certain banks (e.g. 5 digits for BOA, 8 for CBE).
+  final String? accountSuffix;
+
+  /// Optional phone number for wallet-based banks (e.g. CBE Birr, Telebirr).
+  final String? phone;
+
   const ResolvedReceiptInput({
     this.url,
     this.reference,
@@ -942,8 +1076,14 @@ class ResolvedReceiptInput {
     this.isAutoConstructed = false,
     this.displayUrl,
     this.note,
+    this.accountSuffix,
+    this.phone,
   });
 
-  bool get isTelebirrShorthand => reference != null && reference!.isNotEmpty;
-  String get primaryTarget => isTelebirrShorthand ? reference! : (url ?? '');
+  bool get isTelebirrShorthand =>
+      resolvedBank == 'telebirr' && reference != null && reference!.isNotEmpty;
+
+  String get primaryTarget => (reference != null && reference!.isNotEmpty)
+      ? reference!
+      : (url ?? '');
 }
