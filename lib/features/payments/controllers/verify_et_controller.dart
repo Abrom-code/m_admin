@@ -73,6 +73,20 @@ class VerifyEtController extends GetxController {
     }
     final existing = scannedStorage.findRecord(text);
     previousScannedRecord.value = existing;
+
+    if ((selectedBank.value == 'cbe' || selectedBank.value == 'boa' || text.toUpperCase().startsWith('FT')) &&
+        !text.startsWith('http') &&
+        text != text.toUpperCase()) {
+      final clean = text.toUpperCase();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (referenceCtrl.text != clean) {
+          referenceCtrl.value = TextEditingValue(
+            text: clean,
+            selection: TextSelection.collapsed(offset: clean.length),
+          );
+        }
+      });
+    }
   }
 
   bool get hasApiKey => _service.hasApiKey;
@@ -167,6 +181,9 @@ class VerifyEtController extends GetxController {
       if (selectedBank.value == 'telebirr') {
         final cleanTok = VerifyEtService.sanitizeTelebirrReference(raw);
         referenceCtrl.text = cleanTok.isNotEmpty && !cleanTok.startsWith('http') ? cleanTok : raw;
+      } else if (!raw.startsWith('http') &&
+          (selectedBank.value == 'cbe' || selectedBank.value == 'boa' || raw.toUpperCase().startsWith('FT'))) {
+        referenceCtrl.text = raw.toUpperCase();
       } else {
         referenceCtrl.text = raw;
       }
@@ -272,9 +289,12 @@ class VerifyEtController extends GetxController {
         );
       } else {
         final r = resolved!;
-        final effSuffix = accountSuffixCtrl.text.trim().isNotEmpty
+        final rawSuffix = accountSuffixCtrl.text.trim().isNotEmpty
             ? accountSuffixCtrl.text.trim()
             : r.accountSuffix;
+        final effSuffix = (rawSuffix != null && rawSuffix.isNotEmpty)
+            ? VerifyEtService.sanitizeAccountSuffix(rawSuffix, r.resolvedBank)
+            : null;
         final effPhone = phoneCtrl.text.trim().isNotEmpty
             ? phoneCtrl.text.trim()
             : r.phone;

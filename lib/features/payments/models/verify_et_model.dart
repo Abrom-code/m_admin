@@ -572,8 +572,11 @@ class LinksEtResult {
       if (lowerErr.contains('no receipt resolver registered')) {
         return 'This URL pattern is not registered for automatic verification. Please provide an official receipt link.';
       }
-      if (lowerErr.contains('busy') || lowerErr.contains('timeout')) {
-        return 'The bank server is temporarily busy. Please retry in a moment.';
+      if (lowerErr.contains('not responding') ||
+          lowerErr.contains('responding right now') ||
+          lowerErr.contains('busy') ||
+          lowerErr.contains('timeout')) {
+        return 'The bank (${providerKey.toUpperCase()}) is taking longer than expected to respond. This is a temporary delay on the bank network. Please try again shortly or check status using the Request ID.';
       }
       if (lowerErr.contains('quota_exceeded') || lowerErr.contains('insufficient_credits')) {
         return 'Verify.ET verification credit allowance has been reached.';

@@ -467,8 +467,8 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                         decoration: InputDecoration(
                           labelText: isBoa
                               ? 'Account Suffix (5 digits for BOA) *'
-                              : 'Account Suffix (8 digits for CBE FT)',
-                          hintText: isBoa ? 'e.g. 93089' : 'e.g. 435011237',
+                              : 'Account Suffix (8 digits for CBE FT) *',
+                          hintText: isBoa ? 'e.g. 93089' : 'e.g. 35011237',
                           prefixIcon: const Icon(Iconsax.card_copy, size: 16),
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

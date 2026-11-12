@@ -78,6 +78,9 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
       if (sanitized.isNotEmpty && !sanitized.startsWith('http')) {
         cleanInitial = sanitized;
       }
+    } else if ((bank == 'cbe' || bank == 'boa' || initialText.toUpperCase().startsWith('FT')) &&
+        !initialText.startsWith('http')) {
+      cleanInitial = initialText.toUpperCase();
     }
     _refCtrl = TextEditingController(text: cleanInitial);
     _refCtrl.addListener(_onRefChanged);
@@ -113,6 +116,18 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
             }
           });
         }
+      } else if ((bank == 'cbe' || bank == 'boa' || text.toUpperCase().startsWith('FT')) &&
+          !text.startsWith('http') &&
+          text != text.toUpperCase()) {
+        clean = text.toUpperCase();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_refCtrl.text != clean) {
+            _refCtrl.value = TextEditingValue(
+              text: clean,
+              selection: TextSelection.collapsed(offset: clean.length),
+            );
+          }
+        });
       }
       widget.onTransactionExtracted?.call(clean);
     }
@@ -140,6 +155,9 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
         if (sanitized.isNotEmpty && !sanitized.startsWith('http')) {
           cleanText = sanitized;
         }
+      } else if ((bank == 'cbe' || bank == 'boa' || raw.toUpperCase().startsWith('FT')) &&
+          !raw.startsWith('http')) {
+        cleanText = raw.toUpperCase();
       }
       _refCtrl.text = cleanText;
       _suffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix(bank ?? '');
@@ -220,7 +238,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
               }
             } else if (bank == 'cbe' && _suffixCtrl.text.isEmpty) {
               if (targetRef.contains('-')) {
-                _suffixCtrl.text = targetRef.split('-').last;
+                _suffixCtrl.text = VerifyEtService.sanitizeAccountSuffix(targetRef.split('-').last, 'cbe');
               } else {
                 _suffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix('cbe');
               }
@@ -339,9 +357,12 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
           : null;
     });
 
-    final effSuffix = _suffixCtrl.text.trim().isNotEmpty
+    final rawSuffix = _suffixCtrl.text.trim().isNotEmpty
         ? _suffixCtrl.text.trim()
         : resolved.accountSuffix;
+    final effSuffix = (rawSuffix != null && rawSuffix.isNotEmpty)
+        ? VerifyEtService.sanitizeAccountSuffix(rawSuffix, resolved.resolvedBank)
+        : null;
     final effPhone = _phoneCtrl.text.trim().isNotEmpty
         ? _phoneCtrl.text.trim()
         : resolved.phone;
@@ -783,8 +804,8 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
                       decoration: InputDecoration(
                         labelText: bank == 'boa'
                             ? 'Account Suffix (5 digits for BOA) *'
-                            : 'Account Suffix (8 digits for CBE FT)',
-                        hintText: bank == 'boa' ? '93089' : '435011237',
+                            : 'Account Suffix (8 digits for CBE FT) *',
+                        hintText: bank == 'boa' ? '93089' : '35011237',
                         prefixIcon: const Icon(Iconsax.card_copy, size: 14),
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

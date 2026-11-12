@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:m_admin/data/services/scanned_receipt_storage.dart';
 import 'package:m_admin/data/services/receipt_extractor_service.dart';
 import 'package:m_admin/data/services/verify_et_service.dart';
@@ -15,9 +16,12 @@ import 'package:m_admin/features/payments/screens/widgets/verify_et_view.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const channel = MethodChannel('plugins.flutter.io/path_provider');
-  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-      .setMockMethodCallHandler(channel, (methodCall) async => '.');
+  setUpAll(() async {
+    const channel = MethodChannel('plugins.flutter.io/path_provider');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (methodCall) async => '.');
+    await GetStorage.init();
+  });
 
   group('links.et Model, Scanned Database & Controller Tests', () {
     test('LinksEtResult parses telebirr-html receipt correctly', () {
@@ -734,10 +738,17 @@ void main() {
       expect(VerifyEtService.resolveDefaultSettlementAccount('boa'), equals('165093089'));
       expect(VerifyEtService.resolveDefaultSettlementAccount('abyssinia'), equals('165093089'));
 
-      // Account suffixes
+      // Account suffixes (BOA strictly 5 digits, CBE strictly 8 digits)
       expect(VerifyEtService.resolveDefaultAccountSuffix('boa'), equals('93089'));
       expect(VerifyEtService.resolveDefaultAccountSuffix('abyssinia'), equals('93089'));
-      expect(VerifyEtService.resolveDefaultAccountSuffix('cbe'), equals('435011237'));
+      expect(VerifyEtService.resolveDefaultAccountSuffix('cbe'), equals('35011237'));
+
+      // Suffix sanitization
+      expect(VerifyEtService.sanitizeAccountSuffix('1000435011237', 'cbe'), equals('35011237'));
+      expect(VerifyEtService.sanitizeAccountSuffix('435011237', 'cbe'), equals('35011237'));
+      expect(VerifyEtService.sanitizeAccountSuffix('35011237', 'cbe'), equals('35011237'));
+      expect(VerifyEtService.sanitizeAccountSuffix('165093089', 'boa'), equals('93089'));
+      expect(VerifyEtService.sanitizeAccountSuffix('93089', 'boa'), equals('93089'));
     });
 
     test('LinksEtService.resolveReceiptInput resolves Awash and Dashen bank references', () {
@@ -806,6 +817,64 @@ void main() {
       expect(result.receiverAccount, equals('165093089'));
       expect(result.referenceNumber, equals('FT24250000000000A'));
       expect(result.upstreamInspectionUrl, contains('https://cs.bankofabyssinia.com/slip/?trx=FT24250000000000A'));
+    });
+
+    test('VerifyEtResult parses official CBE verification response for FT26312J0K6V', () {
+      final cbeJson = {
+        'success': true,
+        'message': 'Transaction verified successfully.',
+        'data': [
+          {
+            'verified': true,
+            'status': 'success',
+            'bank': 'cbe',
+            'referenceNumber': 'FT26312J0K6V',
+            'amount': 200,
+            'currency': 'ETB',
+            'senderName': 'Mr Abdisa Jemal Bulbula',
+            'receiverName': 'Mr Abrham Teramed Nega',
+            'receiverAccount': '1****1237',
+            'timestamp': '2026-11-08T07:11:00.000Z',
+            'requestId': '007a0fd4-31b7-4f91-b0a6-c111034f7407',
+          }
+        ],
+        'requestId': '007a0fd4-31b7-4f91-b0a6-c111034f7407',
+      };
+
+      final result = LinksEtResult.fromJson(cbeJson);
+      expect(result.ok, isTrue);
+      expect(result.verified, isTrue);
+      expect(result.bank, equals('cbe'));
+      expect(result.amount, equals(200.0));
+      expect(result.currency, equals('ETB'));
+      expect(result.senderName, equals('Mr Abdisa Jemal Bulbula'));
+      expect(result.receiverName, equals('Mr Abrham Teramed Nega'));
+      expect(result.receiverAccount, equals('1****1237'));
+      expect(result.referenceNumber, equals('FT26312J0K6V'));
+      expect(result.requestId, equals('007a0fd4-31b7-4f91-b0a6-c111034f7407'));
+    });
+
+    test('LinksEtService.resolveReceiptInput normalizes lowercase ft26312j0k6v to uppercase FT26312J0K6V with 8-digit CBE suffix', () {
+      final resolved = LinksEtService.resolveReceiptInput(
+        input: 'ft26312j0k6v',
+        bank: 'cbe',
+      );
+      expect(resolved.reference, equals('FT26312J0K6V'));
+      expect(resolved.resolvedBank, equals('cbe'));
+      expect(resolved.accountSuffix, equals('35011237'));
+    });
+
+    test('LinksEtResult userFriendlyErrorMessage formats "bank is not responding" nicely', () {
+      final errJson = {
+        'success': false,
+        'message': 'The bank is not responding right now, please try again shortly.',
+        'data': [],
+        'providerKey': 'cbe',
+      };
+      final result = LinksEtResult.fromJson(errJson);
+      expect(result.verified, isFalse);
+      expect(result.userFriendlyErrorMessage, contains('taking longer than expected to respond'));
+      expect(result.userFriendlyErrorMessage, contains('CBE'));
     });
 
     testWidgets('PaymentVerifyChecker displays Account Suffix field for Bank of Abyssinia without overflow on 320px screen', (tester) async {

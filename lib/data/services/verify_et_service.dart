@@ -99,12 +99,37 @@ class VerifyEtService extends GetxService {
 
   /// Resolves the default account suffix for bank verification.
   /// Bank of Abyssinia strictly requires 5 digits (93089).
-  /// CBE legacy FT references accept an 8-9 digit suffix (435011237).
+  /// CBE strictly requires exactly 8 digits: for MatricMate's receiving account 1000435011237,
+  /// the 8-digit suffix is 35011237.
   static String resolveDefaultAccountSuffix(String bank) {
     final b = bank.toLowerCase().trim();
     if (b.contains('boa') || b.contains('abyssinia')) return '93089';
-    if (b.contains('cbe') && !b.contains('cbebirr')) return '435011237';
+    if (b.contains('cbe') && !b.contains('cbebirr')) return '35011237';
     return '';
+  }
+
+  /// Sanitizes an account suffix according to bank-specific requirements:
+  /// - CBE: Strictly 8 digits. If a user provides a full 13-digit account (e.g. 1000435011237)
+  ///   or 9 digits (435011237), this extracts the last 8 digits (35011237).
+  /// - BOA: Strictly 5 digits. If a user provides a full account (e.g. 165093089),
+  ///   this extracts the last 5 digits (93089).
+  static String sanitizeAccountSuffix(String input, String bank) {
+    final digits = input.replaceAll(RegExp(r'\D'), '').trim();
+    if (digits.isEmpty) return '';
+    final b = bank.toLowerCase().trim();
+    if (b.contains('cbe') && !b.contains('cbebirr')) {
+      if (digits.length >= 8) {
+        return digits.substring(digits.length - 8);
+      }
+      return digits;
+    }
+    if (b.contains('boa') || b.contains('abyssinia')) {
+      if (digits.length >= 5) {
+        return digits.substring(digits.length - 5);
+      }
+      return digits;
+    }
+    return digits;
   }
 
   /// Sanitizes Telebirr input by extracting a clean 10-char reference code or standard URL.
@@ -332,7 +357,8 @@ class VerifyEtService extends GetxService {
       if (dashedMatch != null) {
         final dashedId = dashedMatch.group(0)!;
         final ftRef = dashedMatch.group(1)!.toUpperCase();
-        final suffix = dashedMatch.group(2)!;
+        final rawSuffix = dashedMatch.group(2)!;
+        final suffix = sanitizeAccountSuffix(rawSuffix, 'cbe');
         final cbeUrl = 'https://mbreciept.cbe.com.et/$dashedId';
         return ResolvedReceiptInput(
           url: cbeUrl,
@@ -341,7 +367,7 @@ class VerifyEtService extends GetxService {
           displayUrl: cbeUrl,
           isAutoConstructed: true,
           note: 'Auto-formatted dashed SMS reference to CBE receipt URL',
-          accountSuffix: suffix,
+          accountSuffix: suffix.isNotEmpty ? suffix : resolveDefaultAccountSuffix('cbe'),
         );
       }
 
@@ -478,7 +504,7 @@ class VerifyEtService extends GetxService {
     String? accountSuffix,
     String? phone,
     String? settlementAccount,
-    int waitMs = 5000,
+    int waitMs = 8000,
     bool autoPoll = true,
     void Function(int attempt, int maxAttempts)? onPollTick,
   }) async {
@@ -490,15 +516,22 @@ class VerifyEtService extends GetxService {
 
     var trimmedUrl = url?.trim();
     var trimmedRef = reference?.trim();
+    final cleanBank = (bankHint ?? '').toLowerCase().trim();
 
     // Auto-resolve raw user input across banks (CBE, BOA, Telebirr, etc.)
     if (rawInput != null && rawInput.trim().isNotEmpty) {
       final resolved = resolveReceiptInput(
         input: rawInput,
-        bank: bankHint ?? '',
+        bank: cleanBank,
       );
       trimmedUrl = resolved.url;
       trimmedRef = resolved.reference;
+    }
+
+    // Auto-uppercase bank reference tokens (FT... for CBE/BOA)
+    if (trimmedRef != null &&
+        (trimmedRef.toUpperCase().startsWith('FT') || cleanBank == 'cbe' || cleanBank == 'boa')) {
+      trimmedRef = trimmedRef.toUpperCase();
     }
 
     if ((trimmedUrl == null || trimmedUrl.isEmpty) &&
@@ -518,7 +551,6 @@ class VerifyEtService extends GetxService {
     final clampedWait = waitMs.clamp(500, 30000);
     payload['waitMs'] = clampedWait;
 
-    final cleanBank = (bankHint ?? '').toLowerCase().trim();
     if (cleanBank.isNotEmpty && cleanBank != 'universal') {
       payload['bank'] = cleanBank;
     }
@@ -559,22 +591,27 @@ class VerifyEtService extends GetxService {
         payload['phoneNumber'] = phone.trim();
       }
     } else if (cleanBank == 'boa') {
-      payload['reference'] = targetRef;
-      payload['referenceNumber'] = targetRef;
+      final effRef = targetRef.toUpperCase().startsWith('FT') ? targetRef.toUpperCase() : targetRef;
+      payload['reference'] = effRef;
+      payload['referenceNumber'] = effRef;
       // BOA strictly requires 5-digit accountSuffix
-      final effSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
+      final rawSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
           ? accountSuffix.trim()
           : resolveDefaultAccountSuffix('boa');
+      final effSuffix = sanitizeAccountSuffix(rawSuffix, 'boa');
       if (effSuffix.isNotEmpty) {
         payload['accountSuffix'] = effSuffix;
         payload['suffix'] = effSuffix;
       }
     } else if (cleanBank == 'cbe') {
-      payload['reference'] = targetRef;
-      payload['referenceNumber'] = targetRef;
-      final effSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
+      final effRef = targetRef.toUpperCase().startsWith('FT') ? targetRef.toUpperCase() : targetRef;
+      payload['reference'] = effRef;
+      payload['referenceNumber'] = effRef;
+      // CBE strictly requires 8-digit accountSuffix
+      final rawSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
           ? accountSuffix.trim()
-          : (targetRef.toUpperCase().startsWith('FT') ? resolveDefaultAccountSuffix('cbe') : '');
+          : (effRef.toUpperCase().startsWith('FT') ? resolveDefaultAccountSuffix('cbe') : '');
+      final effSuffix = sanitizeAccountSuffix(rawSuffix, 'cbe');
       if (effSuffix.isNotEmpty) {
         payload['accountSuffix'] = effSuffix;
         payload['suffix'] = effSuffix;
@@ -661,7 +698,7 @@ class VerifyEtService extends GetxService {
     String? reference,
     String? accountSuffix,
     String? phone,
-    int waitMs = 5000,
+    int waitMs = 8000,
     bool autoPoll = true,
     void Function(int attempt, int maxAttempts)? onPollTick,
   }) async {
@@ -685,12 +722,19 @@ class VerifyEtService extends GetxService {
       request.fields['bank'] = cleanBank;
     }
     if (reference != null && reference.trim().isNotEmpty) {
-      request.fields['reference'] = reference.trim();
-      request.fields['referenceNumber'] = reference.trim();
+      final ref = reference.trim();
+      final effRef = (ref.toUpperCase().startsWith('FT') || cleanBank == 'cbe' || cleanBank == 'boa')
+          ? ref.toUpperCase()
+          : ref;
+      request.fields['reference'] = effRef;
+      request.fields['referenceNumber'] = effRef;
     }
-    final effSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
+    final rawSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
         ? accountSuffix.trim()
-        : (cleanBank == 'boa' ? resolveDefaultAccountSuffix('boa') : '');
+        : (cleanBank == 'boa'
+            ? resolveDefaultAccountSuffix('boa')
+            : (cleanBank == 'cbe' ? resolveDefaultAccountSuffix('cbe') : ''));
+    final effSuffix = sanitizeAccountSuffix(rawSuffix, cleanBank);
     if (effSuffix.isNotEmpty) {
       request.fields['accountSuffix'] = effSuffix;
       request.fields['suffix'] = effSuffix;
@@ -792,7 +836,7 @@ class VerifyEtService extends GetxService {
   Future<LinksEtResult> _pollUntilComplete(
     String requestId, {
     LinksEtResult? initialResult,
-    int maxAttempts = 8,
+    int maxAttempts = 12,
     void Function(int attempt, int maxAttempts)? onPollTick,
   }) async {
     var latest = initialResult ?? await getVerificationStatus(requestId);
@@ -800,7 +844,7 @@ class VerifyEtService extends GetxService {
 
     for (int i = 1; i <= maxAttempts; i++) {
       onPollTick?.call(i, maxAttempts);
-      await Future.delayed(const Duration(milliseconds: 1800));
+      await Future.delayed(const Duration(milliseconds: 2000));
 
       try {
         final current = await getVerificationStatus(requestId);
