@@ -244,7 +244,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
           // ── PREVIOUSLY SCANNED WARNING BANNER ─────────────────────────────
           Obx(() {
             final prev = _ctrl.previousScannedRecord.value;
-            if (prev == null) return const SizedBox.shrink();
+            if (prev == null || (!prev.wasScannedBefore && !prev.isApproved)) return const SizedBox.shrink();
 
             final isPrevApproved = prev.isApproved;
             final bannerColor = isPrevApproved ? AppColors.error : AppColors.warning;
@@ -281,7 +281,7 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          'Scanned ${prev.scanCount}x',
+                          prev.scanCount > 1 ? 'Scanned ${prev.scanCount}x' : 'Approved',
                           style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: bannerColor),
                         ),
                       ),
@@ -466,9 +466,12 @@ class _VerifyEtViewState extends State<VerifyEtView> {
                         keyboardType: TextInputType.number,
                         decoration: InputDecoration(
                           labelText: isBoa
-                              ? 'Account Suffix (5 digits for BOA) *'
+                              ? 'Sender Account Suffix (5 digits for BOA) *'
                               : 'Account Suffix (8 digits for CBE FT) *',
-                          hintText: isBoa ? 'e.g. 93089' : 'e.g. 35011237',
+                          hintText: isBoa ? 'e.g. 35107 (sender suffix)' : 'e.g. 35011237',
+                          helperText: isBoa
+                              ? 'BOA mobile transfers index by sender\'s account suffix'
+                              : null,
                           prefixIcon: const Icon(Iconsax.card_copy, size: 16),
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

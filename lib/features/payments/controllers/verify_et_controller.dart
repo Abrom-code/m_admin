@@ -125,7 +125,9 @@ class VerifyEtController extends GetxController {
             if (res.bank != null && res.bank!.isNotEmpty) {
               selectBank(res.bank!);
             }
-            if (res.receiverAccount != null && res.receiverAccount!.isNotEmpty) {
+            if (res.bank == 'boa' && res.senderAccount != null && res.senderAccount!.isNotEmpty) {
+              accountSuffixCtrl.text = VerifyEtService.sanitizeAccountSuffix(res.senderAccount!, 'boa');
+            } else if (res.receiverAccount != null && res.receiverAccount!.isNotEmpty) {
               final bank = selectedBank.value;
               accountSuffixCtrl.text = VerifyEtService.sanitizeAccountSuffix(res.receiverAccount!, bank);
             }
@@ -208,9 +210,15 @@ class VerifyEtController extends GetxController {
 
     if (review.verificationUrl.isNotEmpty) {
       final raw = review.verificationUrl.trim();
+      final r = LinksEtService.resolveReceiptInput(input: raw, bank: selectedBank.value);
+      if (r.accountSuffix != null && r.accountSuffix!.isNotEmpty) {
+        accountSuffixCtrl.text = r.accountSuffix!;
+      }
       if (selectedBank.value == 'telebirr') {
         final cleanTok = VerifyEtService.sanitizeTelebirrReference(raw);
         referenceCtrl.text = cleanTok.isNotEmpty && !cleanTok.startsWith('http') ? cleanTok : raw;
+      } else if (r.reference != null && r.reference!.isNotEmpty) {
+        referenceCtrl.text = r.reference!;
       } else if (!raw.startsWith('http') &&
           (selectedBank.value == 'cbe' || selectedBank.value == 'boa' || raw.toUpperCase().startsWith('FT'))) {
         referenceCtrl.text = raw.toUpperCase();
@@ -349,7 +357,7 @@ class VerifyEtController extends GetxController {
       if (res.verified) {
         final amountStr = '${res.amount} ${res.currency}';
         final bankLabel = res.bank.toUpperCase();
-        if (existing != null) {
+        if (existing != null && (existing.wasScannedBefore || existing.isApproved)) {
           SnackbarHelper.warning(
             'Already Scanned Before!',
             'Verified $bankLabel receipt ($amountStr). Note: This receipt was previously scanned on ${existing.formattedScannedDate} (Status: ${existing.status}).',

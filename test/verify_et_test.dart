@@ -995,7 +995,7 @@ Completed ETB200.61 transfer From Adisu Solomon to Abrham Teramed Nega-1237. To 
       await tester.pumpAndSettle();
 
       expect(find.text('🦁 Verify with Abyssinia'), findsOneWidget);
-      expect(find.text('Account Suffix (5 digits for BOA) *'), findsOneWidget);
+      expect(find.text('Sender Account Suffix (5 digits for BOA) *'), findsOneWidget);
       expect(
         find.byWidgetPredicate((w) => w is TextField && w.controller?.text == '93089'),
         findsOneWidget,
@@ -1052,6 +1052,86 @@ Completed ETB200.61 transfer From Adisu Solomon to Abrham Teramed Nega-1237. To 
       expect(find.text('Instant Bank Verification'), findsOneWidget);
       expect(find.textContaining('verify.et'), findsWidgets);
       expect(tester.takeException(), isNull);
+    });
+
+    test('LinksEtService.resolveReceiptInput extracts BOA sender account suffix and FT reference', () {
+      // User input with sender 178635107, receiver 165093089, transaction id FT263180M1GN
+      final resolved = LinksEtService.resolveReceiptInput(
+        input: 'sender 178635107 receiver(me)165093089 transaction id FT263180M1GN',
+        bank: 'boa',
+      );
+
+      expect(resolved.resolvedBank, equals('boa'));
+      expect(resolved.reference, equals('FT263180M1GN'));
+      expect(resolved.accountSuffix, equals('35107'));
+    });
+
+    test('ReceiptTextParser extracts BOA senderAccount (178635107) and receiverAccount (165093089) from USSD message', () {
+      const ussdText = 'Complete ETB 200.00 debited from 178635107 for 165093089 (self done via Mobile) on 13/11/2026 with transaction ID: FT263180M1GN.';
+      final res = ReceiptTextParser.parse(ussdText);
+
+      expect(res.transactionId, equals('FT263180M1GN'));
+      expect(res.senderAccount, equals('178635107'));
+      expect(res.receiverAccount, equals('165093089'));
+      expect(res.amount, equals(200.00));
+      expect(res.bank, equals('boa'));
+      expect(res.isUssdReceipt, isTrue);
+    });
+
+    test('LinksEtResult parses official Bank of Abyssinia completed response for FT263180M1GN', () {
+      final boaVerifiedJson = {
+        'success': true,
+        'message': 'Verification completed.',
+        'data': [
+          {
+            'bank': 'boa',
+            'amount': 200,
+            'status': 'success',
+            'currency': 'ETB',
+            'verified': true,
+            'timestamp': '2026-11-13T18:15:00.000Z',
+            'senderName': 'EYERUS ASMAMAW DAGNAW',
+            'receiverName': 'ABRHAM TERAMED NEGA',
+            'accountSuffix': '35107',
+            'receiverAccount': '1******89',
+            'referenceNumber': 'FT263180M1GN',
+            'settlementAccountMatch': {
+              'matched': true,
+              'matchedSettlementAccount': '165093089',
+            },
+          }
+        ],
+        'verification': {
+          'processingStatus': 'completed',
+          'status': 'success',
+          'verified': true,
+        },
+      };
+
+      final result = LinksEtResult.fromJson(boaVerifiedJson);
+      expect(result.verified, isTrue);
+      expect(result.isSuccess, isTrue);
+      expect(result.bank, equals('boa'));
+      expect(result.amount, equals(200.0));
+      expect(result.senderName, equals('EYERUS ASMAMAW DAGNAW'));
+      expect(result.receiverName, equals('ABRHAM TERAMED NEGA'));
+      expect(result.referenceNumber, equals('FT263180M1GN'));
+      expect(result.settlementAccountMatch?.matched, isTrue);
+    });
+
+    test('First time scan does not show ALREADY SCANNED BEFORE banner or scanned 1x', () {
+      final storage = ScannedReceiptStorage();
+      final record = storage.saveRecord(
+        id: 'FT_NEW_UNIQUE_TEST_001',
+        method: 'boa',
+        status: 'verified',
+        amount: 200,
+      );
+
+      // On first scan, wasScannedBefore is FALSE and scanCount is 1
+      expect(record.scanCount, equals(1));
+      expect(record.wasScannedBefore, isFalse);
+      expect(record.isApproved, isFalse);
     });
   });
 }

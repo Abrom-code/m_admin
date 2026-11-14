@@ -275,7 +275,9 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
             _refCtrl.text = targetRef;
 
             if (_currentBank == 'boa') {
-              if (res.receiverAccount != null && res.receiverAccount!.length >= 5) {
+              if (res.senderAccount != null && res.senderAccount!.length >= 5) {
+                _suffixCtrl.text = res.senderAccount!.substring(res.senderAccount!.length - 5);
+              } else if (res.receiverAccount != null && res.receiverAccount!.length >= 5) {
                 _suffixCtrl.text = res.receiverAccount!.substring(res.receiverAccount!.length - 5);
               } else {
                 _suffixCtrl.text = VerifyEtService.resolveDefaultAccountSuffix('boa');
@@ -417,6 +419,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
         reference: resolved.reference,
         bankHint: resolved.resolvedBank,
         accountSuffix: effSuffix,
+        senderAccount: _extractedInfo?.senderAccount,
         phone: effPhone,
         settlementAccount: VerifyEtService.resolveDefaultSettlementAccount(resolved.resolvedBank),
         onPollTick: (attempt, max) {
@@ -677,7 +680,7 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
           const SizedBox(height: 10),
 
           // ── DOUBLE-SCAN / PREVIOUS SCAN ALERT BANNER ───────────────────────
-          if (_previousRecord != null) () {
+          if (_previousRecord != null && (_previousRecord!.wasScannedBefore || _previousRecord!.isApproved)) () {
             final isPrevApproved = _previousRecord!.isApproved;
             final bannerColor = isPrevApproved ? AppColors.error : AppColors.warning;
 
@@ -713,7 +716,9 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          'Scanned ${_previousRecord!.scanCount}x',
+                          _previousRecord!.scanCount > 1
+                              ? 'Scanned ${_previousRecord!.scanCount}x'
+                              : 'Approved',
                           style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: bannerColor),
                         ),
                       ),
@@ -880,9 +885,12 @@ class _PaymentVerifyCheckerState extends State<PaymentVerifyChecker> {
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
                         labelText: bank == 'boa'
-                            ? 'Account Suffix (5 digits for BOA) *'
+                            ? 'Sender Account Suffix (5 digits for BOA) *'
                             : 'Account Suffix (8 digits for CBE FT) *',
-                        hintText: bank == 'boa' ? '93089' : '35011237',
+                        hintText: bank == 'boa' ? 'e.g. 35107 (sender suffix)' : '35011237',
+                        helperText: bank == 'boa'
+                            ? 'BOA mobile/USSD transfers require sender\'s 5-digit account suffix'
+                            : null,
                         prefixIcon: const Icon(Iconsax.card_copy, size: 14),
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

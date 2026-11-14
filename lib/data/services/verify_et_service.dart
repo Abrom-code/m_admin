@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:m_admin/data/services/receipt_extractor_service.dart';
 import 'package:m_admin/data/services/scanned_receipt_storage.dart';
 import 'package:m_admin/features/payments/models/verify_et_model.dart';
 
@@ -314,6 +315,51 @@ class VerifyEtService extends GetxService {
         );
       }
 
+      // Check for structured FT transaction ID and sender/receiver accounts
+      // e.g. "sender 178635107 receiver(me)165093089 transaction id FT263180M1GN"
+      // or "debited from 178635107 for 165093089 ... FT263180M1GN"
+      // or "FT263180M1GN 178635107" or "FT263180M1GN-35107"
+      final ftMatch = RegExp(
+        r'\b((?:FT|ET|TT|FI|FL|F1|F\|)[\s\-_.:/]*[0-9IILOQSBZ|!]{5}[\s\-_.:/]*[0-9A-Za-z|!]{4,8})\b',
+        caseSensitive: false,
+      ).firstMatch(raw);
+
+      final senderMatch = RegExp(
+        r'(?:sender\s*(?:account)?|from\s*account|source\s*account|debited\s*from)[\s:(me)]*([0-9]{5,16})',
+        caseSensitive: false,
+      ).firstMatch(raw);
+
+      if (ftMatch != null) {
+        final cleanFt = ReceiptTextParser.normalizeCbeFtReference(ftMatch.group(1)!);
+        String? suffix;
+        if (senderMatch != null) {
+          suffix = sanitizeAccountSuffix(senderMatch.group(1)!, 'boa');
+        } else {
+          // Look for an extra 5-16 digit account number in raw that is not the FT code digits
+          final digitMatches = RegExp(r'\b([0-9]{5,16})\b').allMatches(raw);
+          for (final dm in digitMatches) {
+            final val = dm.group(1)!;
+            if (!cleanFt.contains(val)) {
+              suffix = sanitizeAccountSuffix(val, 'boa');
+              break;
+            }
+          }
+        }
+
+        final boaUrl = 'https://cs.bankofabyssinia.com/slip/?trx=$cleanFt';
+        return ResolvedReceiptInput(
+          url: boaUrl,
+          reference: cleanFt,
+          resolvedBank: 'boa',
+          displayUrl: boaUrl,
+          isAutoConstructed: true,
+          note: suffix != null
+              ? 'Bank of Abyssinia FT ($cleanFt) with sender suffix $suffix'
+              : 'Bank of Abyssinia FT reference ($cleanFt)',
+          accountSuffix: suffix ?? resolveDefaultAccountSuffix('boa'),
+        );
+      }
+
       // Extract transaction token / reference (strip prefixes like "Ref:", "Tx:", "Slip:")
       final cleanedToken = raw
           .replaceAll(RegExp(r'^(?:Ref(?:erence)?|Transaction\s*(?:No|ID|Code)|Slip|የግብይት\s*ቁጥር)[\s:]*', caseSensitive: false), '')
@@ -502,6 +548,7 @@ class VerifyEtService extends GetxService {
     String? rawInput,
     String? bankHint,
     String? accountSuffix,
+    String? senderAccount,
     String? phone,
     String? settlementAccount,
     int waitMs = 8000,
@@ -594,10 +641,12 @@ class VerifyEtService extends GetxService {
       final effRef = targetRef.toUpperCase().startsWith('FT') ? targetRef.toUpperCase() : targetRef;
       payload['reference'] = effRef;
       payload['referenceNumber'] = effRef;
-      // BOA strictly requires 5-digit accountSuffix
+      // BOA strictly requires 5-digit accountSuffix (indexes by sender's debited account on transfers)
       final rawSuffix = (accountSuffix != null && accountSuffix.trim().isNotEmpty)
           ? accountSuffix.trim()
-          : resolveDefaultAccountSuffix('boa');
+          : (senderAccount != null && senderAccount.trim().isNotEmpty
+              ? senderAccount.trim()
+              : resolveDefaultAccountSuffix('boa'));
       final effSuffix = sanitizeAccountSuffix(rawSuffix, 'boa');
       if (effSuffix.isNotEmpty) {
         payload['accountSuffix'] = effSuffix;
@@ -649,6 +698,34 @@ class VerifyEtService extends GetxService {
       res,
       previousRecord: previousRecord,
     );
+
+    // If BOA verification failed with not_found, but a distinct sender account is available, retry with sender suffix
+    if (cleanBank == 'boa' &&
+        !result.verified &&
+        senderAccount != null &&
+        senderAccount.trim().isNotEmpty) {
+      final senderSuffix = sanitizeAccountSuffix(senderAccount, 'boa');
+      if (senderSuffix.isNotEmpty && senderSuffix != payload['accountSuffix']) {
+        final retryPayload = Map<String, dynamic>.from(payload);
+        retryPayload['accountSuffix'] = senderSuffix;
+        retryPayload['suffix'] = senderSuffix;
+
+        try {
+          final retryRes = await http.post(
+            uri,
+            headers: _buildHeaders(idempotencyKey: '${idKey}_snd'),
+            body: jsonEncode(retryPayload),
+          );
+          final retryResult = _handleVerificationResponse(
+            retryRes,
+            previousRecord: previousRecord,
+          );
+          if (retryResult.verified || retryResult.isSuccess) {
+            result = retryResult;
+          }
+        } catch (_) {}
+      }
+    }
 
     // If HTTP 202 queued and autoPoll is requested, poll until completion
     if (autoPoll &&

@@ -16,6 +16,7 @@ class ReceiptExtractionResult {
     this.amount,
     this.currency = 'ETB',
     this.senderName,
+    this.senderAccount,
     this.receiverAccount,
     this.receiverName,
     this.bank,
@@ -44,6 +45,9 @@ class ReceiptExtractionResult {
 
   /// Sender name if detected.
   final String? senderName;
+
+  /// Sender / debited account number if detected (e.g. from BOA USSD "debited from 178635107").
+  final String? senderAccount;
 
   /// Receiver account number or phone if detected.
   final String? receiverAccount;
@@ -85,6 +89,7 @@ class ReceiptExtractionResult {
     double? amount,
     String? currency,
     String? senderName,
+    String? senderAccount,
     String? receiverAccount,
     String? receiverName,
     String? bank,
@@ -100,6 +105,7 @@ class ReceiptExtractionResult {
       amount: amount ?? this.amount,
       currency: currency ?? this.currency,
       senderName: senderName ?? this.senderName,
+      senderAccount: senderAccount ?? this.senderAccount,
       receiverAccount: receiverAccount ?? this.receiverAccount,
       receiverName: receiverName ?? this.receiverName,
       bank: bank ?? this.bank,
@@ -280,6 +286,7 @@ class ReceiptTextParser {
     DateTime? parsedDate;
     double? amount;
     String? sender;
+    String? senderAccount;
     String? receiverAcc;
     String? receiverName;
 
@@ -745,7 +752,27 @@ class ReceiptTextParser {
         }
       }
 
-      // 4. Sender:
+      // 4. Sender & Sender Account:
+      // Sender Account Pattern A: BOA USSD "debited from 178635107 for 165093089"
+      final boaDebitedMatch = RegExp(
+        r'debited\s+from\s+([0-9]{7,16})',
+        caseSensitive: false,
+      ).firstMatch(clean);
+      if (boaDebitedMatch != null) {
+        senderAccount = boaDebitedMatch.group(1)?.trim();
+      }
+
+      // Sender Account Pattern B: "from account 178635107" or "sender account: 178635107"
+      if (senderAccount == null) {
+        final senderAccMatch = RegExp(
+          r'(?:sender\s*(?:account)?|from\s*account|source\s*account|payer\s*account)[\s:(me)]*([0-9]{7,16})',
+          caseSensitive: false,
+        ).firstMatch(clean);
+        if (senderAccMatch != null) {
+          senderAccount = senderAccMatch.group(1)?.trim();
+        }
+      }
+
       // Sender Pattern A: CBE SMS "Dear Tigist Getnet Sharew You have successfully transferred"
       final cbeSmsSenderMatch = RegExp(
         r'Dear\s+([A-Za-z\s]+?)\s+(?:You\s+have\s+successfully|has\s+transferred|transferred|\n)',
@@ -766,15 +793,9 @@ class ReceiptTextParser {
         }
       }
 
-      // Sender Pattern C: BOA USSD "debited from 268305246 for 165093089"
-      if (sender == null) {
-        final boaSenderMatch = RegExp(
-          r'debited\s+from\s+([0-9]+)',
-          caseSensitive: false,
-        ).firstMatch(clean);
-        if (boaSenderMatch != null) {
-          sender = boaSenderMatch.group(1)?.trim();
-        }
+      // Sender Pattern C: BOA USSD fallback if no sender name was parsed
+      if (sender == null && senderAccount != null) {
+        sender = senderAccount;
       }
 
       // 5. Receiver Account & Name:
@@ -828,6 +849,7 @@ class ReceiptTextParser {
       parsedDate: parsedDate,
       amount: amount,
       senderName: sender,
+      senderAccount: senderAccount,
       receiverAccount: receiverAcc,
       receiverName: receiverName,
       bank: detectedBank.isNotEmpty
@@ -1059,6 +1081,7 @@ class ReceiptExtractorService {
           amount: vRes.amount > 0 ? vRes.amount : null,
           currency: vRes.currency,
           senderName: vRes.senderName,
+          senderAccount: vRes.receipt?.payerAccount,
           receiverAccount: vRes.receiverAccount,
           receiverName: vRes.receiverName,
           bank: vRes.bank,

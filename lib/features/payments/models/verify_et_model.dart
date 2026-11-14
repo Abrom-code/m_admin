@@ -542,7 +542,7 @@ class LinksEtResult {
     }
     if (code == 'NOT_FOUND') {
       if (lowerProv.contains('boa') || lowerProv.contains('abyssinia')) {
-        return 'Bank of Abyssinia reported no transaction found with account suffix 93089. Please check if the receiver account suffix on the slip matches 93089, or if this payment was transferred from CBE (interbank).';
+        return 'Bank of Abyssinia reported no transaction found with account suffix 93089. For BOA mobile/USSD transfers, please verify using the SENDER\'s 5-digit account suffix (debited account, e.g. 35107 from 178635107), or check if transferred from CBE (interbank).';
       }
       return 'The bank reported that this transaction was not found on their records.';
     }
@@ -555,7 +555,7 @@ class LinksEtResult {
         return 'CBE upstream could not validate this receipt. Mobile Banking transfers require the receipt link from the confirmation SMS (e.g. mbreciept.cbe.com.et/...).';
       }
       if (lowerProv.contains('boa') || lowerProv.contains('abyssinia')) {
-        return 'Bank of Abyssinia reported no transaction found for this token with suffix 93089. Please check if the receiver account on the slip ends with 93089, or if this was an interbank transfer from CBE.';
+        return 'Bank of Abyssinia reported no transaction found for this token with suffix 93089. For BOA mobile/USSD transfers, ensure you enter the SENDER\'s 5-digit account suffix (debited account), or check if this was an interbank transfer from CBE.';
       }
       return 'Receipt document was fetched upstream but did not contain valid completed transaction details.';
     }
@@ -563,7 +563,7 @@ class LinksEtResult {
     if (error != null && error!.isNotEmpty) {
       if (lowerErr.contains('receipt not found upstream') || lowerErr.contains('not found')) {
         if (lowerProv.contains('boa') || lowerProv.contains('abyssinia')) {
-          return 'Bank of Abyssinia reported no transaction found for this reference under suffix 93089. Please verify the 5-digit account suffix or check if it originated from CBE.';
+          return 'Bank of Abyssinia reported no transaction found for this reference under suffix 93089. Please verify the sender\'s 5-digit account suffix or check if it originated from CBE.';
         }
         return 'The bank reported that this receipt was not found on their records.';
       }
